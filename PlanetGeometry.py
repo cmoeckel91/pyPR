@@ -1,26 +1,252 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Jupiter brightness  
+"""Initialize python repository for pyPR geometry.
 
-
-External : numpy, astropy, ephem, time, warnings
-
+Notes
+-----
+11/17/17,CM, Initial Commit
 """
 
+from urllib.request import urlopen
+from time import strftime, gmtime, time
+from datetime import datetime,timedelta
+import sys, os
 import numpy as np
 import scipy.ndimage 
 import math 
 from astropy import constants as cst
 import warnings
-import PlanetGeometry as pg 
 import IPython 
 from astropy.io import fits
 import matplotlib.pyplot as plt 
-import get_ephem
 import importlib 
-# %matplotlib
 
 pathdata = '/Users/chris/Documents/Research/VLA/VLA2017/'
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+def naif_lookup(target):
+    """Find the NAIF target number for the planet 
+
+    For a given planet, (enter planet as a string), it will determine 
+    the corresponding NAIF idenfier. Information found at 
+    naif_id_table.txt
+    
+    Parameters
+    -------
+    target : [-] str
+        [-] Name of target 
+
+    Returns
+    ----------
+    target : [-] int
+        [-] NAIF identifier for target
+
+
+
+    Example
+    -------
+    >>> get_ephem.naif_lookup('Jupiter')
+
+    References
+    ------------
+    https://ssd.jpl.nasa.gov/horizons.cgi
+
+    Notes
+    -------
+    10/25/2017, CM, Initial Commit
+    """    
+
+    target = target.upper().strip(', \n')
+    with open('naif_id_table.txt','r') as f:
+        for line in f:
+            l = line.split(',')
+            if is_number(target):
+                #print(l[0].strip(', \'\n') == target)
+                if l[0].strip(', \'\n') == target:
+                    code = target
+            else:
+                if l[1].strip(', \'\n') == target:
+                    code = l[0].strip(', \n')
+        try:
+            code
+        except:
+            print('WARN: NAIF code not in lookup table. If code fails, ensure target can be queried in Horizons.')
+            code = target
+                            
+    if len(code) == 7: #minor body
+        if code[0] == '2': #asteroid
+            return code[1:]+';'
+        elif code[0] =='1': #comet
+            sys.exit('ERROR: Comets cannot be looked up by NAIF ID; Horizons generates multiple codes for every comet. Try your search in the Horizons Web tool, select the target body you want, and then copy the exact string into this code and it *may* work.')
+        return code
+    return code
+
+def get_ephemerides(code, tstart, tend, nstep, obs_code = '500') :
+    """ Ephemeris for a celestial minor body for the given time interval
+
+    
+    Obtain ephemeris data from JPL Horizons webservers on the target 
+    body. 
+    
+    Parameters
+    -------
+    code : [-] str
+        [-] NAIF identifier for the planet 
+    tstart : [-] str
+        ['yyyy-mm-dd hh:mm'] Starting time of observations 
+    tend : [-] str
+        ['yyyy-mm-dd hh:mm'] Ending time of observations   
+    tstep : [-] str
+        [-] Number of ephermis
+
+    Returns
+    ----------
+    data : [-] str
+        [-] The following information
+    observatory_coords : [3x1] float
+        [latxlongxkm] NAIF observatory coordinates 
+    radii : [3x1] flaot
+        [km] Radius of target body 
+
+
+    0  UTdate UTtime
+    1  Empty 
+    2  Empty 
+    3  RA (J2000) (hh:mm:ss.ff)
+    4  DEC (J2000) (hh:mm:ss.ff)
+    5  d(RA)/dt*cosD (arcsec^2/h) (cosine of the declination)
+    6  d(DEC)/dt 
+    7  Azimuth (deg) , topocentric 
+    8  Elevation (deg)
+    9  Airmass (-)
+    10 Extinction 
+    11 APmag (magnitude)
+    12 Surface Brightness (magnitude per arcsec^2)
+    13 Satellite angular separ/vis. (arcsec) The angle between the
+        center of target object and the center of the primary body it 
+        revolves around,
+    14 Empty 
+    15 Target angular diameter (arcsec)
+    16 Observer sub-longitude, (deg) planetodetic
+    17 Observer sub-latitude, (deg)
+    18 Sun sub-longitude (deg), planetodetic
+    19 Sun sub-latitude (deg), planetodetic
+    20 Sub-Sun position angle (deg)
+    21 Sub-Sun distance (arcsec)
+    22 North Pole position angle  (deg)  
+    23 North pole distance(arcsec) Distance from the sub observer point 
+        to the north pole 
+    24 Heliocentric range (AU)
+    25 Heliocentric range-rate (km/s)
+    26 Observer range (AU)
+    27 Observer range-rate (km/s)
+    28 One-way (down-leg) light-time (minutes)
+    29 Sun-Target-Observer ~PHASE angle (deg)
+    30 North pole RA (deg)
+    31 North pole DEC (deg)
+
+
+    Keywords
+    ----------
+    obs_code : [-] str 
+        [-] NAIF observatory code obtained from 
+        http://www.minorplanetcenter.net/iau/lists/ObsCodesF.html
+        500 -> Geocentric observer
+        -5 : VLA
+
+    Example
+    -------
+    Ios ('501', information at 2017-02-17 08:24
+    >>> [data,R] = (get_ephem.get_ephemerides('599','2017-02-17 08:24',
+                '2017-02-17 08:25','1',-5))[0,2]
+    AD = data[0][14] # (") Ang-Diam
+
+    References
+    ------------
+    https://ssd.jpl.nasa.gov/horizons.cgi
+
+    Notes
+    -------
+    10/25/2017, CM, update Commit
+    """  
+
+    tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
+    tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M'")
+    tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M')
+    tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M'")
+
+
+    if nstep == '0': 
+        nstep = '1' 
+        print('nstep changed to 1')
+
+    http = "http://ssd.jpl.nasa.gov/horizons_batch.cgi?batch=1"
+    make_ephem = "&MAKE_EPHEM='YES'&TABLE_TYPE='OBSERVER'"
+    command    = "&COMMAND=" + (code)
+    center     = "&CENTER="+(obs_code)  #500 is geocentric
+    t_start    = "&START_TIME=" + tstart_UT
+    t_stop     = "&STOP_TIME=" + tend_UT
+    t_step     = "&STEP_SIZE='" + nstep + "'"
+    quantities = "&QUANTITIES='1,3,4,8,9,12,13,14,15,16,17,19,20,21,24,32'"
+    csv        = "&CSV_FORMAT='YES'"
+
+    # 1,2,4,9,10,13,14,19-21,24,29,32
+
+    url = http+make_ephem+command+center+t_start+t_stop+t_step+quantities+csv
+    ephem = urlopen( url ).readlines()
+
+    inephem = False
+    data = []
+    for i in range(len(ephem)) :
+        if type(ephem[i]) != str:
+            ephem[i] = ephem[i].decode('UTF-8')
+        if inephem == False:
+            if ephem[i].startswith('Target radii '):
+                radii = ephem[i].split(':')[1] 
+                radii = radii.split('km')[0]
+                R = np.zeros(3) # Radius (km)
+                for j in range(3):
+                    R[j] = np.float(radii.split('x')[j])
+                R = R[[0,2,1]]
+            # get observatory lat, lon, alt for later
+            if ephem[i].startswith('Center geodetic'):
+                l = ephem[i].split(':')[1]
+                latlonalt = l.split()[0]
+                [lon,lat,alt] = [float(s.strip(', \n')) for s in latlonalt.split(',')]
+                observatory_coords = [lat,lon,alt]
+            if ephem[i].startswith('$$SOE') :
+                inephem=True
+                #data = [ephem[i+1].decode('UTF-8').split(',')]
+        elif inephem == True:
+            if ephem[i].startswith("$$EOE") :
+                inephem=False
+            else:
+                data.append(ephem[i].split(','))
+    try:
+        out = np.asarray(data)[:,:-1]
+        return out, observatory_coords, R
+    except:
+        sys.exit('ERROR: Ephemeris data not found. Check that the target has valid ephemeris data for the specified time range.')
+
+
+
+
+def read_ephem_line(arr):
+    '''Helper to ephemeris.__init__. Converts ephemeris data to float, putting np.nan for "n.a."'''
+    arr_out = []
+    for s in arr:
+        if s.strip() == 'n.a.':
+            arr_out.append(np.nan)
+        else:
+            arr_out.append(float(s))
+    return np.asarray(arr_out) 
+
+
+
 
 # Make an oblate spheroid 
 def triaxialellipsoid(a,b,c,x,y): 
@@ -134,7 +360,7 @@ def brightnessmap(R,x,y,T_dab,p):
     >>> N = 200 
     >>> T_dab = 350
     >>> p = np.array([0.08,0.08])
-    pg.BrightnessMap(R,N,T_dab,p)
+    BrightnessMap(R,N,T_dab,p)
 
     References
     ------------
@@ -145,17 +371,16 @@ def brightnessmap(R,x,y,T_dab,p):
     """
 
     # Call the three dimension surface 
-    (xv,yv,zv) = pg.triaxialellipsoid(R[0],R[1],R[2],x,y)
-
+    (xv,yv,zv) = triaxialellipsoid(R[0],R[1],R[2],x,y)
     # Avoid singularities 
     zv[zv==0] = float('nan')
     # Obtain the emission angle 
     th = np.arccos(zv/np.sqrt(xv**2+yv**2+zv**2))
-
+    
 
     # Where the value is nan, the model should be zero 
     th[~np.isfinite(th)] = np.pi/2.
-    zv[~np.isfinite(zv)] = 0
+    zv[~np.isfinite(zv)] = 0.
 
     # Iterate to make the model agree to the disk averaged 
     # brightness temperature 
@@ -164,11 +389,17 @@ def brightnessmap(R,x,y,T_dab,p):
     T_scale = T_dab
     # IPython.embed()
     while cond: 
+        # Avoiding numeric issues 
         cos = np.cos(th)
         cos[cos<1e-5] = 0
-        T = T_scale*cos**(p[0]+(np.abs(yv)/R[1])*(p[1]-p[0]))
-        T_model = (np.sum(T)/np.sum(pixels[zv>0.0]))       
-        if np.abs(T_dab - T_model) < 1: 
+        # Exponent p, should always be smaller than p max 
+        pexp = (p[0]+(np.abs(yv)/R[1])*(p[1]-p[0]))
+        pexp[pexp > np.max(p)] = np.max(p)
+        pexp[pexp < np.min(p)] = np.min(p)
+        T = T_scale*cos**(pexp)
+        # IPython.embed()
+        T_model = (np.sum(T)/np.sum(pixels[zv>0.0])) 
+        if np.abs(T_dab - T_model) < 0.1: 
             cond = 0 
         else: 
             T_scale = T_scale + (T_dab - T_model)
@@ -203,7 +434,7 @@ def tb2jy(T,nu,pixscale):
 
     Example
     -------
-    >>> pg.tbtojy
+    >>> tbtojy
     References
     ------------
 
@@ -217,8 +448,8 @@ def tb2jy(T,nu,pixscale):
     jy = 1e-26 
 
     # Convert into flux scale 
-    # flux = T*2.*kb*nu**2/c**2/jy*np.pi*pg.arcsec2rad(pixscale)**2/(4*np.log(2))
-    flux = T*2.*kb*nu**2/c**2/jy*pg.arcsec2rad(pixscale)**2
+    # flux = T*2.*kb*nu**2/c**2/jy*np.pi*arcsec2rad(pixscale)**2/(4*np.log(2))
+    flux = T*2.*kb*nu**2/c**2/jy*arcsec2rad(pixscale)**2
 
     return flux
 
@@ -246,7 +477,7 @@ def arcsec2rad(arcsec):
 
     Example
     -------
-    >>> pg.arcsec2rad
+    >>> arcsec2rad
 
     References
     ------------
@@ -257,7 +488,7 @@ def arcsec2rad(arcsec):
     '''
     return arcsec/3600.*np.pi/180.
 
-def axisforcasamodel(imsize, planetsize, pixscale, radius=False): 
+def axisforcasamodel(imsize, planetsize, radius=False): 
     """Obtain the axis for casa, based on the input supplied to tclean 
 
     Beamsize parameters can be obtained from: 
@@ -269,9 +500,7 @@ def axisforcasamodel(imsize, planetsize, pixscale, radius=False):
     imsize : [1] int
         [-] Size of the pixels   
     planetsize : [1] int
-        [arcsec] size of planet in arcsec
-    pixscale : [1] float 
-        [arc/pixel] Pixel scale, how many arcsec is one pixel 
+        [arcsec] size of planet in pixel
 
 
 
@@ -286,7 +515,7 @@ def axisforcasamodel(imsize, planetsize, pixscale, radius=False):
 
     Example
     -------
-    >>> pg.axisforcasamodel(420,39,10,3.1)
+    >>> axisforcasamodel(420,39,10,3.1)
     References
     ------------
 
@@ -298,7 +527,7 @@ def axisforcasamodel(imsize, planetsize, pixscale, radius=False):
 
     # Radius of Jupiter in pixels 
 
-    r_pla = planetsize/pixscale/2
+    r_pla = planetsize/2
 
     # Compute the padding left and right 
     x = np.linspace(-imsize/2.,imsize/2.,imsize)
@@ -328,20 +557,20 @@ def rotation_matrix(axis, theta):
 
 
 
-def planetmodel(imsize,planet,pixscale,nu,T_dab,R,p): 
+def planetmodel(imsize,planet,pixscale,nu,T_dab,R,p,Jansky = True): 
 
 
-    (x,y,) = ( pg.axisforcasamodel(imsize, planet, pixscale))
-    T_model = pg.brightnessmap(R,x,y,T_dab,p)
+    (x,y,) = axisforcasamodel(imsize, planet/pixscale)
+    model = brightnessmap(R,x,y,T_dab,p)
 
     # fig,ax = plt.subplots()
     # C = plt.contourf(T_model)
     # cbar = plt.colorbar(C)
     # plt.show()
+    if Jansky: 
+        model = tb2jy(model,nu,pixscale)
 
-    Jy_model = pg.tb2jy(T_model,nu,pixscale)
-
-    return Jy_model
+    return model
 
 def calcimsize(planet, pixscale):
     """Calculate the optimal image size for Casa 
@@ -370,7 +599,7 @@ def calcimsize(planet, pixscale):
 
     Example
     -------
-    >>> pg.calcimsize(210,0.15)
+    >>> calcimsize(210,0.15)
 
     References
     ------------
@@ -386,91 +615,225 @@ def calcimsize(planet, pixscale):
 
     imsize = np.ceil(2.0*planet/pixscale/base)*base 
 
-    return imsize 
-
-# main loop 
-if __name__ == '__main__':
-
-    savemodel = True 
-
-    code = '599'
-    tstart = '2017-02-02 08:24'
-    tend = '2017-02-02 08:25'
-    nstep = '1' 
-    obsrvtry = '-5' # VLA
-
-    [data,obscoord,R] = (get_ephem.get_ephemerides(code, tstart, 
-                        tend, nstep, obsrvtry))
-
-
-    print(R)
-
-    # Rotate around the y axis to find the correct tilt 
-
-
-    # Jupiter 
-    jupiter = float(data[0][15]) # (arcseconds) Apparent size of the target
-    beamsize = 0.8  # (arcseconds) Size of the beam obtained from casa test run 
-    psfsampling = 5 # (-) Number of points per beam
-    pixscale = beamsize/psfsampling 
-    # Radius of the planet in pixel 
-    r_pla = jupiter/pixscale/2
-
-
-    # Normalize the axis for the triaxial ellipsoid and convert to pixel
-    R = R/R[0]*r_pla
-    print(R)
-    # Rotate around x axis to correct for the sub latitude 
-    obsslat = float(data[0][17]) # Sub-observer latitude 
-
-    imsize = pg.calcimsize(jupiter,pixscale) # (pixel)
-    print('Use the following parameters for your casa deconvolution:\n ')
-    print('When changing the size of image, make sure to load a new header.')
-    print('Imsize: ', imsize) 
-    print('Cell : ', pixscale)
-     
-
-    # Brightness model parameterss
-    nu = 22e9 
-    T_dab = 132
-    p = np.array([0.075,0.065])
-
-
-    Jy_jupiter = pg.planetmodel(imsize,jupiter,pixscale,nu,T_dab,R,p) 
-    # First iteration rotation. Needs automization 
-    rotangle = -(np.float(data[0][22]))
-    Jy_jupiter = scipy.ndimage.rotate(Jy_jupiter,rotangle,order=0,reshape = False)
-
-
-    fig,ax = plt.subplots()
-    C = plt.contourf(Jy_jupiter)
-    cbar = plt.colorbar(C)
-    plt.draw()
-
-    # # Uranus 
-    # imsize = 420 # (pixel)
-    # uranus = 3.6609 # (arcseconds) Size of Jupiter
-    # psfsampling = 10 # (-) Number of points per beam 
-    # beamsize = 0.2 # (arcseconds) Size of the beam 
-
-    # # Brightness model parameterss
-    # nu = 10e9
-    # T_dab = 175
-    # p = np.array([0.2,0.2])
-    # R = np.array([25559,24973,25559])*1.
-    # R = R/R[0]
-    # # Rotate by 97 deg 
-    # R = np.abs(np.dot(pg.rotation_matrix([0,1,0],np.radians(0)), R))
-
-    # Jy_uranus = pg.Planetmodel(imsize,uranus,psfsampling,
-    #             beamsize,nu,T_dab,R,p) 
+    return np.int(imsize)
 
 
 
-    if savemodel: 
+# Class definitions 
+
+class Planet:
+
+    def __init__(self,target): 
+        self.name = target
+
+    def ephemeris(self, tstart, tend, nstep, obs_code = '-5'):
+        '''Immediately run get_ephemerides, then set a bunch of 
+        class variables corresponding to different information found in
+        the ephemeris.
+        '''
+        # Determine, the number of steps 
+        intv = np.linspace(0,nstep-1,nstep,dtype = int).tolist()
+
+        self.target = self.name
+        self.obs_code = obs_code
+        self.ephem, self.observatory_coords, self.radius = (
+            get_ephemerides(naif_lookup(self.target),
+            tstart,tend,str(nstep),self.obs_code))
+        self.time = self.ephem[intv,0] # UTdate UTtime
+        self.sun = [s.strip() for s in self.ephem[intv,1]]
+        self.moon = [s.strip() for s in self.ephem[intv,2]]
+        self.ra = self.ephem[intv,3] # RA (J2000) (hh:mm:ss.ff)
+        self.dec = self.ephem[intv,4] # DEC (J2000) (hh:mm:ss.ff)
+        # (arcsec^2/h) (cosine of the declination) arcsec hr-1 
+        self.dra = np.asarray([float(s) for s in self.ephem[intv,5]]) 
+        #  d(DEC)/dt 
+        self.ddec = np.asarray([float(s) for s in self.ephem[intv,6]]) 
+        # (degrees) azimuth , North = 0 = 360
+        self.azimuth = np.asarray([float(s) for s in self.ephem[intv,7]])
+        # (degrees) elevation degrees, above horizon
+        self.elevation = np.asarray([float(s) for s in self.ephem[intv,8]])
+        # Airmass 
+        self.airmass = read_ephem_line(self.ephem[intv,9]) 
+        # Extinction
+        self.extinction = read_ephem_line(self.ephem[intv,10]) 
+        # Visual magntidue 
+        self.apmag = read_ephem_line(self.ephem[intv,11]) 
+        # Surface brightness
+        self.sbrt = read_ephem_line(self.ephem[intv,12]) 
+        # (arcsec) Satellite angular separ/vis. (arcsec) The angle between the
+        # center of target object and the center of the primary body it 
+        # revolves around,
+        self.ang_sep = read_ephem_line(self.ephem[intv,13]) 
+        # Visibility 
+        self.visibility = [s.strip(' ') for s in self.ephem[intv,14]]
+        # Target angular diameter (arcsec)
+        self.ang_diam = read_ephem_line(self.ephem[intv,15]) #arcsec
+        # Planet orientation information 
+        # (degree) Observer sub-longitude, planetodetic, positive to west
+        self.ob_lon = read_ephem_line(self.ephem[intv,16])  
+        # (degree) Observer sub-latitude, planetodetic,
+        self.ob_lat = read_ephem_line(self.ephem[intv,17]) 
+        # (degree) sun sub-longitude, planetodetic, positive to west
+        self.sun_lon = read_ephem_line(self.ephem[intv,18])  
+        # (degree) sun sub-latitude, planetodetic,
+        self.sun_lat = read_ephem_line(self.ephem[intv,19]) #degrees
+        # (degree) Sub-Sun position angle 
+        self.ssun_dis = read_ephem_line(self.ephem[intv,20])  
+        # (arcsec) Sub-Sun distance 
+        self.ssun_ang = read_ephem_line(self.ephem[intv,21]) 
+        # (degrees) North pole position angle 
+        self.np_ang = read_ephem_line(self.ephem[intv,22])  
+        # (arcsec) North pole distance(arcsec) Distance from the sub 
+        # observer point to the north pole 
+        self.np_dis = read_ephem_line(self.ephem[intv,23]) 
+        # (AU) Heliocentric range (AU)
+        self.hrange = read_ephem_line(self.ephem[intv,24]) 
+        # (km/s) Heliocentric range-rate (km/s)
+        self.hrrate = read_ephem_line(self.ephem[intv,25])
+        # (AU) Observer range (AU)
+        self.orange = read_ephem_line(self.ephem[intv,26]) 
+        # (km/s) Observer range-rate (km/s)
+        self.hrrate = read_ephem_line(self.ephem[intv,27])
+        # (min) One-way (down-leg) light-time
+        self.lt = read_ephem_line(self.ephem[intv,28])
+        # (degree) Sun-Target-Observer ~PHASE angle 
+        self.ph_ang = read_ephem_line(self.ephem[intv,29])
+        # (degree) North pole right asencsion 
+        self.np_ra = read_ephem_line(self.ephem[intv,30])
+        # (degree) North pole declination 
+        self.np_dec = read_ephem_line(self.ephem[intv,31])
+
+
+    def h2deg(self,hour): 
+        """Convert hh:mm:ss.ss to deg 
+        
+        Parameters
+        -------
+        self : [1] str
+            [] 'hh mm ss.ss' 
+
+        Returns
+        ----------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Keywords
+        ----------
+
+
+        Example
+        -------
+        >>> ra = ra.h2deg()
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CM, Initial Commit
+        """
+        self.ra = (np.float(hour[0][0:2])*360./24 + 
+                np.float(hour[0][3:5])*6/24 + 
+                np.float(hour[0][6:11])/240)
+
+
+    def casamodel(self,nu,T,p,beamsize,psfsampling=5,Jansky = True, setimsize=False):
+        """Convert hh:mm:ss.ss to deg 
+        
+        Parameters
+        -------
+        nu: [1] float
+            [Hz] Frequency of observations 
+        T : [1] float
+            [K] Disk averaged brightness temperature
+
+        Returns
+        ----------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Keywords
+        ----------
+
+
+        Example
+        -------
+        >>> Jupiter = pyPR.PG.Planet('Jupiter')
+        >>> tstart = '2017-02-02 08:24'
+        >>> tend = '2017-02-02 08:25'
+        >>> nstep = 1; 
+        >>> nu = 22e9; T = 132.7; p = np.array([0.075,0.065]); beamsize = 0.8
+        >>> Jupiter.ephemeris(tstart,tend,nstep)
+        >>> Jupiter.casamodel(nu,T,p,beamsize)
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CM, Initial Commit
+        """
+        pixscale = beamsize/psfsampling 
+        # Radius of the planet in pixel 
+        r_pla = self.ang_diam/pixscale/2
+
+        self.planetsize = r_pla*2
+
+        # Normalize the axis for the triaxial ellipsoid and convert to pixel
+        R = self.radius/self.radius[0]*r_pla
+        print(R)
+        # Rotate around x axis to correct for the sub latitude 
+        # (pixel) Polar radius for triaxial ellipsoid
+        R[1] = (R[1]*np.cos(np.radians(self.ob_lat))**2 
+                + R[2]*np.sin(np.radians(self.ob_lat))**2 )
+        # (pixel) Equatorial radius for triaxial ellipsoid 
+        R[2] = (R[2]*np.cos(np.radians(self.ob_lat))**2 
+                + R[1]*np.sin(np.radians(self.ob_lat))**2)
+
+        print(R)
+
+        
+        if setimsize: 
+            self.imsize = setimsize
+        else: 
+            self.imsize = calcimsize(self.ang_diam,pixscale) # (pixel)
+        print('Use the following parameters for your casa deconvolution:\n ')
+        print('Imsize: ', self.imsize) 
+        print('Cell : ', pixscale)
+        model = planetmodel(self.imsize,self.ang_diam,pixscale,nu,T,R,p,Jansky)
+ 
+        # First iteration rotation. Needs automization 
+        rotangle = -(self.np_ang)
+        self.model = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
+
+
+
+    def generalmodel(self,nu,T,p,imsize,scalefactor,rotation=True):
+        planet = scalefactor*imsize
+        # Radius of the planet in pixel 
+        # Normalize the axis for the triaxial ellipsoid and convert to pixel
+        R = self.radius/self.radius[0]*planet
+        # Rotate around x axis to correct for the sub latitude         
+        self.generalmodel = planetmodel(imsize,planet,1.,nu,T,R,p,Jansky) 
+        # First iteration rotation. Needs automization 
+        if rotation:
+            rotangle = -(self.np_ang)
+            self.genmodel = (scipy.ndimage.rotate(self.genmodel,
+                rotangle,order=0,reshape = False))
+ 
+
+    def plotmodel(self,model):
+        fig,ax = plt.subplots()
+        C = plt.contourf(model)
+        cbar = plt.colorbar(C)
+        plt.show()
+
+    def exportmodel(self,importfitsname): 
         # Import header infromation from CASA data 
-        fname = pathdata+'dirty_S630.fits'
-        outfile = pathdata+'ldmodel_T'+str(np.int(T_dab))+'_S'+str(np.int(imsize))+'.fits'
+        print('When changing the size of image, make sure to load a new header.')
+
+        fname = pathdata+importfitsname
+        outfile = pathdata+'ldmodel_T'+str(np.int(T_dab))+'_S'+str(np.int(self.imsize))+'.fits'
         # # Export 
 
         im = fits.open(fname,ignore_missing_end=True)
@@ -482,5 +845,82 @@ if __name__ == '__main__':
 
         hdu_out[0].writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
-    else:
-        print('Model is not saved')
+
+    # def maskforplanet(self,nu,T,p,beamsize,psfsampling=5,): 
+    def maskforplanet(self,scalefactor=1.2,export = False,rotation = False): 
+
+        planetsize = self.planetsize*scalefactor
+
+        R = self.radius/self.radius[0]*planetsize/2.
+        (x,y,) = axisforcasamodel(self.imsize, planetsize)
+        (xv,yv,zv) = triaxialellipsoid(R[0],R[1],R[2],x,y)
+
+        # # Avoid singularities 
+        zv[zv>1] = 1
+        zv[zv<1] = 0
+
+        # Rotate the mask 
+        if rotation:
+            rotangle = -(self.np_ang)
+            self.planetmask = scipy.ndimage.rotate(zv,rotangle,order=0,reshape = False)
+
+        # # export the mask 
+        if export: 
+            fname = pathdata+importfitsname
+            outfile = pathdata+mask+'_S'+str(np.int(self.imsize))+'.fits'
+            # # Export 
+
+            im = fits.open(fname,ignore_missing_end=True)
+            hdu_out = im
+            hdu_out[0].data = Jy_jupiter
+            hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
+            hdu_out[0].header['BMIN'] = pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
+            hdu_out[0].header['BMAJ'] = pixscale/3600
+
+            hdu_out[0].writeto(outfile, overwrite=True)
+            print('Mask written to ', outfile)
+
+    def maskforsynchrotron(self,scalefactor=2.5,rotation = False):
+        ''' Create a mask for the Sychrotron'''
+        planetsize = self.planetsize*1.1
+        # Half the planet size 
+        Phalf = (np.int(planetsize/2.))
+        # Potentially a problem with int 
+        # Half the image sie 
+        Nhalf = (np.int(self.imsize/2.))
+        x = np.linspace(-np.pi/2.,np.pi/2.,Phalf*2.)
+        y = np.zeros(np.int(self.imsize))
+        # set the middle values to non zero a cosine function 
+       
+        y[Nhalf-Phalf:Nhalf+Phalf] = scalefactor*np.cos(x)**0.75*Phalf
+
+        # xv,yv = (np.meshgrid(np.linspace(0,self.imsize-1,self.imsize),
+        #         np.linspace(0,self.imsize-1,self.imsize)))
+
+        mask = np.zeros((self.imsize,self.imsize)) 
+
+        # IPython.embed()
+        for i in range(np.int(self.imsize/2.)):
+            indices = (np.ones(self.imsize)*(Nhalf-i)-y<0).tolist()
+            mask[i,indices] = 1 
+
+            mask[Nhalf:,:] = np.flipud(mask[0:Nhalf])
+
+        self.synchrotronmask = mask.T 
+        # Rotate into place based on the north pole angle 
+        if rotation:
+            rotangle = -(self.np_ang)
+            self.synchrotronmask = (scipy.ndimage.rotate(mask.T,rotangle,
+                order=0,reshape = False)) 
+ 
+
+
+
+    def shiftmodel(self,dx,dy):
+        self.model = (scipy.ndimage.interpolation.shift(self.model,
+            [dx,dy],mode = 'wrap'))    
+
+
+
+
+
