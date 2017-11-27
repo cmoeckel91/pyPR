@@ -61,7 +61,7 @@ def naif_lookup(target):
     """    
 
     target = target.upper().strip(', \n')
-    with open('naif_id_table.txt','r') as f:
+    with open( 'pyPR/naif_id_table.txt')  as f:
         for line in f:
             l = line.split(',')
             if is_number(target):
@@ -826,6 +826,7 @@ class Planet:
         fig,ax = plt.subplots()
         C = plt.contourf(model)
         cbar = plt.colorbar(C)
+        plt.ion()
         plt.show()
 
     def exportmodel(self,importfitsname): 

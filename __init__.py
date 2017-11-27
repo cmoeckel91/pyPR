@@ -4,9 +4,9 @@ Notes
 -----
 11/17/17,CM, Initial Commit
 """
-import sys
-sys.path.append('./pyPR')
-sys.path.append('./pyPR/')
+import sys, os 
+cwd = os.getcwd()
+sys.path.append(cwd + '/pyPR')
 
 
 # %load_ext autoreload # activates the load 
