@@ -386,6 +386,7 @@ def brightnessmap(R,x,y,T_dab,p):
     # brightness temperature 
     pixels = np.ones_like(zv) 
     cond = 1 
+    conv = 0.01
     T_scale = T_dab
     # IPython.embed()
     while cond: 
@@ -399,11 +400,19 @@ def brightnessmap(R,x,y,T_dab,p):
         T = T_scale*cos**(pexp)
         # IPython.embed()
         T_model = (np.sum(T)/np.sum(pixels[zv>0.0])) 
-        if np.abs(T_dab - T_model) < 0.1: 
+        if np.abs(T_dab - T_model) < conv: 
             cond = 0 
         else: 
             T_scale = T_scale + (T_dab - T_model)
-            print(T_dab,T_model,T_scale)
+            # print('Disk averaged brighntess temperature\n',
+            #     'Target T: {:3.2f}'.format(T_dab), \
+            #     'Computed T: {:3.2f}'.format(T_model), \
+            #     'Peak T: {:3.2f} '.format(T_scale))
+
+    print('Disk averaged brighntess temperature\n',
+        'Target T: {:3.2f}'.format(T_dab), \
+        'Computed T: {:3.2f}'.format(T_model), \
+        'Peak T: {:3.2f} '.format(T_scale))
 
     return T
 
@@ -809,12 +818,14 @@ class Planet:
 
 
     def generalmodel(self,nu,T,p,imsize,scalefactor,rotation=True):
-        planet = scalefactor*imsize
+        planet = scalefactor/2*imsize
+        print(planet)
         # Radius of the planet in pixel 
         # Normalize the axis for the triaxial ellipsoid and convert to pixel
         R = self.radius/self.radius[0]*planet
-        # Rotate around x axis to correct for the sub latitude         
-        self.generalmodel = planetmodel(imsize,planet,1.,nu,T,R,p,Jansky) 
+        # Rotate around x axis to correct for the sub latitude  
+        Jansky = False # Jansky requires a beam size        
+        self.genmodel = planetmodel(imsize,planet,1.,nu,T,R,p,Jansky) 
         # First iteration rotation. Needs automization 
         if rotation:
             rotangle = -(self.np_ang)
