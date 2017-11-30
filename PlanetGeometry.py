@@ -953,26 +953,33 @@ class Model:
         self.model = (scipy.ndimage.rotate(self.model,
                 rotangle,order=0,reshape = False))
 
-    # def export(self,importfitsname): 
-    #     # Import header infromation from CASA data 
-    #     print('When changing the size of image, make sure to load a new header.')
+    def export(self,importfitsname,exportname): 
+        # Import header infromation from CASA data 
+        print('When changing the size of image, make sure to load a new header.')
 
-    #     fname = pathdata+importfitsname
-    #     outfile = pathdata+'ldmodel_T'+str(np.int(T_dab))+'_S'+str(np.int(self.imsize))+'.fits'
-    #     # # Export 
+        fname = importfitsname +'.fits'
+        outfile = exportname +'.fits'
+        # # Export 
 
-    #     im = fits.open(fname,ignore_missing_end=True)
-    #     hdu_out = im
-    #     hdu_out[0].data = Jy_jupiter
-    #     hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
-    #     hdu_out[0].header['BMIN'] = pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
-    #     hdu_out[0].header['BMAJ'] = pixscale/3600
+        im = fits.open(fname,ignore_missing_end=True)
+        hdu_out = im
+        hdu_out[0].data = Jy_jupiter
+        hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
+        hdu_out[0].header['BMIN'] = pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
+        hdu_out[0].header['BMAJ'] = pixscale/3600
 
-    #     hdu_out[0].writeto(outfile, overwrite=True)
-    #     print('Model written to ', outfile)
+        hdu_out[0].writeto(outfile, overwrite=True)
+        print('Model written to ', outfile)
 
 
-    def exportasfits(self,exportname): 
+
+    def exportasfits_input(self,ra,dec ):
+        ''' Setting the input parameters for exportasfits manually ''' 
+
+            self.ra  = ra
+            self.dec = dec
+
+    def exportasfits(self,exportname, units = 'Jy/pixel'): 
         """ Import header infromation from CASA data 
     
         Extended description of the function.
@@ -1019,6 +1026,13 @@ class Model:
         mm/dd/yy, Initials of Author, Short description of update
         """
 
+        try:
+            self.ra
+            self.dec 
+            self.pixscale
+        except AttributeError:
+            print('Generate input for the header using exportasfits_input')
+
         now = datetime.now()
 
         hdu = fits.PrimaryHDU(self.model)
@@ -1039,7 +1053,7 @@ class Model:
         hdulist[0].header['BPA']     =   4.446815490723E+01 # ?                                                  
         hdulist[0].header['BTYPE']   = 'Intensity'                                                           
         hdulist[0].header['OBJECT']  = self.name.upper()                                                                                                                            
-        hdulist[0].header['BUNIT']   = 'Jy/pixel' #Brightness (pixel) unit                         
+        hdulist[0].header['BUNIT']   = units #Brightness (pixel) unit                         
         hdulist[0].header['RADESYS'] = 'ICRS    '                                                            
         hdulist[0].header['LONPOLE'] =   1.800000000000E+02                                                  
         hdulist[0].header['LATPOLE'] =   self.dec                                                   
@@ -1087,7 +1101,7 @@ class Model:
         hdulist[0].header['ALTRPIX'] =   1.000000000000E+00 #Alternate frequency reference pixel             
         hdulist[0].header['VELREF']  =                  257                  
         #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
-        hdulist[0].header['TELESCOP']= 'EVLA    '                                                            
+        hdulist[0].header['TELESCOP']= 'Model    '                                                            
         hdulist[0].header['OBSERVER']= 'CMoeckel'                                             
         hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%d %H:%M")                                         
         hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
@@ -1097,14 +1111,13 @@ class Model:
         hdulist[0].header['OBSGEO-Y']=  -5.041988986066E+06    # VLA                                                
         hdulist[0].header['OBSGEO-Z']=   3.554879236821E+06    # VLA                                              
         hdulist[0].header['OBJECT']  = self.name.upper()                                                             
-        hdulist[0].header['TELESCOP']= 'EVLA    '                                                            
-        hdulist[0].header['INSTRUME']= 'EVLA    '                                                            
+        hdulist[0].header['TELESCOP']= 'Model    '                                                            
+        hdulist[0].header['INSTRUME']= 'Model    '                                                            
         hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
         hdulist[0].header['DATE']    = now.strftime("%Y-%m-%d %H:%M") #Date FITS file was written              
         hdulist[0].header['ORIGIN']  = 'pyPR'
 
-        outfile = (pathdata+exportname+'_T'+str(np.int(self.Tdiskaveraged))+'_S'
-            +str(np.int(self.imsize))+'.fits')
+        outfile = (pathdata+exportname+'.fits')
         # # Export
         hdulist.writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
