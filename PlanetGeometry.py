@@ -1100,8 +1100,8 @@ class Model:
         print('Model written to ', outfile)
 
 
-    def shift(self,model,dx,dy):
-        self.model = (scipy.ndimage.interpolation.shift(model,
+    def shift(self,dx,dy):
+        self.model = (scipy.ndimage.interpolation.shift(shift.model,
             [dx,dy],mode = 'wrap')) 
 
         
