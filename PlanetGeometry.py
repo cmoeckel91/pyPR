@@ -567,7 +567,7 @@ def rotation_matrix(axis, theta):
 
 
 
-def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale,Jansky = True): 
+def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale, Jansky = True): 
 
     (x,y,) = axisforcasamodel(imsize, planet/pixscale)
     model = brightnessmap(R,x,y,T_dab,p)
@@ -578,7 +578,6 @@ def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale,Jansky = True):
     # plt.show()
     if Jansky: 
         model = tb2jy(model, nu, pixscale)
-
     return model
 
 def calcimsize(planet, pixscale):
@@ -742,7 +741,11 @@ class Planet:
         # (degree) North pole declination 
         self.np_dec = read_ephem_line(self.ephem[intv,31])
 
-
+    def mwe(self):
+        tstart = '2017-02-02 08:24'; 
+        tend = '2017-02-02 08:25';
+        nstep = 1;
+        self.ephemeris(tstart,tend,nstep)
     
 
     def initmodel(self,modelname):
@@ -801,6 +804,16 @@ class Model:
             self.ra = planet.ra
             self.dec = planet.dec
 
+
+    def mwe(self):
+        nu = 22e9; 
+        T = 132.7; 
+        p = np.array([0.075,0.065]); 
+        beamsize = 0.8
+        self.parameter(nu,T,p,)
+        self.gen_casa(beamsize)
+
+
     def parameter(self, nu, T, p,):
         ''' Set Model parameter 
 
@@ -838,8 +851,9 @@ class Model:
         self.Tdiskaveraged = T 
         self.limbdarkening = p
 
-    def gen_casa_input(self, ang_diam,radius,ob_lat,np_ang):
+    def gen_casa_input(self, ang_diam, radius, ob_lat, np_ang):
         ''' Setting the input parameters for gen_casa manually ''' 
+
         self.ang_diam = ang_diam 
         self.radius   = radius
         self.ob_lat   = ob_lat
@@ -914,14 +928,14 @@ class Model:
         print('Cell : ', self.pixscale)
         model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
                 self.limbdarkening, R, self.imsize, self.planetsize, 
-                self.pixscale))
+                self.pixscale,Jansky))
  
         # First iteration rotation. Needs automization 
         rotangle = -(self.np_ang)
         self.model = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
 
 
-    def gen_general(self,imsize,planetsize,rotation=True,rotangle=0):
+    def gen_general(self,imsize,planetsize,rotangle=0):
         # rotangle = self.np_ang
         self.modeltype = 'pyPR-general'
         self.imsize = imsize
@@ -931,13 +945,12 @@ class Model:
         # Normalize the axis for the triaxial ellipsoid and convert to pixel
         R = self.radius/self.radius[0]*planetsize
         # Rotate around x axis to correct for the sub latitude  
-        # Jansky = False # Jansky requires a beam size        
+        Jansky = False # Jansky requires a beam size        
         self.model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
                 self.limbdarkening, R, self.imsize, self.planetsize, 
-                self.pixscale,Janksy = False))
+                self.pixscale, Jansky=False))
         # First iteration rotation. Needs automization 
-        if rotation:
-            self.model = (scipy.ndimage.rotate(self.model,
+        self.model = (scipy.ndimage.rotate(self.model,
                 rotangle,order=0,reshape = False))
 
     # def export(self,importfitsname): 
@@ -957,9 +970,6 @@ class Model:
 
     #     hdu_out[0].writeto(outfile, overwrite=True)
     #     print('Model written to ', outfile)
-
-    def exporttocasa_input(self,):
-        ''' Setting the input parameters for gen_casa manually ''' 
 
 
     def exportasfits(self,exportname): 
@@ -1107,7 +1117,16 @@ class Model:
         
 
     # def maskforplanet(self,nu,T,p,beamsize,psfsampling=5,): 
-    def maskforplanet(self,scalefactor=1.2,export = False,rotation = False): 
+    def maskforplanet(self,scalefactor=1.2,export = False,rotangle=0): 
+        # rotangle = self.np_ang
+        try:
+            self.planetsize 
+            self.imsize    
+        except AttributeError:
+            print('Attributes for maskforplanet are missing.'\
+                   'Create a model first')
+            return None
+
 
         planetsize = self.planetsize*scalefactor
 
@@ -1120,9 +1139,7 @@ class Model:
         zv[zv<1] = 0
 
         # Rotate the mask 
-        if rotation:
-            rotangle = -(self.np_ang)
-            self.planetmask = scipy.ndimage.rotate(zv,rotangle,order=0,reshape = False)
+        self.planetmask = scipy.ndimage.rotate(zv,rotangle,order=0,reshape = False)
 
         # # export the mask 
         if export: 
@@ -1140,8 +1157,11 @@ class Model:
             hdu_out[0].writeto(outfile, overwrite=True)
             print('Mask written to ', outfile)
 
-    def maskforsynchrotron(self,scalefactor=2.5,rotation = False):
-        ''' Create a mask for the Sychrotron'''
+    def maskforsynchrotron(self,scalefactor=2.5,rotangle=0):
+        ''' Create a mask for the Sychrotron
+
+        # rotangle = self.np_ang
+        '''
         planetsize = self.planetsize*1.1
         # Half the planet size 
         Phalf = (np.int(planetsize/2.))
@@ -1168,9 +1188,8 @@ class Model:
 
         self.synchrotronmask = mask.T 
         # Rotate into place based on the north pole angle 
-        if rotation:
-            rotangle = -(self.np_ang)
-            self.synchrotronmask = (scipy.ndimage.rotate(mask.T,rotangle,
+
+        self.synchrotronmask = (scipy.ndimage.rotate(mask.T,rotangle,
                 order=0,reshape = False))   
 
 
