@@ -19,8 +19,7 @@ from astropy.io import fits
 import matplotlib.pyplot as plt 
 import importlib 
 
-
-pathdata = '/Users/chris/Documents/Research/VLA/VLA2017/'
+from pyPR import pathdata 
 
 def is_number(s):
     try:
@@ -174,12 +173,19 @@ def get_ephemerides(code, tstart, tend, nstep, obs_code = '500') :
     -------
     10/25/2017, CM, update Commit
     """  
+    try: 
+        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M.%S')
+        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M.%S'")
+        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M.%S')
+        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M.%S'")
+    except ValueError: 
+        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
+        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M'")
+        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M')
+        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M'")
 
-    tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
-    tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M'")
-    tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M')
-    tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M'")
-
+    if tstart_UT > tend_UT: 
+        sys.exit('Start time is larger than end time.')
 
     if nstep == '0': 
         nstep = '1' 
@@ -233,6 +239,93 @@ def get_ephemerides(code, tstart, tend, nstep, obs_code = '500') :
     except:
         sys.exit('ERROR: Ephemeris data not found. Check that the target has valid ephemeris data for the specified time range.')
 
+
+def ephem_uncertainties(target,orange):
+    """Time averaged unceratinties in the ephemeris. 
+    
+    Based on a paper by Will Folkner, at JPL, the time-averaged 
+    uncertainties are return. For more details, the paper should be 
+    consulted. As the time average is dependent on various factors, 
+    such as range, spacecraft tracking availablity etc 
+    
+    Parameters
+    ----------
+    target : str
+        [-] Name of the planet 
+    ra : float
+        [deg] Right ascension 
+    dec : float
+        [deg] Declination 
+    orange : float
+        [m] Range to the planet 
+    
+    Keyword Arguments
+    ----------
+
+    
+    Returns
+    -------
+    dra : float
+        [deg] Right ascension uncertainty
+    ddec : float
+        [deg] Declination uncertainty
+    dorange : float
+        [m] Range to the planet uncertainty
+
+    
+    Warnings
+    -------
+    
+    
+    Example
+    -------
+    
+    >>>function(arg1, arg2)
+    out1
+    
+    References
+    ------------
+    Folkner, W. M. "Uncertainties in the JPL planetary ephemeris." 
+    Proceedings of the” Journées. 2010.
+    https://syrte.obspm.fr/journees2010/pdf/Folkner.pdf
+
+    Todo
+    ----- 
+    
+    Notes
+    -------
+    12/01/17, CM, Initial commit
+    """
+
+    # Values as obtained from the paper 
+    dra_paper = np.array([1,0.4,5,20,3,250,1000,1000])*1e3
+    ddec_paper = np.array([1,0.2,2,20,5,100,400,1000])*1e3
+    dorange_paper = np.array([0.5,0.1,1,5,0.25,150,500,2000])*1e3
+
+    if target.casefold().strip() == 'Mercury'.casefold():
+        pl = 0
+    elif target.casefold().strip() == 'Venus'.casefold():
+        pl = 1
+    elif target.casefold().strip() == 'Mars'.casefold():
+        pl = 2
+    elif target.casefold().strip() == 'Jupiter'.casefold():
+        pl = 3
+    elif target.casefold().strip() == 'Saturn'.casefold():
+        pl = 4
+    elif target.casefold().strip() == 'Uranus'.casefold():
+        pl = 5
+    elif target.casefold().strip() == 'Neptune'.casefold():
+        pl = 6
+    elif target.casefold().strip() == 'Pluto'.casefold():
+        pl = 7
+    else:
+        sys.exit('Planet not found. Return')
+
+    dra = np.degrees(dra_paper[pl]/orange) # Right ascension uncertainty
+    ddec = np.degrees(ddec_paper[pl]/orange) # Declination uncertainty 
+    dorange = dorange_paper[pl] # (m) Range uncertainty
+        
+    return  [dra,ddec,dorange]
 
 
 
@@ -625,7 +718,7 @@ def calcimsize(planet, pixscale):
 
     return np.int(imsize)
 
-def h2deg(hour): 
+def hms2deg(hms): 
         """Convert hh:mm:ss.ss to deg 
         
         Parameters
@@ -653,9 +746,52 @@ def h2deg(hour):
         -------
         11/18/2017, CM, Initial Commit
         """
-        return (np.float(hour[0][0:2])*360./24 + 
-                np.float(hour[0][3:5])*6/24 + 
-                np.float(hour[0][6:11])/240)
+        split = (hms.rsplit(' '))
+
+        
+        angle = ((float(split[0]) + 
+                float(split[1])/60 + 
+                float(split[2])/3600)*360/24)
+
+        return angle
+
+def dms2deg(dms): 
+        """Convert hh:mm:ss.ss to deg 
+        
+        Parameters
+        -------
+        self : [1] str
+            [] 'hh mm ss.ss' 
+
+        Returns
+        ----------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Keywords
+        ----------
+
+
+        Example
+        -------
+        >>> ra = ra.h2deg()
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CM, Initial Commit
+        """
+        split = (dms.rsplit(' '))
+
+       
+        angle = (np.sign(float(split[0]))*
+            (np.abs(float(split[0])) 
+             + float(split[1])/60 
+             + float(split[2])/3600))  
+
+        return angle
 
 # Class definitions 
 
@@ -680,8 +816,8 @@ class Planet:
         self.time = self.ephem[intv,0] # UTdate UTtime
         self.sun = [s.strip() for s in self.ephem[intv,1]]
         self.moon = [s.strip() for s in self.ephem[intv,2]]
-        self.ra = h2deg(self.ephem[intv,3]) # RA (J2000) (hh:mm:ss.ff)
-        self.dec = h2deg(self.ephem[intv,4]) # DEC (J2000) (hh:mm:ss.ff)
+        self.ra = hms2deg(self.ephem[intv,3][0]) # RA (J2000) (hh:mm:ss.ff)
+        self.dec = dms2deg(self.ephem[intv,4][0]) # DEC (J2000) (hh:mm:ss.ff)
         # (arcsec^2/h) (cosine of the declination) arcsec hr-1 
         self.dra = np.asarray([float(s) for s in self.ephem[intv,5]]) 
         #  d(DEC)/dt 
@@ -757,6 +893,11 @@ class Planet:
         except AttributeError:
             print('First querry the Planet\'s properties with epemeris')
 
+    def model(self):
+        print('Accessing Model')
+        self.Model(self.name)
+
+
 class Model: 
     """Class containing the required information to create, modify and 
         export a model.
@@ -803,6 +944,7 @@ class Model:
             # For the export 
             self.ra = planet.ra
             self.dec = planet.dec
+            self.orange = planet.orange
 
 
     def mwe(self):
@@ -810,48 +952,10 @@ class Model:
         T = 132.7; 
         p = np.array([0.075,0.065]); 
         beamsize = 0.8
-        self.parameter(nu,T,p,)
-        self.gen_casa(beamsize)
+        self.gen_casa(nu,T,p,beamsize)
 
 
-    def parameter(self, nu, T, p,):
-        ''' Set Model parameter 
-
-
-        Parameters
-        -------
-        nu: [1] float
-            [Hz] Frequency of observations 
-        T : [1] float
-            [K] Disk averaged brightness temperature
-
-        Returns
-        ----------
-        deg : [1] float
-            [deg] Angle converted into degrees
-
-        Keywords
-        ----------
-
-
-        Example
-        -------
-
-
-        References
-        ------------
-
-        Notes
-        -------
-        11/29/2017, CM, Initial Commit
-        '''
-
-        # Store the variables 
-        self.obsfrequency = nu 
-        self.Tdiskaveraged = T 
-        self.limbdarkening = p
-
-    def gen_casa_input(self, ang_diam, radius, ob_lat, np_ang):
+    def gen_casa_input(self, ang_diam, radius, ob_lat, np_ang,beamsize):
         ''' Setting the input parameters for gen_casa manually ''' 
 
         self.ang_diam = ang_diam 
@@ -859,16 +963,15 @@ class Model:
         self.ob_lat   = ob_lat
         self.np_ang   = np_ang 
 
-    def gen_casa(self, beamsize, psfsampling=5, 
+    def gen_casa(self, nu, T, p, beamsize, psfsampling=5, 
                  Jansky = True, setimsize = False, ):
         """Generate a model for casa 
         
         Parameters
         -------
-        nu: [1] float
-            [Hz] Frequency of observations 
-        T : [1] float
-            [K] Disk averaged brightness temperature
+        beamsize: [1] float
+            [arcs] Used to estimate the size of the image and the pixel
+                   to arcsecond converstion
 
         Returns
         ----------
@@ -877,6 +980,12 @@ class Model:
 
         Keywords
         ----------
+        psfsamplin : [1] float
+            [-] Number of pixels per beam
+        Jansky : [1] float
+            [K] Disk averaged brightness temperature
+        T : [1] float
+            [K] Disk averaged brightness temperature
 
 
         Example
@@ -897,13 +1006,22 @@ class Model:
             self.ob_lat   
             self.np_ang   
         except AttributeError:
-            print('Attributes for gen_casa are missing.'\
+            sys.exit('Attributes for gen_casa are missing.'\
                    'Execute gen_casa_input or initialize a planet')
-            return None
+
+
+
 
         # Assign a model type for documentation 
         self.modeltype = 'pyPR-CASA'
+        self.Jansky = Jansky 
         self.pixscale = beamsize/psfsampling 
+
+        # Assign the parameter 
+        self.obsfrequency = nu 
+        self.Tdiskaveraged = T 
+        self.limbdarkening = p
+
 
         # Radius of the planet in pixel 
         r_pla = self.ang_diam/self.pixscale/2
@@ -923,34 +1041,36 @@ class Model:
             self.imsize = setimsize
         else: 
             self.imsize = calcimsize(self.ang_diam,self.pixscale) # (pixel)
-        print('Use/check the following parameters for your casa deconvolution:\n ')
+        print('Use/check the following parameters for your casa deconvolution:')
         print('Imsize: ', self.imsize) 
         print('Cell : ', self.pixscale)
+        print('\n')
         model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
                 self.limbdarkening, R, self.imsize, self.planetsize, 
-                self.pixscale,Jansky))
+                self.pixscale, Jansky))
  
         # First iteration rotation. Needs automization 
         rotangle = -(self.np_ang)
-        self.model = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
+        self.data = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
 
 
-    def gen_general(self,imsize,planetsize,rotangle=0):
+    def gen_general(self,nu,T,p,radius,imsize,planetsize,rotangle=0,):
         # rotangle = self.np_ang
         self.modeltype = 'pyPR-general'
+        self.Jansky = False 
         self.imsize = imsize
         self.planetsize = planetsize
-        self.pixscale = 1.
+        self.pixscale = 0 # Not possible without distance information 
         # Radius of the planet in pixel 
         # Normalize the axis for the triaxial ellipsoid and convert to pixel
-        R = self.radius/self.radius[0]*planetsize
+        R = radius/radius[0]*planetsize
         # Rotate around x axis to correct for the sub latitude  
         Jansky = False # Jansky requires a beam size        
-        self.model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
+        self.data = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
                 self.limbdarkening, R, self.imsize, self.planetsize, 
-                self.pixscale, Jansky=False))
+                1., Jansky=False))
         # First iteration rotation. Needs automization 
-        self.model = (scipy.ndimage.rotate(self.model,
+        self.data = (scipy.ndimage.rotate(self.model,
                 rotangle,order=0,reshape = False))
 
     def export(self,importfitsname,exportname): 
@@ -973,13 +1093,14 @@ class Model:
 
 
 
-    def exportasfits_input(self,ra,dec ):
+    def exportasfits_input(self,ra,dec,orange ):
         ''' Setting the input parameters for exportasfits manually ''' 
 
-            self.ra  = ra
-            self.dec = dec
+        self.ra  = ra
+        self.dec = dec
+        self.orange = orange
 
-    def exportasfits(self,exportname, units = 'Jy/pixel'): 
+    def exportasfits(self,data,exportname, units = 'Jy/pixel',ephemeris = True, header = True): 
         """ Import header infromation from CASA data 
     
         Extended description of the function.
@@ -1025,99 +1146,121 @@ class Model:
         -------
         mm/dd/yy, Initials of Author, Short description of update
         """
+        if ephemeris:
+            try:
+                self.ra
+                self.dec 
+                self.pixscale
 
-        try:
-            self.ra
-            self.dec 
-            self.pixscale
-        except AttributeError:
-            print('Generate input for the header using exportasfits_input')
+                [dra,ddec] = (ephem_uncertainties(
+                              self.name,self.orange*cst.au.value)[0:2])
+            except AttributeError:
+                sys.exit('Missing information for the export',\
+                        ' First run exportasfits_input')
 
         now = datetime.now()
 
-        hdu = fits.PrimaryHDU(self.model)
+        hdu = fits.PrimaryHDU(data)
         hdulist = fits.HDUList([hdu])
 
-        hdulist[0].header['SIMPLE']  =  True #Standard FITS
-        hdulist[0].header['BITPIX']  =  -32 #Floating point (32 bit)
-        hdulist[0].header['NAXIS']   =   4                                                  
-        hdulist[0].header['NAXIS1']  =   self.imsize                                                  
-        hdulist[0].header['NAXIS2']  =   self.imsize                                                   
-        hdulist[0].header['NAXIS3']  =                    1                                                  
-        hdulist[0].header['NAXIS4']  =                    1                                                  
-        hdulist[0].header['EXTEND']  =   True   #?                                                
-        hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
-        hdulist[0].header['BZERO']   =   0.000000000000E+00                                                  
-        hdulist[0].header['BMAJ']    =   self.pixscale/3600                                                  
-        hdulist[0].header['BMIN']    =   self.pixscale/3600                                                   
-        hdulist[0].header['BPA']     =   4.446815490723E+01 # ?                                                  
-        hdulist[0].header['BTYPE']   = 'Intensity'                                                           
-        hdulist[0].header['OBJECT']  = self.name.upper()                                                                                                                            
-        hdulist[0].header['BUNIT']   = units #Brightness (pixel) unit                         
-        hdulist[0].header['RADESYS'] = 'ICRS    '                                                            
-        hdulist[0].header['LONPOLE'] =   1.800000000000E+02                                                  
-        hdulist[0].header['LATPOLE'] =   self.dec                                                   
-        hdulist[0].header['PC1_1']   =   1.000000000000E+00                                                  
-        hdulist[0].header['PC2_1']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC3_1']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC4_1']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC1_2']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC2_2']   =   1.000000000000E+00                                                  
-        hdulist[0].header['PC3_2']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC4_2']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC1_3']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC2_3']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC3_3']   =   1.000000000000E+00                                                  
-        hdulist[0].header['PC4_3']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC1_4']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC2_4']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC3_4']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PC4_4']   =   1.000000000000E+00                                                  
-        hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
-        hdulist[0].header['CRVAL1']  =   self.ra                                                  
-        hdulist[0].header['CDELT1']  =  -4.166666666667E-05                                                  
-        hdulist[0].header['CRPIX1']  =   3.160000000000E+02                                                  
-        hdulist[0].header['CUNIT1']  = 'deg     '                                                            
-        hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
-        hdulist[0].header['CRVAL2']  =  self.dec                                                  
-        hdulist[0].header['CDELT2']  =   4.166666666667E-05                                                  
-        hdulist[0].header['CRPIX2']  =   3.160000000000E+02                                                  
-        hdulist[0].header['CUNIT2']  = 'deg     '                                                            
-        hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
-        hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
-        hdulist[0].header['CDELT3']  =   8.047167156337E+09                                                  
-        hdulist[0].header['CRPIX3']  =   1.000000000000E+00                                                  
-        hdulist[0].header['CUNIT3']  = 'Hz      '                                                            
-        hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
-        hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
-        hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
-        hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
-        hdulist[0].header['CUNIT4']  = '        '                                                            
-        hdulist[0].header['PV2_1']   =   0.000000000000E+00                                                  
-        hdulist[0].header['PV2_2']   =   0.000000000000E+00                                                  
-        hdulist[0].header['RESTFRQ'] =   self.obsfrequency #Rest Frequency (Hz)                             
-        hdulist[0].header['SPECSYS'] = 'LSRK    '           #Spectral reference frame                        
-        hdulist[0].header['ALTRVAL'] =  -0.000000000000E+00 #Alternate frequency reference value             
-        hdulist[0].header['ALTRPIX'] =   1.000000000000E+00 #Alternate frequency reference pixel             
-        hdulist[0].header['VELREF']  =                  257                  
-        #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
-        hdulist[0].header['TELESCOP']= 'Model    '                                                            
-        hdulist[0].header['OBSERVER']= 'CMoeckel'                                             
-        hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%d %H:%M")                                         
-        hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
-        hdulist[0].header['OBSRA']   =   self.ra                                                  
-        hdulist[0].header['OBSDEC']  =   self.dec                                                 
-        hdulist[0].header['OBSGEO-X']=  -1.601156673287E+06    # VLA                                              
-        hdulist[0].header['OBSGEO-Y']=  -5.041988986066E+06    # VLA                                                
-        hdulist[0].header['OBSGEO-Z']=   3.554879236821E+06    # VLA                                              
-        hdulist[0].header['OBJECT']  = self.name.upper()                                                             
-        hdulist[0].header['TELESCOP']= 'Model    '                                                            
-        hdulist[0].header['INSTRUME']= 'Model    '                                                            
-        hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
-        hdulist[0].header['DATE']    = now.strftime("%Y-%m-%d %H:%M") #Date FITS file was written              
-        hdulist[0].header['ORIGIN']  = 'pyPR'
 
-        outfile = (pathdata+exportname+'.fits')
+        if header:
+            #hdulist[0].header['SIMPLE']  =  True #Standard FITS
+            hdulist[0].header['BITPIX']  =  -32 #Floating point (32 bit)
+            hdulist[0].header['NAXIS']   =   4                                                  
+            hdulist[0].header['NAXIS1']  =   self.imsize                                                  
+            hdulist[0].header['NAXIS2']  =   self.imsize                                                   
+            hdulist[0].header['NAXIS3']  =                    1                                                  
+            hdulist[0].header['NAXIS4']  =                    1                                                  
+            #hdulist[0].header['EXTEND']  =   True   #?                                                
+            hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
+            hdulist[0].header['BZERO']   =   0.000000000000E+00  
+            if units.casefold().strip() != 'Jy/pixel'.casefold():
+                hdulist[0].header['BMAJ']    =   'N/A'                                                  
+                hdulist[0].header['BMIN']    =   'N/A'                                                   
+                hdulist[0].header['BPA']     =   'N/A'  # 
+            else:                                             
+                hdulist[0].header['BMAJ']    =   self.pixscale/3600                                                  
+                hdulist[0].header['BMIN']    =   self.pixscale/3600                                                   
+                hdulist[0].header['BPA']     =   45. # Position angle 
+
+            hdulist[0].header['BTYPE']   = 'Intensity'                                                           
+            hdulist[0].header['OBJECT']  = self.name.upper()                                                                                                                            
+            hdulist[0].header['BUNIT']   = units #Brightness (pixel) unit                         
+            hdulist[0].header['RADESYS'] = 'ICRS    ' 
+            if ephemeris:                                                            
+                hdulist[0].header['LONPOLE'] =   1.800000000000E+02                                                  
+                hdulist[0].header['LATPOLE'] =   self.dec
+
+            hdulist[0].header['PC1_1']   =   1.000000000000E+00                                                  
+            hdulist[0].header['PC2_1']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC3_1']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC4_1']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC1_2']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC2_2']   =   1.000000000000E+00                                                  
+            hdulist[0].header['PC3_2']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC4_2']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC1_3']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC2_3']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC3_3']   =   1.000000000000E+00                                                  
+            hdulist[0].header['PC4_3']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC1_4']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC2_4']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC3_4']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PC4_4']   =   1.000000000000E+00                                                  
+            
+            if ephemeris: 
+                hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
+                hdulist[0].header['CRVAL1']  =   self.ra                                                  
+                hdulist[0].header['CDELT1']  =  dra[0].tolist()                                                   
+                hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2)+1 # Reference pixel                                                
+                hdulist[0].header['CUNIT1']  = 'deg     '   
+
+                hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
+                hdulist[0].header['CRVAL2']  =  self.dec                                                  
+                hdulist[0].header['CDELT2']  =   ddec[0].tolist()                                                 
+                hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
+                hdulist[0].header['CUNIT2']  = 'deg     '
+
+            hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
+            hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
+            hdulist[0].header['CDELT3']  =   self.obsfrequency/2.75 # Based on emperical ratio, might be wrong!                                                  
+            hdulist[0].header['CRPIX3']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CUNIT3']  = 'Hz      '                                                            
+            hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
+            hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CUNIT4']  = '        '                                                            
+            hdulist[0].header['PV2_1']   =   0.000000000000E+00                                                  
+            hdulist[0].header['PV2_2']   =   0.000000000000E+00                                                  
+            hdulist[0].header['RESTFRQ'] =   self.obsfrequency #Rest Frequency (Hz)                             
+            hdulist[0].header['SPECSYS'] = 'LSRK    '           #Spectral reference frame                        
+            hdulist[0].header['ALTRVAL'] =  -0.000000000000E+00 #Alternate frequency reference value             
+            hdulist[0].header['ALTRPIX'] =   1.000000000000E+00 #Alternate frequency reference pixel             
+            hdulist[0].header['VELREF']  =                  257                  
+            #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
+            if ephemeris: 
+                hdulist[0].header['TELESCOP']= 'Model    '                                                            
+                hdulist[0].header['OBSERVER']= 'C. Moeckel'                                             
+                hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%d %H:%M")                                         
+                hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
+                hdulist[0].header['OBSRA']   =   self.ra                                                  
+                hdulist[0].header['OBSDEC']  =   self.dec                                                 
+                hdulist[0].header['OBSGEO-X']=  -1.601156673287E+06    # VLA                                              
+                hdulist[0].header['OBSGEO-Y']=  -5.041988986066E+06    # VLA                                                
+                hdulist[0].header['OBSGEO-Z']=   3.554879236821E+06    # VLA                                              
+                hdulist[0].header['OBJECT']  = self.name.upper()                                                             
+                hdulist[0].header['TELESCOP']= 'Model    '                                                            
+                hdulist[0].header['INSTRUME']= 'Model    '                                                            
+                hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
+            
+            hdulist[0].header['DATE']    = now.strftime("%Y-%m-%d %H:%M") #Date FITS file was written              
+            hdulist[0].header['ORIGIN']  = 'pyPR'
+        try: 
+            outfile = (pathdata+exportname+'.fits')
+        except NameError: 
+            outfile = (exportname+'.fits')
         # # Export
         hdulist.writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
@@ -1154,21 +1297,7 @@ class Model:
         # Rotate the mask 
         self.planetmask = scipy.ndimage.rotate(zv,rotangle,order=0,reshape = False)
 
-        # # export the mask 
-        if export: 
-            fname = pathdata+importfitsname
-            outfile = pathdata+mask+'_S'+str(np.int(self.imsize))+'.fits'
-            # # Export 
-
-            im = fits.open(fname,ignore_missing_end=True)
-            hdu_out = im
-            hdu_out[0].data = Jy_jupiter
-            hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
-            hdu_out[0].header['BMIN'] = pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
-            hdu_out[0].header['BMAJ'] = pixscale/3600
-
-            hdu_out[0].writeto(outfile, overwrite=True)
-            print('Mask written to ', outfile)
+        
 
     def maskforsynchrotron(self,scalefactor=2.5,rotangle=0):
         ''' Create a mask for the Sychrotron
@@ -1208,9 +1337,29 @@ class Model:
 
  
 
-    def plot(self):
+    def plot(self,data):
         fig,ax = plt.subplots()
-        C = plt.contourf(self.model)
+        try: 
+            x = (np.linspace(-self.imsize/2.,self.imsize/2,self.imsize)
+                *self.pixscale)
+            y = x
+            C = plt.contourf(x,y,data)
+            plt.xlabel('X [arcseconds]')
+            plt.ylabel('Y [arcseconds]')
+        except AttributeError:
+            C = plt.contourf(data)
+            plt.xlabel('X [pix]')
+            plt.ylabel('Y [pix]')
+        try: 
+            plt.title('Brightness model: T = {:2.1f} K'.format(self.Tdiskaveraged))
+        except AttributeError:
+            sys.exit('No temperature defined. Initialize the model parameter')  
+   
         cbar = plt.colorbar(C)
+        if self.Jansky: 
+            cbar.set_label('(Jy/beam)')
+        else: 
+            cbar.set_label('(K)')
+        ax.set_aspect('equal', 'datalim') 
         plt.ion()
         plt.show() 

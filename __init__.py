@@ -14,3 +14,7 @@ sys.path.append(cwd + '/pyPR')
 
 
 print('Welcome to pyPR!')
+
+pathdata = '/Users/chris/Documents/Research/VLA/VLA2017/'
+print('Set the path to your data if needed using pathdata!')
+print(pathdata)
