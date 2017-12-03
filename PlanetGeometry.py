@@ -5,18 +5,23 @@ Notes
 11/17/17,CM, Initial Commit
 """
 
+import sys, os
 from urllib.request import urlopen
 from time import strftime, gmtime, time
 from datetime import datetime,timedelta
-import sys, os
+
 import numpy as np
 import scipy.ndimage 
 import math 
+
 from astropy import constants as cst
-import warnings
-import IPython 
 from astropy.io import fits
-import matplotlib.pyplot as plt 
+
+import matplotlib.pyplot as plt
+
+# Debug 
+import warnings
+import IPython
 import importlib 
 
 from pyPR import pathdata 
@@ -1166,12 +1171,12 @@ class Model:
 
         if header:
             #hdulist[0].header['SIMPLE']  =  True #Standard FITS
-            hdulist[0].header['BITPIX']  =  -32 #Floating point (32 bit)
-            hdulist[0].header['NAXIS']   =   4                                                  
-            hdulist[0].header['NAXIS1']  =   self.imsize                                                  
-            hdulist[0].header['NAXIS2']  =   self.imsize                                                   
-            hdulist[0].header['NAXIS3']  =                    1                                                  
-            hdulist[0].header['NAXIS4']  =                    1                                                  
+            # hdulist[0].header['BITPIX']  =  -32 #Floating point (32 bit)
+            # hdulist[0].header['NAXIS']   =   4                                                  
+            # hdulist[0].header['NAXIS1']  =   self.imsize                                                  
+            # hdulist[0].header['NAXIS2']  =   self.imsize                                                   
+            # hdulist[0].header['NAXIS3']  =                    1                                                  
+            # hdulist[0].header['NAXIS4']  =                    1                                                  
             #hdulist[0].header['EXTEND']  =   True   #?                                                
             hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
             hdulist[0].header['BZERO']   =   0.000000000000E+00  
@@ -1243,7 +1248,7 @@ class Model:
             if ephemeris: 
                 hdulist[0].header['TELESCOP']= 'Model    '                                                            
                 hdulist[0].header['OBSERVER']= 'C. Moeckel'                                             
-                hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%d %H:%M")                                         
+                hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%dT%H:%M.%S")                                         
                 hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
                 hdulist[0].header['OBSRA']   =   self.ra                                                  
                 hdulist[0].header['OBSDEC']  =   self.dec                                                 
@@ -1255,7 +1260,7 @@ class Model:
                 hdulist[0].header['INSTRUME']= 'Model    '                                                            
                 hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
             
-            hdulist[0].header['DATE']    = now.strftime("%Y-%m-%d %H:%M") #Date FITS file was written              
+            hdulist[0].header['DATE']    = now.strftime("%Y-%m-%dT%H:%M.%S") #Date FITS file was written              
             hdulist[0].header['ORIGIN']  = 'pyPR'
         try: 
             outfile = (pathdata+exportname+'.fits')
