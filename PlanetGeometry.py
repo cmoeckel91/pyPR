@@ -90,7 +90,7 @@ def naif_lookup(target):
         return code
     return code
 
-def get_ephemerides(code, tstart, tend, nstep, obs_code = '500') :
+def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
     """ Ephemeris for a celestial minor body for the given time interval
 
     
@@ -178,11 +178,12 @@ def get_ephemerides(code, tstart, tend, nstep, obs_code = '500') :
     -------
     10/25/2017, CM, update Commit
     """  
+    # IF no end time is provided, simulate batch mode 
     try: 
-        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M.%S')
-        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M.%S'")
-        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M.%S')
-        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M.%S'")
+        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S')
+        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M:%S'")
+        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M:%S')
+        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M:%S'")
     except ValueError: 
         tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
         tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M'")
@@ -805,11 +806,28 @@ class Planet:
     def __init__(self,target): 
         self.name = target
 
-    def ephemeris(self, tstart, tend, nstep, obs_code = '-5'):
+    def ephemeris(self, tstart, tend=None, nstep=1, obs_code = '-5'):
         '''Immediately run get_ephemerides, then set a bunch of 
         class variables corresponding to different information found in
         the ephemeris.
         '''
+
+        # Be default increment time by one step to provide single epehemeris
+        if tend is None:
+            try:
+                tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S')
+                tend_obj = tend_obj + timedelta(0,1)
+                tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M:%S')
+            except ValueError: 
+                tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
+                tend_obj = tend_obj + timedelta(0,0,0,0,1)
+                tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M')
+               
+                
+        
+
+
+
         # Determine, the number of steps 
         intv = np.linspace(0,nstep-1,nstep,dtype = int).tolist()
 
@@ -950,6 +968,7 @@ class Model:
             self.ra = planet.ra
             self.dec = planet.dec
             self.orange = planet.orange
+            self.time = planet.time[0]
 
 
     def mwe(self):
@@ -1098,14 +1117,13 @@ class Model:
 
 
 
-    def exportasfits_input(self,ra,dec,orange ):
+    def exportasfits_input(self,ra,dec,time ):
         ''' Setting the input parameters for exportasfits manually ''' 
 
         self.ra  = ra
         self.dec = dec
-        self.orange = orange
 
-    def exportasfits(self,data,exportname, units = 'Jy/pixel',ephemeris = True, header = True): 
+    def exportasfits(self,data, exportname = 'output', units = 'Jy/pixel',ephemeris = True, header = True): 
         """ Import header infromation from CASA data 
     
         Extended description of the function.
@@ -1246,9 +1264,10 @@ class Model:
             hdulist[0].header['VELREF']  =                  257                  
             #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
             if ephemeris: 
-                hdulist[0].header['TELESCOP']= 'EVLA  '                                                            
-                hdulist[0].header['OBSERVER']= 'C. Moeckel'                                             
-                hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%dT%H:%M.%S")                                         
+                hdulist[0].header['TELESCOP']= 'Model  '                                                            
+                hdulist[0].header['OBSERVER']= 'C. Moeckel'  
+                modeltime = datetime.strptime(self.time.strip(),'%Y-%b-%d %H:%M:%S.%f')                                           
+                hdulist[0].header['DATE-OBS']=  modeltime.strftime("%Y-%m-%dT%H:%M.%S")                                         
                 hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
                 hdulist[0].header['OBSRA']   =   self.ra                                                  
                 hdulist[0].header['OBSDEC']  =   self.dec                                                 
