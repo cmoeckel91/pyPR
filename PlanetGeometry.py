@@ -801,6 +801,14 @@ def dms2deg(dms):
 
 # Class definitions 
 
+def mwe(planetname = 'Jupiter',tobs='2017-02-02 06:32:49',nu=22e9,T = 132.7,
+        p = np.array([0.075,0.065]), beamsize = 0.7): 
+    Pl = Planet(planetname)  # Initiate the Planet
+    Pl.ephemeris(tobs)      # Querry the Planet's ephemeris
+    Pl.initmodel('Model')   # Initiate the model 
+    Pl.Model.gen_casa(nu,T,p,beamsize)  # Generate the model 
+    Pl.Model.plot(Pl.Model.data) # Plot the model
+
 class Planet:
 
     def __init__(self,target): 
@@ -900,12 +908,6 @@ class Planet:
         # (degree) North pole declination 
         self.np_dec = read_ephem_line(self.ephem[intv,31])
 
-    def mwe(self):
-        tstart = '2017-02-02 08:24'; 
-        tend = '2017-02-02 08:25';
-        nstep = 1;
-        self.ephemeris(tstart,tend,nstep)
-    
 
     def initmodel(self,modelname):
         try:
@@ -969,15 +971,6 @@ class Model:
             self.dec = planet.dec
             self.orange = planet.orange
             self.time = planet.time[0]
-
-
-    def mwe(self):
-        nu = 22e9; 
-        T = 132.7; 
-        p = np.array([0.075,0.065]); 
-        beamsize = 0.8
-        self.gen_casa(nu,T,p,beamsize)
-
 
     def gen_casa_input(self, ang_diam, radius, ob_lat, np_ang,beamsize):
         ''' Setting the input parameters for gen_casa manually ''' 
