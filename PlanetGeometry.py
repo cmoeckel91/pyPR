@@ -1088,10 +1088,10 @@ class Model:
 
         im = fits.open(fname,ignore_missing_end=True)
         hdu_out = im
-        hdu_out[0].data = Jy_jupiter
+        hdu_out[0].data = self.data
         hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
-        hdu_out[0].header['BMIN'] = pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
-        hdu_out[0].header['BMAJ'] = pixscale/3600
+        hdu_out[0].header['BMIN'] = self.pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
+        hdu_out[0].header['BMAJ'] = self.pixscale/3600
 
         hdu_out[0].writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
@@ -1180,7 +1180,7 @@ class Model:
             #hdulist[0].header['EXTEND']  =   True   #?                                                
             hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
             hdulist[0].header['BZERO']   =   0.000000000000E+00  
-            if units.casefold().strip() != 'Jy/pixel'.casefold():
+            if units.casefold().strip() != 'Jy/pixel '.casefold().strip():
                 hdulist[0].header['BMAJ']    =   'N/A'                                                  
                 hdulist[0].header['BMIN']    =   'N/A'                                                   
                 hdulist[0].header['BPA']     =   'N/A'  # 
@@ -1217,13 +1217,13 @@ class Model:
             if ephemeris: 
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
                 hdulist[0].header['CRVAL1']  =   self.ra                                                  
-                hdulist[0].header['CDELT1']  =  dra[0].tolist()                                                   
+                hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale/3600                                                 
                 hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2)+1 # Reference pixel                                                
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
                 hdulist[0].header['CRVAL2']  =  self.dec                                                  
-                hdulist[0].header['CDELT2']  =   ddec[0].tolist()                                                 
+                hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
 
@@ -1246,7 +1246,7 @@ class Model:
             hdulist[0].header['VELREF']  =                  257                  
             #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
             if ephemeris: 
-                hdulist[0].header['TELESCOP']= 'Model    '                                                            
+                hdulist[0].header['TELESCOP']= 'EVLA  '                                                            
                 hdulist[0].header['OBSERVER']= 'C. Moeckel'                                             
                 hdulist[0].header['DATE-OBS']=  now.strftime("%Y-%m-%dT%H:%M.%S")                                         
                 hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
@@ -1265,7 +1265,7 @@ class Model:
         try: 
             outfile = (pathdata+exportname+'.fits')
         except NameError: 
-            outfile = (exportname+'.fits')
+            outfile = (exportname + '.fits')
         # # Export
         hdulist.writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
