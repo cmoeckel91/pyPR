@@ -13,8 +13,6 @@ sys.path.append(cwd + '/pyPR')
 # %autoreload 2 # Reload all the modules
 
 
-print('Welcome to pyPR!')
-
-pathdata = '/Users/chris/Documents/Research/VLA/VLA2017/'
-print('Set the path to your data if needed using pathdata!')
-print(pathdata)
+print('\nWelcome to pyPR!')
+print('The documentation can be found online, including a list of common mistakes')
+print('https://github.com/cmoeckel91/pyPR/wiki')

@@ -24,7 +24,7 @@ import warnings
 import IPython
 import importlib 
 
-from pyPR import pathdata 
+
 
 def is_number(s):
     try:
@@ -292,7 +292,7 @@ def ephem_uncertainties(target,orange):
     References
     ------------
     Folkner, W. M. "Uncertainties in the JPL planetary ephemeris." 
-    Proceedings of the” Journées. 2010.
+    Proceedings of the Journees. 2010. 
     https://syrte.obspm.fr/journees2010/pdf/Folkner.pdf
 
     Todo
@@ -806,7 +806,7 @@ def mwe(planetname = 'Jupiter',tobs='2017-02-02 06:32:49',nu=22e9,T = 132.7,
     Pl = Planet(planetname)  # Initiate the Planet
     Pl.ephemeris(tobs)      # Querry the Planet's ephemeris
     Pl.initmodel('Model')   # Initiate the model 
-    Pl.Model.gen_casa(nu,T,p,beamsize)  # Generate the model 
+    Pl.Model.gen_casa(nu,T,p, beamsize = beamsize)  # Generate the model 
     Pl.Model.plot(Pl.Model.data) # Plot the model
 
 class Planet:
@@ -980,7 +980,7 @@ class Model:
         self.ob_lat   = ob_lat
         self.np_ang   = np_ang 
 
-    def gen_casa(self, nu, T, p, beamsize, psfsampling=5, 
+    def gen_casa(self, nu, T, p, beamsize = 0.7, psfsampling=5, 
                  Jansky = True, setimsize = False, ):
         """Generate a model for casa 
         
@@ -1070,6 +1070,8 @@ class Model:
         rotangle = -(self.np_ang)
         self.data = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
 
+        # Store pixelscale correctly for brightness model in brightness temperature 
+        self.pixscale = self.ang_diam/self.planetsize
 
     def gen_general(self,nu,T,p,radius,imsize,planetsize,rotangle=0,):
         # rotangle = self.np_ang
@@ -1190,16 +1192,10 @@ class Model:
             # hdulist[0].header['NAXIS4']  =                    1                                                  
             #hdulist[0].header['EXTEND']  =   True   #?                                                
             hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
-            hdulist[0].header['BZERO']   =   0.000000000000E+00  
-            if units.casefold().strip() != 'Jy/pixel '.casefold().strip():
-                hdulist[0].header['BMAJ']    =   'N/A'                                                  
-                hdulist[0].header['BMIN']    =   'N/A'                                                   
-                hdulist[0].header['BPA']     =   'N/A'  # 
-            else:                                             
-                hdulist[0].header['BMAJ']    =   self.pixscale/3600                                                  
-                hdulist[0].header['BMIN']    =   self.pixscale/3600                                                   
-                hdulist[0].header['BPA']     =   45. # Position angle 
-
+            hdulist[0].header['BZERO']   =   0.000000000000E+00                                              
+            hdulist[0].header['BMAJ']    =   self.pixscale[0]/3600                                                  
+            hdulist[0].header['BMIN']    =   self.pixscale[0]/3600                                                   
+            hdulist[0].header['BPA']     =   45. # Position angle 
             hdulist[0].header['BTYPE']   = 'Intensity'                                                           
             hdulist[0].header['OBJECT']  = self.name.upper()                                                                                                                            
             hdulist[0].header['BUNIT']   = units #Brightness (pixel) unit                         
@@ -1228,13 +1224,13 @@ class Model:
             if ephemeris: 
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
                 hdulist[0].header['CRVAL1']  =   self.ra                                                  
-                hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale/3600                                                 
+                hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale[0]/3600                                                 
                 hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2)+1 # Reference pixel                                                
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
                 hdulist[0].header['CRVAL2']  =  self.dec                                                  
-                hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale/3600                                                   
+                hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale[0]/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
 
@@ -1283,9 +1279,10 @@ class Model:
         print('Model written to ', outfile)
 
 
-    def shift(self,dx,dy):
-        self.model = (scipy.ndimage.interpolation.shift(shift.model,
-            [dx,dy],mode = 'wrap')) 
+    def shift(self,data, dx,dy):
+        self.data = (scipy.ndimage.interpolation.shift(data,
+            [dy,dx],mode = 'wrap')) 
+        self.data[np.abs(self.data)<1e-10] = 0.0
 
         
 
