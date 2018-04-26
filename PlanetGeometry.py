@@ -66,7 +66,7 @@ def naif_lookup(target):
     """    
 
     target = target.upper().strip(', \n')
-    with open( 'pyPR/naif_id_table.txt')  as f:
+    with open( 'naif_id_table.txt')  as f:
         for line in f:
             l = line.split(',')
             if is_number(target):
@@ -916,7 +916,8 @@ class Planet:
             print('The model can be accessed under: '\
              '{:s}.{:s}.'.format(self.name,modelname))
         except AttributeError:
-            print('First querry the Planet\'s properties with epemeris')
+            print('First querry the Planet\'s properties with epemeris'\
+                  ' or define the radius: <Planet>.radius = np.array([R,R,R])')
 
     def model(self):
         print('Accessing Model')
@@ -1027,7 +1028,8 @@ class Model:
                    'Execute gen_casa_input or initialize a planet')
 
 
-
+        if np.size(p) == 1:
+            p = np.array([p,p])
 
         # Assign a model type for documentation 
         self.modeltype = 'pyPR-CASA'
@@ -1198,7 +1200,7 @@ class Model:
             hdulist[0].header['BPA']     =   45. # Position angle 
             hdulist[0].header['BTYPE']   = 'Intensity'                                                           
             hdulist[0].header['OBJECT']  = self.name.upper()                                                                                                                            
-            hdulist[0].header['BUNIT']   = units #Brightness (pixel) unit                         
+            hdulist[0].header['BUNIT']   = units #Brightness (pixel) unit                     
             hdulist[0].header['RADESYS'] = 'ICRS    ' 
             if ephemeris:                                                            
                 hdulist[0].header['LONPOLE'] =   1.800000000000E+02                                                  
@@ -1243,7 +1245,19 @@ class Model:
             hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
             hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
             hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CUNIT4']  = '        '                                                            
+            hdulist[0].header['CUNIT4']  = '        '  
+            hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
+            hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
+            hdulist[0].header['CUNIT5']  = 'K     '
+            if self.limbdarkening[0] != self.limbdarkening[1]:
+                hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
+                hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+                hdulist[0].header['CTYPE7']  = 'Limb darkening coefficient NS '                                                            
+                hdulist[0].header['CRVAL7']  =  self.limbdarkening[1].tolist() 
+            else: 
+                hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
+                hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+
             hdulist[0].header['PV2_1']   =   0.000000000000E+00                                                  
             hdulist[0].header['PV2_2']   =   0.000000000000E+00                                                  
             hdulist[0].header['RESTFRQ'] =   self.obsfrequency #Rest Frequency (Hz)                             
@@ -1377,3 +1391,142 @@ class Model:
         ax.set_aspect('equal', 'datalim') 
         plt.ion()
         plt.show() 
+
+    def interpmodelparams(self,center, units = 'hz',printoutput = False): 
+        '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
+        Peering below the clouds 
+
+        '''
+        #   cm   T 
+
+        if self.name.casefold().strip() != 'jupiter': 
+            sys.exit('Functionality only available for Jupiter')
+
+
+        temperature = (np.array(
+               [[0.06321, 144.92740],
+                [0.06526, 148.91039],
+                [0.06791, 152.53045],
+                [0.07067, 156.15050],
+                [0.07472, 159.40699],
+                [0.07838, 162.66410],
+                [0.08221, 164.47194],
+                [0.08487, 167.00566],
+                [0.08761, 168.81475],
+                [0.09263, 170.98429],
+                [0.09486, 171.70705],
+                [0.09871, 171.34161],
+                [0.10436, 173.87346],
+                [0.11122, 177.12932],
+                [0.12234, 179.29573],
+                [0.13246, 179.65180],
+                [0.14002, 178.92279],
+                [0.14340, 180.00787],
+                [0.14687, 181.09295],
+                [0.15404, 182.17616],
+                [0.16155, 181.81009],
+                [0.17078, 181.08108],
+                [0.18054, 180.71439],
+                [0.18936, 181.79760],
+                [0.19703, 182.88143],
+                [0.20666, 183.96463],
+                [0.22552, 184.32008],
+                [0.23280, 184.31758],
+                [0.24031, 184.31508],
+                [0.25607, 183.94776],
+                [0.27503, 183.57982],
+                [0.29306, 183.03135],
+                [0.30980, 182.12118],
+                [0.33010, 181.02923],
+                [0.35173, 179.57496],
+                [0.36887, 178.48426],
+                [0.39305, 177.39231],
+                [0.41879, 175.57573],
+                [0.43920, 173.76039],
+                [0.45697, 173.03263],
+                [0.47545, 171.94255],
+                [0.50659, 169.76365],
+                [0.53977, 167.58475],
+                [0.57969, 165.04290],
+                [0.62752, 162.13811],
+                [0.66332, 159.59752],
+                [0.70675, 157.05629],
+                [0.76507, 154.15151],
+                [0.86853, 149.06906],
+                [0.95517, 144.35144],
+                [1.07577, 139.26962],
+                [1.16445, 134.55324],
+                [1.21148, 132.01389],
+                [1.25051, 130.56212],
+                [1.32203, 131.64470],
+                [1.36481, 133.81611],
+                [1.43155, 136.34859],
+                [1.51356, 139.60507],
+                [1.58757, 142.13755],
+                [1.67845, 144.30708],
+                [1.76047, 146.11492],
+                [1.89115, 149.73248],
+                [2.03153, 153.35003],
+                [2.14792, 156.60652],
+                [2.32585, 161.31040],
+                [2.51852, 166.01429],
+                [2.83780, 172.52664],
+                [3.14727, 179.76487],
+                [3.63227, 189.89852],
+                [4.29336, 201.84189],
+                [4.95525, 213.42481],
+                [5.95141, 227.54083],
+                [7.09139, 242.01980],
+                [8.38255, 255.41243],
+                [10.0684, 271.34004],
+                [12.5845, 290.16307],
+                [15.1161, 307.17764],
+                [18.6000, 331.43668],
+                [22.1692, 353.16200],
+                [25.5936, 371.26664],
+                [28.6192, 385.75061],
+                [30.2636, 392.99259],] ))
+
+        interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1])
+
+        # limb darkening 
+        # GHz, limb darkening coefficient 
+        limbd = (np.array(
+                [[4.52  ,0.16 ], 
+                 [5.49  ,0.16 ],
+                 [6.5   ,0.16 ],
+                 [7.5   ,0.16 ], 
+                 [8.5   ,0.16 ],
+                 [9.52  ,0.16 ],
+                 [10.46 ,0.16 ],
+                 [11.46 ,0.16 ],
+                 [13.18 ,0.08 ],
+                 [14.21 ,0.08 ],
+                 [15.18 ,0.08 ],
+                 [16.21 ,0.08 ],
+                 [17.38 ,0.06 ],]))
+
+
+        intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
+
+
+        # Convert to units of cm 
+        if units.casefold().strip() == 'hz': 
+            frequency = center 
+        elif units.casefold().strip() == 'm': 
+            frequency = cst.c.value/center 
+        elif units.casefold().strip() == 'cm':
+            frequency = cst.c.value/(center/100) 
+        else: 
+            sys.exit('Units not recognized.')
+
+        # Disk averaged brightness temperature 
+        # Limb darking coefficient 
+        T = interpT(frequency)
+        p = intperld(frequency)
+
+        if printoutput:
+            print('The disk averaged brightness temperature is: {:3.1f}'.format(T))
+            print('The limb darkening coeffient is: {:2.1f}'.format(p))
+        return np.array([T,p])
+        
