@@ -65,6 +65,16 @@ def naif_lookup(target):
     10/25/2017, CM, Initial Commit
     """    
 
+
+    try:
+        open('naif_id_table.txt')
+    except FileNotFoundError: 
+        try: 
+            os.chdir('pyPR')
+        except: 
+            print(os.getcwd())
+            sys.exit('Wrong folder, make sure you are within the pyPR folder') 
+
     target = target.upper().strip(', \n')
     with open( 'naif_id_table.txt')  as f:
         for line in f:
@@ -433,7 +443,7 @@ def brightnessmap(R,x,y,T_dab,p):
         [R] Normlized x - coordinate  
     y : [1xN] float
         [R] Normlized y - coordinate  
-    T_d: [1] float
+    T_dab: [1] float
         Disk averaged brightness temperature 
     R : [3x1] float 
         Radius of the planet [equator,polar,equator]
@@ -488,33 +498,42 @@ def brightnessmap(R,x,y,T_dab,p):
     cond = 1 
     conv = 0.01
     T_scale = T_dab
-    # IPython.embed()
-    while cond: 
-        # Avoiding numeric issues 
-        cos = np.cos(th)
-        cos[cos<1e-5] = 0
-        # Exponent p, should always be smaller than p max 
-        pexp = (p[0]+(np.abs(yv)/R[1])*(p[1]-p[0]))
-        pexp[pexp > np.max(p)] = np.max(p)
-        pexp[pexp < np.min(p)] = np.min(p)
-        T = T_scale*cos**(pexp)
+
+    # Build a uniform disk model 
+    if (p == [0,0]).all() or p == 0 : 
+        T = np.ones_like(zv)*T_dab
+        T[zv==0] = 0
+        return T
+    # Build a limb-darkened disk model 
+    else: 
         # IPython.embed()
-        T_model = (np.sum(T)/np.sum(pixels[zv>0.0])) 
-        if np.abs(T_dab - T_model) < conv: 
-            cond = 0 
-        else: 
-            T_scale = T_scale + (T_dab - T_model)
-            # print('Disk averaged brighntess temperature\n',
-            #     'Target T: {:3.2f}'.format(T_dab), \
-            #     'Computed T: {:3.2f}'.format(T_model), \
-            #     'Peak T: {:3.2f} '.format(T_scale))
+        while cond: 
+            # Avoiding numeric issues 
+            cos = np.cos(th)
+            cos[cos<1e-5] = 0
+            # Exponent p, should always be smaller than p max 
+            pexp = (p[0]+(np.abs(yv)/R[1])*(p[1]-p[0]))
+            pexp[pexp > np.max(p)] = np.max(p)
+            pexp[pexp < np.min(p)] = np.min(p)
+            T = T_scale*cos**(pexp)
+            # IPython.embed()
+            T_model = (np.sum(T)/np.sum(pixels[zv>0.0])) 
+            if np.abs(T_dab - T_model) < conv: 
+                cond = 0 
+            else: 
+                T_scale = T_scale + (T_dab - T_model)
+                # print('Disk averaged brighntess temperature\n',
+                #     'Target T: {:3.2f}'.format(T_dab), \
+                #     'Computed T: {:3.2f}'.format(T_model), \
+                #     'Peak T: {:3.2f} '.format(T_scale))
 
-    print('Disk averaged brighntess temperature\n',
-        'Target T: {:3.2f}'.format(T_dab), \
-        'Computed T: {:3.2f}'.format(T_model), \
-        'Peak T: {:3.2f} '.format(T_scale))
+        print('Disk averaged brighntess temperature\n',
+            'Target T: {:3.2f}'.format(T_dab), \
+            'Computed T: {:3.2f}'.format(T_model), \
+            'Peak T: {:3.2f} '.format(T_scale))
 
-    return T
+
+        return T
 
 
 def tb2jy(T,nu,pixscale):
@@ -1075,6 +1094,7 @@ class Model:
         # Store pixelscale correctly for brightness model in brightness temperature 
         self.pixscale = self.ang_diam/self.planetsize
 
+
     def gen_general(self,nu,T,p,radius,imsize,planetsize,rotangle=0,):
         # rotangle = self.np_ang
         self.modeltype = 'pyPR-general'
@@ -1293,12 +1313,16 @@ class Model:
         print('Model written to ', outfile)
 
 
-    def shift(self,data, dx,dy):
+    def shift_image(self, dx,dy):
+        # shift the data by a number of pixels 
         self.data = (scipy.ndimage.interpolation.shift(data,
             [dy,dx],mode = 'wrap')) 
         self.data[np.abs(self.data)<1e-10] = 0.0
 
-        
+    def shift_center(self, d_p_ra,d_p_dec):
+        # shift the right asencsion and declination 
+        self.ra = self.ra + d_p_ra*self.pixscale/3600
+        self.dec = self.dec + d_p_dec*self.pixscale/3600
 
     # def maskforplanet(self,nu,T,p,beamsize,psfsampling=5,): 
     def maskforplanet(self,scalefactor=1.2,export = False,rotangle=0): 
@@ -1390,16 +1414,25 @@ class Model:
             cbar.set_label('(K)')
         ax.set_aspect('equal', 'datalim') 
         plt.ion()
+        # Add a small reference system for RA and DEC
+        xref = self.imsize*0.3*self.pixscale[0] 
+        yref = -self.imsize*0.4*self.pixscale[0]
+        vl = self.imsize*0.075*self.pixscale[0] # vector length 
+        ax.arrow(xref, yref, vl, 0, head_width=1, head_length=3, fc='k', ec='k')
+        ax.text(xref,yref-0.65*vl,'RA: {:2.1f}'.format(float(self.ra)))
+        ax.text(xref-3*vl,yref+0.75*vl,'DEC: {:2.1f}'.format(float(self.dec)))
+
+        ax.arrow(xref, yref,  0, vl, head_width=1, head_length=3, fc='k', ec='k')
         plt.show() 
 
-    def interpmodelparams(self,center, units = 'hz',printoutput = False): 
+    def interpmodelparams(center, planet = 'jupiter', units = 'hz', printoutput = False): 
         '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
         Peering below the clouds 
 
         '''
         #   cm   T 
 
-        if self.name.casefold().strip() != 'jupiter': 
+        if planet.casefold().strip() != 'jupiter': 
             sys.exit('Functionality only available for Jupiter')
 
 
