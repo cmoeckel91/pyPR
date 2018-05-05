@@ -500,7 +500,7 @@ def brightnessmap(R,x,y,T_dab,p):
     T_scale = T_dab
 
     # Build a uniform disk model 
-    if (p == [0,0]).all() or p == 0 : 
+    if (p == [0,0]).all() or (p == 0).all() : 
         T = np.ones_like(zv)*T_dab
         T[zv==0] = 0
         return T
