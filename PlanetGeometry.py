@@ -818,6 +818,8 @@ def dms2deg(dms):
 
         return angle
 
+
+
 # Class definitions 
 
 def mwe(planetname = 'Jupiter',tobs='2017-02-02 06:32:49',nu=22e9,T = 132.7,
@@ -943,6 +945,171 @@ class Planet:
         self.Model(self.name)
 
 
+
+    def interpmodelparams(self, center, planetname = 'jupiter', units = 'hz', printoutput = False): 
+        '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
+        peering below the clouds 
+    
+        Parameters
+        -------
+        center : [1] float
+            [] center frequency or wavelength 
+    
+        Returns
+        ----------
+        T : [1] K
+            [deg] Disk averaged brightness temperature 
+        p : [1] 
+            [-] limb darkening coefficient 
+    
+        Keywords
+        ----------
+    
+    
+        Example
+        -------
+        >>> 
+    
+        References
+        ------------
+    
+        Notes
+        -------
+        5/7/2018, CM, Initial Commit
+        '''
+
+        if planetname.casefold().strip() != 'jupiter': 
+            sys.exit('Functionality only available for Jupiter')
+    
+    
+        temperature = (np.array(
+               [[0.06321, 144.92740],
+                [0.06526, 148.91039],
+                [0.06791, 152.53045],
+                [0.07067, 156.15050],
+                [0.07472, 159.40699],
+                [0.07838, 162.66410],
+                [0.08221, 164.47194],
+                [0.08487, 167.00566],
+                [0.08761, 168.81475],
+                [0.09263, 170.98429],
+                [0.09486, 171.70705],
+                [0.09871, 171.34161],
+                [0.10436, 173.87346],
+                [0.11122, 177.12932],
+                [0.12234, 179.29573],
+                [0.13246, 179.65180],
+                [0.14002, 178.92279],
+                [0.14340, 180.00787],
+                [0.14687, 181.09295],
+                [0.15404, 182.17616],
+                [0.16155, 181.81009],
+                [0.17078, 181.08108],
+                [0.18054, 180.71439],
+                [0.18936, 181.79760],
+                [0.19703, 182.88143],
+                [0.20666, 183.96463],
+                [0.22552, 184.32008],
+                [0.23280, 184.31758],
+                [0.24031, 184.31508],
+                [0.25607, 183.94776],
+                [0.27503, 183.57982],
+                [0.29306, 183.03135],
+                [0.30980, 182.12118],
+                [0.33010, 181.02923],
+                [0.35173, 179.57496],
+                [0.36887, 178.48426],
+                [0.39305, 177.39231],
+                [0.41879, 175.57573],
+                [0.43920, 173.76039],
+                [0.45697, 173.03263],
+                [0.47545, 171.94255],
+                [0.50659, 169.76365],
+                [0.53977, 167.58475],
+                [0.57969, 165.04290],
+                [0.62752, 162.13811],
+                [0.66332, 159.59752],
+                [0.70675, 157.05629],
+                [0.76507, 154.15151],
+                [0.86853, 149.06906],
+                [0.95517, 144.35144],
+                [1.07577, 139.26962],
+                [1.16445, 134.55324],
+                [1.21148, 132.01389],
+                [1.25051, 130.56212],
+                [1.32203, 131.64470],
+                [1.36481, 133.81611],
+                [1.43155, 136.34859],
+                [1.51356, 139.60507],
+                [1.58757, 142.13755],
+                [1.67845, 144.30708],
+                [1.76047, 146.11492],
+                [1.89115, 149.73248],
+                [2.03153, 153.35003],
+                [2.14792, 156.60652],
+                [2.32585, 161.31040],
+                [2.51852, 166.01429],
+                [2.83780, 172.52664],
+                [3.14727, 179.76487],
+                [3.63227, 189.89852],
+                [4.29336, 201.84189],
+                [4.95525, 213.42481],
+                [5.95141, 227.54083],
+                [7.09139, 242.01980],
+                [8.38255, 255.41243],
+                [10.0684, 271.34004],
+                [12.5845, 290.16307],
+                [15.1161, 307.17764],
+                [18.6000, 331.43668],
+                [22.1692, 353.16200],
+                [25.5936, 371.26664],
+                [28.6192, 385.75061],
+                [30.2636, 392.99259],] ))
+    
+        interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1])
+    
+        # limb darkening 
+        # GHz, limb darkening coefficient 
+        limbd = (np.array(
+                [[4.52  ,0.16 ], 
+                 [5.49  ,0.16 ],
+                 [6.5   ,0.16 ],
+                 [7.5   ,0.16 ], 
+                 [8.5   ,0.16 ],
+                 [9.52  ,0.16 ],
+                 [10.46 ,0.16 ],
+                 [11.46 ,0.16 ],
+                 [13.18 ,0.08 ],
+                 [14.21 ,0.08 ],
+                 [15.18 ,0.08 ],
+                 [16.21 ,0.08 ],
+                 [17.38 ,0.06 ],]))
+    
+    
+        intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
+    
+    
+        # Convert to units of cm 
+        if units.casefold().strip() == 'hz': 
+            frequency = center 
+        elif units.casefold().strip() == 'm': 
+            frequency = cst.c.value/center 
+        elif units.casefold().strip() == 'cm':
+            frequency = cst.c.value/(center/100) 
+        else: 
+            sys.exit('Units not recognized.')
+
+        # Disk averaged brightness temperature 
+        # Limb darking coefficient 
+        T = interpT(frequency)
+        p = intperld(frequency)
+
+        if printoutput:
+            print('The disk averaged brightness temperature is: {:3.1f}'.format(float(T)))
+            print('The limb darkening coeffient is: {:2.1f}'.format(float(p)))
+
+        return np.array([T,p])
+    
 class Model: 
     """Class containing the required information to create, modify and 
         export a model.
@@ -1245,13 +1412,13 @@ class Model:
             
             if ephemeris: 
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
-                hdulist[0].header['CRVAL1']  =   self.ra                                                  
+                hdulist[0].header['CRVAL1']  =   self.ra #'{:02E}'.format(self.ra)                                                
                 hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale[0]/3600                                                 
                 hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2)+1 # Reference pixel                                                
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
-                hdulist[0].header['CRVAL2']  =  self.dec                                                  
+                hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)                                              
                 hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale[0]/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
@@ -1259,8 +1426,9 @@ class Model:
             hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
             hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
             hdulist[0].header['CDELT3']  =   self.obsfrequency/2.75 # Based on emperical ratio, might be wrong!                                                  
-            hdulist[0].header['CRPIX3']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CUNIT3']  = 'Hz      '                                                            
+            hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
+            hdulist[0].header['CUNIT3']  = 'Hz '
+
             hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
             hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
             hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
@@ -1424,142 +1592,4 @@ class Model:
 
         ax.arrow(xref, yref,  0, vl, head_width=1, head_length=3, fc='k', ec='k')
         plt.show() 
-
-    def interpmodelparams(center, planet = 'jupiter', units = 'hz', printoutput = False): 
-        '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
-        Peering below the clouds 
-
-        '''
-        #   cm   T 
-
-        if planet.casefold().strip() != 'jupiter': 
-            sys.exit('Functionality only available for Jupiter')
-
-
-        temperature = (np.array(
-               [[0.06321, 144.92740],
-                [0.06526, 148.91039],
-                [0.06791, 152.53045],
-                [0.07067, 156.15050],
-                [0.07472, 159.40699],
-                [0.07838, 162.66410],
-                [0.08221, 164.47194],
-                [0.08487, 167.00566],
-                [0.08761, 168.81475],
-                [0.09263, 170.98429],
-                [0.09486, 171.70705],
-                [0.09871, 171.34161],
-                [0.10436, 173.87346],
-                [0.11122, 177.12932],
-                [0.12234, 179.29573],
-                [0.13246, 179.65180],
-                [0.14002, 178.92279],
-                [0.14340, 180.00787],
-                [0.14687, 181.09295],
-                [0.15404, 182.17616],
-                [0.16155, 181.81009],
-                [0.17078, 181.08108],
-                [0.18054, 180.71439],
-                [0.18936, 181.79760],
-                [0.19703, 182.88143],
-                [0.20666, 183.96463],
-                [0.22552, 184.32008],
-                [0.23280, 184.31758],
-                [0.24031, 184.31508],
-                [0.25607, 183.94776],
-                [0.27503, 183.57982],
-                [0.29306, 183.03135],
-                [0.30980, 182.12118],
-                [0.33010, 181.02923],
-                [0.35173, 179.57496],
-                [0.36887, 178.48426],
-                [0.39305, 177.39231],
-                [0.41879, 175.57573],
-                [0.43920, 173.76039],
-                [0.45697, 173.03263],
-                [0.47545, 171.94255],
-                [0.50659, 169.76365],
-                [0.53977, 167.58475],
-                [0.57969, 165.04290],
-                [0.62752, 162.13811],
-                [0.66332, 159.59752],
-                [0.70675, 157.05629],
-                [0.76507, 154.15151],
-                [0.86853, 149.06906],
-                [0.95517, 144.35144],
-                [1.07577, 139.26962],
-                [1.16445, 134.55324],
-                [1.21148, 132.01389],
-                [1.25051, 130.56212],
-                [1.32203, 131.64470],
-                [1.36481, 133.81611],
-                [1.43155, 136.34859],
-                [1.51356, 139.60507],
-                [1.58757, 142.13755],
-                [1.67845, 144.30708],
-                [1.76047, 146.11492],
-                [1.89115, 149.73248],
-                [2.03153, 153.35003],
-                [2.14792, 156.60652],
-                [2.32585, 161.31040],
-                [2.51852, 166.01429],
-                [2.83780, 172.52664],
-                [3.14727, 179.76487],
-                [3.63227, 189.89852],
-                [4.29336, 201.84189],
-                [4.95525, 213.42481],
-                [5.95141, 227.54083],
-                [7.09139, 242.01980],
-                [8.38255, 255.41243],
-                [10.0684, 271.34004],
-                [12.5845, 290.16307],
-                [15.1161, 307.17764],
-                [18.6000, 331.43668],
-                [22.1692, 353.16200],
-                [25.5936, 371.26664],
-                [28.6192, 385.75061],
-                [30.2636, 392.99259],] ))
-
-        interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1])
-
-        # limb darkening 
-        # GHz, limb darkening coefficient 
-        limbd = (np.array(
-                [[4.52  ,0.16 ], 
-                 [5.49  ,0.16 ],
-                 [6.5   ,0.16 ],
-                 [7.5   ,0.16 ], 
-                 [8.5   ,0.16 ],
-                 [9.52  ,0.16 ],
-                 [10.46 ,0.16 ],
-                 [11.46 ,0.16 ],
-                 [13.18 ,0.08 ],
-                 [14.21 ,0.08 ],
-                 [15.18 ,0.08 ],
-                 [16.21 ,0.08 ],
-                 [17.38 ,0.06 ],]))
-
-
-        intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
-
-
-        # Convert to units of cm 
-        if units.casefold().strip() == 'hz': 
-            frequency = center 
-        elif units.casefold().strip() == 'm': 
-            frequency = cst.c.value/center 
-        elif units.casefold().strip() == 'cm':
-            frequency = cst.c.value/(center/100) 
-        else: 
-            sys.exit('Units not recognized.')
-
-        # Disk averaged brightness temperature 
-        # Limb darking coefficient 
-        T = interpT(frequency)
-        p = intperld(frequency)
-
-        if printoutput:
-            print('The disk averaged brightness temperature is: {:3.1f}'.format(T))
-            print('The limb darkening coeffient is: {:2.1f}'.format(p))
-        return np.array([T,p])
         
