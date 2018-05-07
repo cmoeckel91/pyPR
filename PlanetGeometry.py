@@ -824,14 +824,14 @@ def mwe(planetname = 'Jupiter',tobs='2017-02-02 06:32:49',nu=22e9,T = 132.7,
         p = np.array([0.075,0.065]), beamsize = 0.7): 
     Pl = Planet(planetname)  # Initiate the Planet
     Pl.ephemeris(tobs)      # Querry the Planet's ephemeris
-    Pl.initmodel('Model')   # Initiate the model 
-    Pl.Model.gen_casa(nu,T,p, beamsize = beamsize)  # Generate the model 
-    Pl.Model.plot(Pl.Model.data) # Plot the model
+    Pl.initmodel('M')   # Initiate the model 
+    Pl.M.gen_casa(nu,T,p, beamsize = beamsize)  # Generate the model 
+    Pl.M.plot(Pl.M.data) # Plot the model
 
 class Planet:
 
     def __init__(self,target): 
-        self.name = target
+        self.name = target 
 
     def ephemeris(self, tstart, tend=None, nstep=1, obs_code = '-5'):
         '''Immediately run get_ephemerides, then set a bunch of 
@@ -1321,8 +1321,8 @@ class Model:
 
     def shift_center(self, d_p_ra,d_p_dec):
         # shift the right asencsion and declination 
-        self.ra = self.ra + d_p_ra*self.pixscale/3600
-        self.dec = self.dec + d_p_dec*self.pixscale/3600
+        self.ra = float(self.ra + d_p_ra*self.pixscale/3600)
+        self.dec = float(self.dec + d_p_dec*self.pixscale/3600)
 
     # def maskforplanet(self,nu,T,p,beamsize,psfsampling=5,): 
     def maskforplanet(self,scalefactor=1.2,export = False,rotangle=0): 
