@@ -190,15 +190,21 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
     """  
     # IF no end time is provided, simulate batch mode 
     try: 
-        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S')
-        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M:%S'")
-        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M:%S')
-        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M:%S'")
+        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S.%f')
+        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M:%S.%f'")
+        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M:%S.%f')
+        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M:%S.%f'")
     except ValueError: 
-        tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
-        tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M'")
-        tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M')
-        tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M'")
+        try: 
+            tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S')
+            tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M:%S'")
+            tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M:%S')
+            tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M:%S'")
+        except ValueError: 
+            tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
+            tstart_UT = datetime.strftime(tstart_obj,"'%Y-%m-%d %H:%M'")
+            tend_obj = datetime.strptime(tend,'%Y-%m-%d %H:%M')
+            tend_UT = datetime.strftime(tend_obj,"'%Y-%m-%d %H:%M'")
 
     if tstart_UT > tend_UT: 
         sys.exit('Start time is larger than end time.')
@@ -532,6 +538,7 @@ def brightnessmap(R,x,y,T_dab,p):
             'Computed T: {:3.2f}'.format(T_model), \
             'Peak T: {:3.2f} '.format(T_scale))
 
+        T[zv<1e-5] = 0
 
         return T
 
@@ -842,15 +849,21 @@ class Planet:
         '''
 
         # Be default increment time by one step to provide single epehemeris
+
         if tend is None:
             try:
-                tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S')
+                tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S.%f')
                 tend_obj = tend_obj + timedelta(0,1)
-                tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M:%S')
+                tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M:%S.%f')
             except ValueError: 
-                tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
-                tend_obj = tend_obj + timedelta(0,0,0,0,1)
-                tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M')
+                try: 
+                    tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S')
+                    tend_obj = tend_obj + timedelta(0,1)
+                    tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M:%S')
+                except ValueError: 
+                    tend_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M')
+                    tend_obj = tend_obj + timedelta(0,0,0,0,1)
+                    tend = datetime.strftime(tend_obj,'%Y-%m-%d %H:%M')
                
                 
         
@@ -860,6 +873,7 @@ class Planet:
         # Determine, the number of steps 
         intv = np.linspace(0,nstep-1,nstep,dtype = int).tolist()
 
+      
         self.target = self.name
         self.obs_code = obs_code
         self.ephem, self.observatory_coords, self.radius = (
@@ -874,14 +888,28 @@ class Planet:
         self.dra = np.asarray([float(s) for s in self.ephem[intv,5]]) 
         #  d(DEC)/dt 
         self.ddec = np.asarray([float(s) for s in self.ephem[intv,6]]) 
-        # (degrees) azimuth , North = 0 = 360
-        self.azimuth = np.asarray([float(s) for s in self.ephem[intv,7]])
-        # (degrees) elevation degrees, above horizon
-        self.elevation = np.asarray([float(s) for s in self.ephem[intv,8]])
-        # Airmass 
-        self.airmass = read_ephem_line(self.ephem[intv,9]) 
-        # Extinction
-        self.extinction = read_ephem_line(self.ephem[intv,10]) 
+        try: 
+            # (degrees) azimuth , North = 0 = 360
+            self.azimuth = np.asarray([float(s) for s in self.ephem[intv,7]])    
+        except ValueError: 
+            self.azimuth = np.asarray([np.nan for s in self.ephem[intv,7]])
+        try: 
+            # (degrees) elevation degrees, above horizon   
+            self.elevation = np.asarray([float(s) for s in self.ephem[intv,8]])
+        except ValueError: 
+            self.elevation = np.asarray([np.nan for s in self.ephem[intv,8]])
+        try:
+            # Airmass 
+            self.airmass = read_ephem_line(self.ephem[intv,9]) 
+        except ValueError: 
+            self.airmass = np.nan
+        try:    
+            # Extinction
+            self.extinction = read_ephem_line(self.ephem[intv,10]) 
+        except ValueError: 
+            # Extinction
+            self.extinction = np.nan 
+
         # Visual magntidue 
         self.apmag = read_ephem_line(self.ephem[intv,11]) 
         # Surface brightness
@@ -1293,8 +1321,8 @@ class Model:
         hdu_out = im
         hdu_out[0].data = self.data
         hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
-        hdu_out[0].header['BMIN'] = self.pixscale/3600 #set beam size equal to one pixel so uvsub doesnt get confused
-        hdu_out[0].header['BMAJ'] = self.pixscale/3600
+        hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
+        hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
 
         hdu_out[0].writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
@@ -1344,7 +1372,7 @@ class Model:
         
         References
         ------------
-        <URL> / citation if applicable
+        2-16 - Geiser - Representations of spectral coordinates in FITS
         
         Todo
         ----- 
@@ -1425,7 +1453,7 @@ class Model:
 
             hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
             hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
-            hdulist[0].header['CDELT3']  =   self.obsfrequency/2.75 # Based on emperical ratio, might be wrong!                                                  
+            hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
             hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
             hdulist[0].header['CUNIT3']  = 'Hz '
 
@@ -1437,6 +1465,7 @@ class Model:
             hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
             hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
             hdulist[0].header['CUNIT5']  = 'K     '
+            
             if self.limbdarkening[0] != self.limbdarkening[1]:
                 hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
                 hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
@@ -1449,9 +1478,10 @@ class Model:
             hdulist[0].header['PV2_1']   =   0.000000000000E+00                                                  
             hdulist[0].header['PV2_2']   =   0.000000000000E+00                                                  
             hdulist[0].header['RESTFRQ'] =   self.obsfrequency #Rest Frequency (Hz)                             
-            hdulist[0].header['SPECSYS'] = 'LSRK    '           #Spectral reference frame                        
-            hdulist[0].header['ALTRVAL'] =  -0.000000000000E+00 #Alternate frequency reference value             
-            hdulist[0].header['ALTRPIX'] =   1.000000000000E+00 #Alternate frequency reference pixel             
+            hdulist[0].header['SPECSYS'] = 'LSRK    '           #Spectral reference frame    
+            # http://tdc-www.harvard.edu/wcstools/aips27.pdf Page 1-2 ellaborates on the relation ship                     
+            # hdulist[0].header['ALTRVAL'] =  -0.000000000000E+00 #Alternate frequency reference value             
+            # hdulist[0].header['ALTRPIX'] =   1.000000000000E+00 #Alternate frequency reference pixel             
             hdulist[0].header['VELREF']  =                  257                  
             #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
             if ephemeris: 
