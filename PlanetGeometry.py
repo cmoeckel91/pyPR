@@ -22,7 +22,8 @@ import matplotlib.pyplot as plt
 # Debug 
 import warnings
 import IPython
-import importlib 
+import importlib
+import time
 
 
 
@@ -569,7 +570,8 @@ def tb2jy(T,nu,pixscale):
 
     Example
     -------
-    >>> tbtojy
+    >>> tb2jy
+
     References
     ------------
 
@@ -692,15 +694,38 @@ def rotation_matrix(axis, theta):
 
 
 
-def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale, Jansky = True): 
+def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale, Jansky = True,uniform=False): 
 
+    t0 = time.time()  # start time
     (x,y,) = axisforcasamodel(imsize, planet/pixscale)
-    model = brightnessmap(R,x,y,T_dab,p)
+    t1 = time.time() # end time
+    print('1',t1 - t0,'s')  
 
-    # fig,ax = plt.subplots()
-    # C = plt.contourf(T_model)
-    # cbar = plt.colorbar(C)
-    # plt.show()
+   
+
+    t0 = time.time()  # start time
+
+
+    if uniform :     
+        # Call the three dimension surface 
+        t0 = time.time()  # start time
+        #IPython.embed()
+        (xv,yv,zv) = triaxialellipsoid(R[0],R[1],R[2],x,y)
+        t1 = time.time() # end time
+        print('2',t1 - t0,'s') 
+        # Avoid singularities 
+        zv[zv==0] = float('nan')
+        zv[~np.isfinite(zv)] = 0.
+        T = np.ones_like(zv)*T_dab
+        T[zv==0] = 0
+        model = T
+        # the code to time goes here
+    
+    else :
+        model = brightnessmap(R,x,y,T_dab,p)
+
+ 
+
     if Jansky: 
         model = tb2jy(model, nu, pixscale)
     return model
@@ -806,7 +831,7 @@ def dms2deg(dms):
 
         Example
         -------
-        >>> ra = ra.h2deg()
+        >>> ra = ra.dms2deg()
 
         References
         ------------
@@ -825,6 +850,41 @@ def dms2deg(dms):
 
         return angle
 
+def deg2dms(angle): 
+        """Convert angel in deg to hour format  
+        
+        Parameters
+        -------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Returns
+        ----------
+        self : [1] str
+            [] 'hh mm ss.ss' 
+
+        Keywords
+        ----------
+
+
+        Example
+        -------
+        >>> ra = ra.h2deg()
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CM, Initial Commit
+        """
+        h = np.floor(angle/360*24.) 
+        m = np.floor((angle/360*24. - h )*60)
+        sec = (np.floor((angle/24. - h )*60) -m)*60 
+
+
+
+        return angle
 
 
 # Class definitions 
@@ -1289,6 +1349,219 @@ class Model:
         # Store pixelscale correctly for brightness model in brightness temperature 
         self.pixscale = self.ang_diam/self.planetsize
 
+    def gen_structure(self,n_a,sig_xi,sig_yi,scalefactor, spacingfactor = 1): 
+        """Generate random structure on Jupiter 
+
+        This function will place Gaussian structure on Jupiter, where 
+        the sigma parameters determine the shape the Gaussian structure
+        and the scale factor determines the magnitude of the signal. The 
+        spaceing factor determines how tightly spaced the individual 
+        signals are. For tight spacing you get an overlap of signals. 
+
+        
+        Parameters
+        -------
+        n_a: [1] float
+            [-] Number of annuli that contain structure
+        sig_xi [1] int
+            [-] Size of the enhancement structure (x-axis) 
+        sig_yi [1] int
+            [-] Size of the enhancement structure (y-axis) 
+        scalefactor [1] 
+            [-] Magnitude of the enhancement. It can be defined with 
+                respect to the background structure. Such as 10% of the 
+                maxium on the disk  
+
+        Returns
+        ----------
+        deg : [NxN] float
+            [-] Structure on top of the background 
+
+        Keywords
+        ----------
+        spacingfactor : [1] float
+            [-] Modify how tightly spaced the enhancement is. Factor of 
+                1 very tight, 100 very widely spaced. 
+
+
+        Example
+        -------
+        beam = 0.08
+        sig_x = 1
+        sig_y = 3
+
+        Jupiter.initmodel('Model') 
+        nu = 22e9; T = 132.7; p = np.array([0.08,0.08]); 
+        Jupiter.Model.gen_casa(nu,T,p,beamsize = beam,)
+        scalefactor = 0.1*np.max(Jupiter.Model.data)
+        Jupiter.Model.gen_structure(n_a = 7, sig_xi=sig_x, sig_yi=sig_y, scalefactor = scalefactor)
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CM, Initial Commit
+        """
+        from scipy.stats import multivariate_normal
+        from scipy.interpolate import interp2d
+        # Remove the tilt of the planet, and project the planet on the 
+        # sky with y axis pointing up
+        rotangle = (self.np_ang)
+        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False)
+
+        # Find the planet in pixels 
+        r_pix = self.planetsize/2 # Radius in pixel 
+
+        # n_a = 5 # [-] Number of annuli on the planet 
+        for i in range(1,n_a):
+            # Compute the local radius in the spiral 
+            r_l = r_pix/n_a*(n_a-i)
+
+            # Build a mesh based on the expected size outwards to 3 sigma 
+            sig_x, sig_y = sig_xi+r_pix/100/n_a*(i-1)**2, sig_yi + r_pix/100/n_a*(i-1)**2 # size of enhancement in pixel 
+            print(sig_x,sig_y)
+            # 
+            var = multivariate_normal(mean=[0,0], cov=[[sig_x**2,0],[0,sig_y**2]])
+
+
+            # Decrease the scalefactor to avoid heavy concentration in the middle of the planet 
+            scalefactor = scalefactor*0.5
+
+            # Calculate the number of steps through the unit circle 
+            dth_m = (spacingfactor*sig_x)/(2*np.pi*r_l)
+
+            th = np.zeros(1) +(i-1)*np.pi/4
+            i2 = 0 
+            # step through the unit circle 
+            while th[-1] < 2*np.pi +(i-1)*np.pi/4: 
+                i2 += 1
+                # Convert the base center to x and y 
+                th = np.append(th,th[-1]+dth_m*i2)
+                x_l = r_l*np.cos(th[-1]) 
+                y_l = r_l*np.sin(th[-1]) 
+                
+                
+                # Mesh to interpolate on (plus on upper end to make it odd)
+                x_m, y_m = np.mgrid[-3*sig_x:4*sig_x:1, -3*sig_y:4*sig_y:1]
+                pos = np.empty(x_m.shape + (2,))
+                pos[:, :, 0] = x_m; pos[:, :, 1] = y_m 
+
+                # Mesh were to add the enhancement (enhanecment grid, plus planet grid, plus image grid) 
+                x_i = x_m + np.round(x_l) + self.imsize/2
+                y_i = y_m + np.round(y_l) + self.imsize/2
+                # IPython.embed()
+                # Lower bounds for slicing 
+                x_ilb = x_i[0,0].astype(int)  
+                y_ilb = y_i[0,0].astype(int)
+                self.data[x_ilb:x_ilb+x_m.shape[0],y_ilb:y_ilb+x_m.shape[1]] +=  \
+                 var.pdf(pos)/np.max(var.pdf(pos))*scalefactor
+
+
+        # Add the tilt of the planet, and project the planet on the sky with y axis pointing up
+        rotangle = -(self.np_ang)
+        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+
+
+    def gen_uniform(self, nu, T, beamsize = 0.7, psfsampling=5, 
+                 Jansky = True, setimsize = False, ):
+
+
+        """Generate a uniform disk model for casa 
+        
+        Parameters
+        -------
+        beamsize: [1] float
+            [arcs] Used to estimate the size of the image and the pixel
+                   to arcsecond converstion
+
+        Returns
+        ----------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Keywords
+        ----------
+        psfsamplin : [1] float
+            [-] Number of pixels per beam
+        Jansky : [1] float
+            [K] Disk averaged brightness temperature
+        T : [1] float
+            [K] Disk averaged brightness temperature
+
+
+        Example
+        -------
+
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CMimpo, Initial Commit
+        """
+
+        try:
+            self.ang_diam 
+            self.radius   
+            self.ob_lat   
+            self.np_ang   
+        except AttributeError:
+            sys.exit('Attributes for gen_casa are missing.'\
+                   'Execute gen_casa_input or initialize a planet')
+
+
+        # Assign a model type for documentation 
+        self.modeltype = 'pyPR-CASA'
+        self.Jansky = Jansky 
+        self.pixscale = beamsize/psfsampling 
+
+        # Assign the parameter 
+        self.obsfrequency = nu 
+        self.Tdiskaveraged = T 
+
+
+
+        # Radius of the planet in pixel 
+        r_pla = self.ang_diam/self.pixscale/2
+        self.planetsize = 2*r_pla
+
+        # Normalize the axis for the triaxial ellipsoid and convert to pixel
+        R = self.radius/self.radius[0]*r_pla
+        # Rotate around x axis to correct for the sub latitude 
+        # (pixel) Polar radius for triaxial ellipsoid
+        R[1] = (R[1]*np.cos(np.radians(self.ob_lat))**2 
+                + R[2]*np.sin(np.radians(self.ob_lat))**2 )
+        # (pixel) Equatorial radius for triaxial ellipsoid 
+        R[2] = (R[2]*np.cos(np.radians(self.ob_lat))**2 
+                + R[1]*np.sin(np.radians(self.ob_lat))**2)
+        
+        if setimsize: 
+            self.imsize = setimsize
+        else: 
+            self.imsize = calcimsize(self.ang_diam,self.pixscale) # (pixel)
+        print('Use/check the following parameters for your casa deconvolution:')
+        print('Imsize: ', self.imsize) 
+        print('Cell : ', self.pixscale)
+        print('\n')
+
+
+        self.limbdarkening = 0 
+
+        model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
+                self.limbdarkening, R, self.imsize, self.planetsize, 
+                self.pixscale, Jansky,uniform = True))
+ 
+        # First iteration rotation. Needs automization 
+        rotangle = -(self.np_ang)
+        self.data = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
+
+        # Store pixelscale correctly for brightness model in brightness temperature 
+        self.pixscale = self.ang_diam/self.planetsize
+
+
+
 
     def gen_general(self,nu,T,p,radius,imsize,planetsize,rotangle=0,):
         # rotangle = self.np_ang
@@ -1446,11 +1719,11 @@ class Model:
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
-                hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)                                              
+                hdulist[0].header['CRVAL2']  =  self.d2hrec #'{:02E}'.format(self.dec)                                              
                 hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale[0]/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
-
+          
             hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
             hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
             hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
@@ -1466,14 +1739,20 @@ class Model:
             hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
             hdulist[0].header['CUNIT5']  = 'K     '
             
-            if self.limbdarkening[0] != self.limbdarkening[1]:
-                hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
-                hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
-                hdulist[0].header['CTYPE7']  = 'Limb darkening coefficient NS '                                                            
-                hdulist[0].header['CRVAL7']  =  self.limbdarkening[1].tolist() 
-            else: 
+            try: 
+                if self.limbdarkening[0] != self.limbdarkening[1]:
+                    hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
+                    hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+                    hdulist[0].header['CTYPE7']  = 'Limb darkening coefficient NS '                                                            
+                    hdulist[0].header['CRVAL7']  =  self.limbdarkening[1].tolist() 
+                else: 
+                    hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
+                    hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+            except: 
                 hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
-                hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+                hdulist[0].header['CRVAL6']  =  self.limbdarkening
+
+
 
             hdulist[0].header['PV2_1']   =   0.000000000000E+00                                                  
             hdulist[0].header['PV2_2']   =   0.000000000000E+00                                                  
@@ -1622,4 +1901,97 @@ class Model:
 
         ax.arrow(xref, yref,  0, vl, head_width=1, head_length=3, fc='k', ec='k')
         plt.show() 
+      
+
+
+    def locatetotemplate(self,input,output): 
+        """ Reads out the located visibilities and transform them into 
+        flagging template format 
+    
+        Extended description of the function.
         
+        Parameters
+        ----------
+        arg1 : int
+            [Unit] Description of arg1
+        pixscale : int
+            [arcseconds] Size of one pixel in arcseconds 
+        
+        Keyword Arguments
+        ----------
+        pt1: type
+           [Unit] Description, Default: true
+        
+        Returns
+        -------
+        out1 :
+            [Unit] Description of return value
+        out2 :
+            [Unit] Description of return value
+        
+        Warnings
+        -------
+        
+        
+        Example
+        -------
+        text
+        
+        >>>function(arg1, arg2)
+        out1
+        
+        References
+        ------------
+        2-16 - Geiser - Representations of spectral coordinates in FITS
+        
+        Todo
+        ----- 
+        
+        Notes
+        -------
+        mm/dd/yy, Initials of Author, Short description of update
+        """
+        
+
+        # Loop pver all the input files 
+
+        # import re 
+
+        # filepath = input
+        # with open(filepath) as fp:  
+        # line = fp.readline()
+        # cnt = 1
+        # while line:
+        #     info = line.split() 
+        #     # read out the data 
+        #     if data[3] == 'PlotMS::locate+': 
+        #         # Scan 
+        #         try: 
+        #             scan = int(re.search(r'\d+',info[4],re.I)[0])
+        #         except: 
+        #             sys.warnings('Failed to identify scan in line %d'.format(cnt))
+        #         # Field 
+        #         try:
+        #             field = int(re.search(r'\[\d\]',info[5],re.I)[0][1:-1])
+        #         except: 
+        #             sys.warnings('Failed to identify field in line %d'.format(cnt))
+        #         # time 
+        #         time = info[6][5:] 
+        #         # spw 
+        #         try: 
+        #             spw = int(re.search(r'\d+',info[9],re.I)[0])
+        #          except: 
+        #             sys.warnings('Failed to identify spw in line %d'.format(cnt))
+        #         # Channel 
+        #         try: 
+        #             Chan = int(re.search(r'\d+',info[10],re.I)[0])
+        #          except: 
+        #             sys.warnings('Failed to identify channel in line %d'.format(cnt))
+        #         # Corr 
+        #         Corr = info[12][-2:]
+
+
+        #     line = fp.readline()
+        #     cnt += 1
+
+
