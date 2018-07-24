@@ -6,7 +6,6 @@ Notes
 """
 
 import sys, os
-from urllib.request import urlopen
 from time import strftime, gmtime, time
 from datetime import datetime,timedelta
 
@@ -189,6 +188,10 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
     -------
     10/25/2017, CM, update Commit
     """  
+
+    from urllib.request import urlopen
+    import urllib 
+
     # IF no end time is provided, simulate batch mode 
     try: 
         tstart_obj = datetime.strptime(tstart,'%Y-%m-%d %H:%M:%S.%f')
@@ -214,7 +217,7 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
         nstep = '1' 
         print('nstep changed to 1')
 
-    http = "http://ssd.jpl.nasa.gov/horizons_batch.cgi?batch=1"
+    http       = "https://ssd.jpl.nasa.gov/horizons_batch.cgi?batch=1"
     make_ephem = "&MAKE_EPHEM='YES'&TABLE_TYPE='OBSERVER'"
     command    = "&COMMAND=" + (code)
     center     = "&CENTER="+(obs_code)  #500 is geocentric
@@ -226,7 +229,7 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
 
     # 1,2,4,9,10,13,14,19-21,24,29,32
 
-    url = http+make_ephem+command+center+t_start+t_stop+t_step+quantities+csv
+    url = urllib.parse.quote(http+make_ephem+command+center+t_start+t_stop+t_step+quantities+csv, safe=':/?=&,')    
     ephem = urlopen( url ).readlines()
 
     inephem = False
@@ -794,7 +797,7 @@ def hms2deg(hms):
 
         Example
         -------
-        >>> ra = ra.h2deg()
+        >>> ra = ra.hms2deg()
 
         References
         ------------
@@ -813,7 +816,7 @@ def hms2deg(hms):
         return angle
 
 def dms2deg(dms): 
-        """Convert hh:mm:ss.ss to deg 
+        """Convert degree mm:ss.ss to deg 
         
         Parameters
         -------
@@ -850,7 +853,7 @@ def dms2deg(dms):
 
         return angle
 
-def deg2dms(angle): 
+def deg2hms(angle): 
         """Convert angel in deg to hour format  
         
         Parameters
@@ -880,11 +883,53 @@ def deg2dms(angle):
         """
         h = np.floor(angle/360*24.) 
         m = np.floor((angle/360*24. - h )*60)
-        sec = (np.floor((angle/24. - h )*60) -m)*60 
+        s = np.floor((((angle/360*24. - h )*60) - m)*60)
+        f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
+
+        string = '{:n}h {:n}m {:n}.{:n}s'.format(h,m,s,f) 
+
+        return string
+
+def deg2dms(angle): 
+        """Convert angel in deg to hour format  
+        
+        Parameters
+        -------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Returns
+        ----------
+        self : [1] str
+            [] 'hh mm ss.ss' 
+
+        Keywords
+        ----------
+
+
+        Example
+        -------
+        >>> ra = ra.h2deg()
+
+        References
+        ------------
+
+        Notes
+        -------
+        11/18/2017, CM, Initial Commit
+        """
+        d = np.floor(angle)
+        h = np.floor(angle/360*24.) 
+        m = np.floor((angle/360*24. - h )*60)
+        s = np.floor((((angle/360*24. - h )*60) - m)*60)
+        f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
+
+        string = '{:n}d {:n}m {:n}.{:n}s'.format(d,m,s,f) 
+
+        return string
 
 
 
-        return angle
 
 
 # Class definitions 
@@ -1349,7 +1394,7 @@ class Model:
         # Store pixelscale correctly for brightness model in brightness temperature 
         self.pixscale = self.ang_diam/self.planetsize
 
-    def gen_structure(self,n_a,sig_xi,sig_yi,scalefactor, spacingfactor = 1): 
+    def gen_gaussian_structure(self,n_a,sig_xi,sig_yi,scalefactor, spacingfactor = 1, inc_negative=True): 
         """Generate random structure on Jupiter 
 
         This function will place Gaussian structure on Jupiter, where 
@@ -1401,7 +1446,8 @@ class Model:
 
         Notes
         -------
-        11/18/2017, CM, Initial Commit
+        6/6/2018, CM, Added negative residuals 
+        7/6/2018, CM, Added negative residuals 
         """
         from scipy.stats import multivariate_normal
         from scipy.interpolate import interp2d
@@ -1426,15 +1472,15 @@ class Model:
 
 
             # Decrease the scalefactor to avoid heavy concentration in the middle of the planet 
-            scalefactor = scalefactor*0.5
+            # scalefactor = scalefactor
 
             # Calculate the number of steps through the unit circle 
             dth_m = (spacingfactor*sig_x)/(2*np.pi*r_l)
 
-            th = np.zeros(1) +(i-1)*np.pi/4
+            th = np.zeros(1) #(i-1)*np.pi/4
             i2 = 0 
             # step through the unit circle 
-            while th[-1] < 2*np.pi +(i-1)*np.pi/4: 
+            while th[-1] < 2*np.pi: #+(i-1)*np.pi/4: 
                 i2 += 1
                 # Convert the base center to x and y 
                 th = np.append(th,th[-1]+dth_m*i2)
@@ -1454,13 +1500,197 @@ class Model:
                 # Lower bounds for slicing 
                 x_ilb = x_i[0,0].astype(int)  
                 y_ilb = y_i[0,0].astype(int)
+                if inc_negative:
+                    sign = [-1,1][np.random.randint(-1,2)]
+                else: 
+                    sign = 1
+
                 self.data[x_ilb:x_ilb+x_m.shape[0],y_ilb:y_ilb+x_m.shape[1]] +=  \
-                 var.pdf(pos)/np.max(var.pdf(pos))*scalefactor
+                var.pdf(pos)/np.max(var.pdf(pos))*scalefactor*sign  
+
 
 
         # Add the tilt of the planet, and project the planet on the sky with y axis pointing up
         rotangle = -(self.np_ang)
         self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+
+
+    def gen_banded_structure(self,scalefactor,width = 1, spacingfactor = 1,inc_negative=True): 
+        """Generate random structure on Jupiter 
+
+        This function will place banded structure on the planet, with 
+        the size of the bands increasing away from the equator. The 
+        various parameter allow to control the width, the spacingfactor 
+        and the brightness.  
+
+        
+        Parameters
+        -------  
+        scalefactor [1] 
+            [-] Magnitude of the enhancement. It can be defined with 
+                respect to the background structure. Such as 10% of the 
+                maxium on the disk  
+
+        Returns
+        ----------
+        deg : [NxN] float
+            [-] Structure on top of the background 
+
+        Keywords
+        ----------
+        spacingfactor : [1] float
+            [-] Modify how tightly spaced the enhancement is. Factor of 
+                1 very tight, 100 very widely spaced.
+
+        width: [1]
+            [-] Width of the bands in pixel  
+        inc_negative: [Bol]
+            [-] Include also negative residuals 
+
+
+        Example
+        -------
+        beam = 0.08
+        spacingfactor = 2
+        width = 1 
+
+        Jupiter.initmodel('Model') 
+        nu = 22e9; T = 132.7; p = np.array([0.08,0.08]); 
+        Jupiter.Model.gen_casa(nu,T,p,beamsize = beam,)
+        scalefactor = 0.1*np.max(Jupiter.Model.data)
+        (J.M.gen_banded_structure(width = width, 
+        scalefactor = scalefactor,spacingfactor = spacingfactor))
+
+        References
+        ------------
+
+        Notes
+        -------
+        7/6/2018, CM, Initial Commit
+        """
+
+        # Remove the tilt of the planet, and project the planet on the 
+        # sky with y axis pointing up
+        rotangle = (self.np_ang)
+        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False)
+
+        # Find the planet in pixels 
+        r_pix = self.planetsize/2 # Radius in pixel 
+
+        # Step through the negative y axis
+        i = int(self.imsize/2) - int(r_pix) 
+
+
+        # Minimum flux in the picture 
+        f_min = np.min(self.data[np.where(self.data>0)])
+
+        while i < int(self.imsize/2) + int(r_pix): 
+
+            if inc_negative:
+                sign = [-1,1][np.random.randint(-1,2)]
+            else: 
+                sign = 1
+
+            i_range = int(width**(5/3))
+            print(i_range)
+            c_pix = self.data[i+i_range,int(self.imsize/2)]
+
+            if c_pix > f_min: 
+                for j in range(i,i+i_range):
+                    self.data[j,np.where(self.data[j,:] > 
+                        f_min)] += scalefactor*sign
+
+            i += spacingfactor*i_range
+            width += 1
+
+        # Add the tilt of the planet, and project the planet on the sky with y axis pointing up
+        rotangle = -(self.np_ang)
+        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+
+    def combine_structure(self, background, bands, gaussians, bands_regions=[0,0,1,1], gaussians_regions=[1,0,0,0] ): 
+        """Combine banded and gaussian structure on Jupiter 
+
+        This function combines the banded and the gaussian structures. 
+        The regions keyword allows to determine where the structures 
+        are supposed to be placed. Overlapping structures are allowed.  
+        
+        Parameters
+        -------
+        background: [NxN] float
+            [-] Limb-darkened model 
+        bands [NxN] float
+            [-] Banded structure without the background 
+        gaussians [NxN] float
+            [-] Gaussian structure without the background 
+        
+
+        Returns
+        ----------
+        deg : [NxN] float
+            [-] Structure on top of the background 
+
+        Keywords
+        ----------
+        bands_regions : [1x4] float
+            [-] Regions where the enhancement can be found 
+                Distributed in quartiles corresponding to the four 
+                regions  
+                
+                Regions: 
+                  2  1
+                  3  4
+
+        Example
+        -------
+        J.M.combine_structure(background,bands,gaussians,bands_regions=[0,0,1,1], gaussians_regions=[1,0,0,1])
+
+        References
+        ------------
+
+        Notes
+        -------
+        7/6/2018, CM, Initial Commit
+        """
+
+        # Remove the tilt of the planet, and project the planet on the 
+        # sky with y axis pointing up
+        rotangle = (self.np_ang)
+        background = scipy.ndimage.rotate(background,rotangle,order=0,reshape = False)
+        bands = scipy.ndimage.rotate(bands,rotangle,order=0,reshape = False)
+        gaussians = scipy.ndimage.rotate(gaussians,rotangle,order=0,reshape = False)
+
+        # Find the planet in pixels 
+        r_pix = self.planetsize/2 # Radius in pixel 
+        model = background 
+
+        if bands_regions[0]: 
+            model[int(self.imsize/2):,int(self.imsize/2):] += bands[int(self.imsize/2):,int(self.imsize/2):]
+        if bands_regions[1]: 
+            model[int(self.imsize/2):,0:int(self.imsize/2)] += bands[int(self.imsize/2):,0:int(self.imsize/2)]
+        if bands_regions[2]: 
+            model[0:int(self.imsize/2),0:int(self.imsize/2)] += bands[0:int(self.imsize/2),0:int(self.imsize/2)]
+        if bands_regions[3]: 
+            model[0:int(self.imsize/2),int(self.imsize/2):] += bands[0:int(self.imsize/2),int(self.imsize/2):] 
+
+        if gaussians_regions[0]: 
+            model[int(self.imsize/2):,int(self.imsize/2):] += gaussians[int(self.imsize/2):,int(self.imsize/2):]
+        if gaussians_regions[1]: 
+            model[int(self.imsize/2):,0:int(self.imsize/2)] += gaussians[int(self.imsize/2):,0:int(self.imsize/2)]
+        if gaussians_regions[2]: 
+            model[0:int(self.imsize/2),0:int(self.imsize/2)] += gaussians[0:int(self.imsize/2),0:int(self.imsize/2)]
+        if gaussians_regions[3]: 
+            model[0:int(self.imsize/2),int(self.imsize/2):] += gaussians[0:int(self.imsize/2),int(self.imsize/2):]
+
+
+        # model[0:int(imsize/2),0:int(imsize/2)] += gaussians[0:int(imsize/2),0:int(imsize/2)]
+        # # Adding the banded structure 
+        # model[:,int(imsize/2):-1] += bands[:,int(imsize/2):-1] 
+
+
+        self.data = model 
+        rotangle = -(self.np_ang)
+        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+
 
 
     def gen_uniform(self, nu, T, beamsize = 0.7, psfsampling=5, 
@@ -1582,7 +1812,7 @@ class Model:
         self.data = (scipy.ndimage.rotate(self.model,
                 rotangle,order=0,reshape = False))
 
-    def export(self,importfitsname,exportname): 
+    def export(self,importfitsname,exportname, exportdata = None): 
         # Import header infromation from CASA data 
         print('When changing the size of image, make sure to load a new header.')
 
@@ -1592,7 +1822,10 @@ class Model:
 
         im = fits.open(fname,ignore_missing_end=True)
         hdu_out = im
-        hdu_out[0].data = self.data
+        if exportdata is None: 
+            hdu_out[0].data = self.data
+        else: 
+            hdu_out[0].data = exportdata
         hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
         hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
         hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
@@ -1694,22 +1927,23 @@ class Model:
                 hdulist[0].header['LONPOLE'] =   1.800000000000E+02                                                  
                 hdulist[0].header['LATPOLE'] =   self.dec
 
-            hdulist[0].header['PC1_1']   =   1.000000000000E+00                                                  
-            hdulist[0].header['PC2_1']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC3_1']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC4_1']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC1_2']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC2_2']   =   1.000000000000E+00                                                  
-            hdulist[0].header['PC3_2']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC4_2']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC1_3']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC2_3']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC3_3']   =   1.000000000000E+00                                                  
-            hdulist[0].header['PC4_3']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC1_4']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC2_4']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC3_4']   =   0.000000000000E+00                                                  
-            hdulist[0].header['PC4_4']   =   1.000000000000E+00                                                  
+
+            # hdulist[0].header['PC1_1']   =   1.000000000000E+00                                                  
+            # hdulist[0].header['PC2_1']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC3_1']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC4_1']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC1_2']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC2_2']   =   1.000000000000E+00                                                  
+            # hdulist[0].header['PC3_2']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC4_2']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC1_3']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC2_3']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC3_3']   =   1.000000000000E+00                                                  
+            # hdulist[0].header['PC4_3']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC1_4']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC2_4']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC3_4']   =   0.000000000000E+00                                                  
+            # hdulist[0].header['PC4_4']   =   1.000000000000E+00                                                  
             
             if ephemeris: 
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
@@ -1719,38 +1953,38 @@ class Model:
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
-                hdulist[0].header['CRVAL2']  =  self.d2hrec #'{:02E}'.format(self.dec)                                              
+                hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)                                              
                 hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale[0]/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
           
-            hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
-            hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
-            hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
-            hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
-            hdulist[0].header['CUNIT3']  = 'Hz '
+            # hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
+            # hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
+            # hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
+            # hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
+            # hdulist[0].header['CUNIT3']  = 'Hz '
 
-            hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
-            hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CUNIT4']  = '        '  
-            hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
-            hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
-            hdulist[0].header['CUNIT5']  = 'K     '
+            # hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
+            # hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
+            # hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
+            # hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
+            # hdulist[0].header['CUNIT4']  = '        '  
+            # hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
+            # hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
+            # hdulist[0].header['CUNIT5']  = 'K     '
             
-            try: 
-                if self.limbdarkening[0] != self.limbdarkening[1]:
-                    hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
-                    hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
-                    hdulist[0].header['CTYPE7']  = 'Limb darkening coefficient NS '                                                            
-                    hdulist[0].header['CRVAL7']  =  self.limbdarkening[1].tolist() 
-                else: 
-                    hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
-                    hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
-            except: 
-                hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
-                hdulist[0].header['CRVAL6']  =  self.limbdarkening
+            # try: 
+            #     if self.limbdarkening[0] != self.limbdarkening[1]:
+            #         hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
+            #         hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+            #         hdulist[0].header['CTYPE7']  = 'Limb darkening coefficient NS '                                                            
+            #         hdulist[0].header['CRVAL7']  =  self.limbdarkening[1].tolist() 
+            #     else: 
+            #         hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
+            #         hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
+            # except: 
+            #     hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient '                                                            
+            #     hdulist[0].header['CRVAL6']  =  self.limbdarkening
 
 
 
@@ -1904,94 +2138,5 @@ class Model:
       
 
 
-    def locatetotemplate(self,input,output): 
-        """ Reads out the located visibilities and transform them into 
-        flagging template format 
     
-        Extended description of the function.
-        
-        Parameters
-        ----------
-        arg1 : int
-            [Unit] Description of arg1
-        pixscale : int
-            [arcseconds] Size of one pixel in arcseconds 
-        
-        Keyword Arguments
-        ----------
-        pt1: type
-           [Unit] Description, Default: true
-        
-        Returns
-        -------
-        out1 :
-            [Unit] Description of return value
-        out2 :
-            [Unit] Description of return value
-        
-        Warnings
-        -------
-        
-        
-        Example
-        -------
-        text
-        
-        >>>function(arg1, arg2)
-        out1
-        
-        References
-        ------------
-        2-16 - Geiser - Representations of spectral coordinates in FITS
-        
-        Todo
-        ----- 
-        
-        Notes
-        -------
-        mm/dd/yy, Initials of Author, Short description of update
-        """
-        
-
-        # Loop pver all the input files 
-
-        # import re 
-
-        # filepath = input
-        # with open(filepath) as fp:  
-        # line = fp.readline()
-        # cnt = 1
-        # while line:
-        #     info = line.split() 
-        #     # read out the data 
-        #     if data[3] == 'PlotMS::locate+': 
-        #         # Scan 
-        #         try: 
-        #             scan = int(re.search(r'\d+',info[4],re.I)[0])
-        #         except: 
-        #             sys.warnings('Failed to identify scan in line %d'.format(cnt))
-        #         # Field 
-        #         try:
-        #             field = int(re.search(r'\[\d\]',info[5],re.I)[0][1:-1])
-        #         except: 
-        #             sys.warnings('Failed to identify field in line %d'.format(cnt))
-        #         # time 
-        #         time = info[6][5:] 
-        #         # spw 
-        #         try: 
-        #             spw = int(re.search(r'\d+',info[9],re.I)[0])
-        #          except: 
-        #             sys.warnings('Failed to identify spw in line %d'.format(cnt))
-        #         # Channel 
-        #         try: 
-        #             Chan = int(re.search(r'\d+',info[10],re.I)[0])
-        #          except: 
-        #             sys.warnings('Failed to identify channel in line %d'.format(cnt))
-        #         # Corr 
-        #         Corr = info[12][-2:]
-
-
-        #     line = fp.readline()
-        #     cnt += 1
-
 
