@@ -546,6 +546,61 @@ def brightnessmap(R,x,y,T_dab,p):
 
         return T
 
+# Conversions 
+
+def jy2tb(flux, solidangle, freq):
+    """Convert integrated flux to disk averaged brightness temperature 
+
+    The integrated flux can be obtained by looking at Amp vs UVdistance 
+    and interpolating to zero spacing alternatively, you can integrate a 
+    map given in Jy/beam. The easiest way to do is by converting to 
+    Jy/pixel (using the NRAO formula https://science.nrao.edu/facilities/vla/proposing/TBconv)
+     and then integrating the resulting map 
+
+    Parameters
+    -------
+    flux: [1] float 
+        [Jy] integrated 
+    solidangle: [1] float
+        [strad] Solid angle of the planet. Calculated when calling the 
+                ephemeris 
+    freq: [1] float
+        [Hz] Center frequency
+
+
+    Returns
+    ----------
+    T : [1] float 
+        [K] Disk averaged brightness temperature 
+
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> jy2tb(13.431,Pl.sa,220) 
+    92.45
+
+    References
+    ------------
+    http://starlink.eao.hawaii.edu/docs/sun213.htx/sun213se9.html 
+
+
+    Notes
+    -------
+    7/31/2018, CM, Initial Commit
+    """   
+
+    Jy = 1e-26
+    lam = cst.c.value/freq
+
+    T_da = flux*Jy*lam**2/(2*cst.k_B.value)/solidangle
+    
+
+    return T_da
+
 
 def tb2jy(T,nu,pixscale):
     """Convert brightness temperature to pixel 
@@ -627,6 +682,98 @@ def arcsec2rad(arcsec):
     10/24/2017, CM, Initial Commit
     '''
     return arcsec/3600.*np.pi/180.
+
+
+def ldvis(mu,asize,lam, ): 
+    '''Approximate the bessel's function first null for a uniform disk  
+
+    
+    
+    Parameters
+    -------
+    asize : [1] int
+        [arcsecond] Size of the planet in arcseconds    
+
+
+    Returns
+    ----------
+    firstnull: [] flpat 
+        [] The first null in wavenumbers 
+    
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> mu = 0.01; asize = arcsec2rad(50); lam = 0.3/8  
+    Vsq,B = ldvis(mu,asize,lam)
+    uvwave = B/lam
+
+    References
+    ------------
+    Basic Radio Interferometry – Geometry
+    Rick Perley, NRAO/Socorro
+
+    Notes
+    -------
+    08/06/2018, CM, Initial Commit
+    ''' 
+
+
+
+
+    from scipy.special import jv
+
+    B = np.arange(1,1000)
+    x = np.pi*B*asize/lam 
+
+    Vsq = ((1.0-mu)/2. + mu/3.)**(-2)*((1.0-mu)*jv(1,x)/x + mu*(np.pi/2)**0.5*jv(1.5,x)/x**1.5)**2 
+
+    return Vsq, B 
+
+def fringesize(asize):
+    '''Approximate the bessel's function first null for a uniform disk  
+
+    
+    
+    Parameters
+    -------
+    asize : [1] int
+        [arcsecond] Size of the planet in arcseconds    
+
+
+    Returns
+    ----------
+    firstnull: [] flpat 
+        [] The first null in wavenumbers 
+    
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> 
+
+    References
+    ------------
+    Basic Radio Interferometry – Geometry
+    Rick Perley, NRAO/Socorro
+
+    Notes
+    -------
+    08/06/2018, CM, Initial Commit
+    '''      
+
+    rad2arc = 1/arcsec2rad(1) # [] arceseconds per radians 
+    print('The first null can be found at {:2.2f}'.format(rad2arc/asize)) 
+
+    return rad2arc/asize
+
+
 
 def axisforcasamodel(imsize, planetsize, radius=False): 
     """Obtain the axis for casa, based on the input supplied to tclean 
@@ -855,6 +1002,7 @@ def dms2deg(dms):
 
 def deg2hms(angle): 
         """Convert angel in deg to hour format  
+        Used for right ascension 
         
         Parameters
         -------
@@ -891,7 +1039,7 @@ def deg2hms(angle):
         return string
 
 def deg2dms(angle): 
-        """Convert angel in deg to hour format  
+        """Convert angel in deg to hour format . Used for right ascension
         
         Parameters
         -------
@@ -984,11 +1132,13 @@ class Planet:
         self.ephem, self.observatory_coords, self.radius = (
             get_ephemerides(naif_lookup(self.target),
             tstart,tend,str(nstep),self.obs_code))
+        self.ellipticity = np.sqrt((self.radius[0]**2-self.radius[1]**2)/self.radius[0]**2)
+        self.flattening = 1. - np.sqrt(1. - self.ellipticity**2)
         self.time = self.ephem[intv,0] # UTdate UTtime
         self.sun = [s.strip() for s in self.ephem[intv,1]]
         self.moon = [s.strip() for s in self.ephem[intv,2]]
-        self.ra = hms2deg(self.ephem[intv,3][0]) # RA (J2000) (hh:mm:ss.ff)
-        self.dec = dms2deg(self.ephem[intv,4][0]) # DEC (J2000) (hh:mm:ss.ff)
+        self.ra = hms2deg(self.ephem[intv,3][0]) # RA (J2000) (hh:mm:ss.ff) converted to degree
+        self.dec = dms2deg(self.ephem[intv,4][0]) # DEC (J2000) (hh:mm:ss.ff) converted to degree
         # (arcsec^2/h) (cosine of the declination) arcsec hr-1 
         self.dra = np.asarray([float(s) for s in self.ephem[intv,5]]) 
         #  d(DEC)/dt 
@@ -1061,6 +1211,22 @@ class Planet:
         self.np_ra = read_ephem_line(self.ephem[intv,30])
         # (degree) North pole declination 
         self.np_dec = read_ephem_line(self.ephem[intv,31])
+
+
+        # Calculate the mean geometric radius 
+        # (http://starlink.eao.hawaii.edu/docs/sun213.htx/sun213se9.html)
+
+        # Equatorial radius for triaxial ellipsoid 
+        R_ma = (self.radius[0]*np.cos(np.radians(self.ob_lat))**2 
+                + self.radius[1]*np.sin(np.radians(self.ob_lat))**2 )
+        # Polar radius for triaxial ellipsoid 
+        R_mi = (self.radius[1]*np.cos(np.radians(self.ob_lat))**2 
+                + self.radius[0]*np.sin(np.radians(self.ob_lat))**2)
+
+
+        # [sterradians] solid angle extended by the disc 
+        self.sa = np.pi*(np.sqrt(R_ma*R_mi*1e6)/self.hrange/cst.au.value)**2
+
 
 
     def initmodel(self,modelname):
@@ -1812,7 +1978,7 @@ class Model:
         self.data = (scipy.ndimage.rotate(self.model,
                 rotangle,order=0,reshape = False))
 
-    def export(self,importfitsname,exportname, exportdata = None): 
+    def export(self,importfitsname,exportname, exportdata = None,units = 'Jy/pixel'): 
         # Import header infromation from CASA data 
         print('When changing the size of image, make sure to load a new header.')
 
@@ -1826,9 +1992,25 @@ class Model:
             hdu_out[0].data = self.data
         else: 
             hdu_out[0].data = exportdata
-        hdu_out[0].header['BUNIT'] = 'Jy/pixel ' 
+
+        # hdu_out[0].header['BUNIT'] = units 
+        # hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
+        # hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
+
+
+        hdu_out[0].header['NAXIS'] = 4
+        hdu_out[0].header['NAXIS1'] = hdu_out[0].data.shape[0] 
+        hdu_out[0].header['NAXIS2'] = hdu_out[0].data.shape[1]
+        hdu_out[0].header['NAXIS3'] = 1
+        hdu_out[0].header['NAXIS4'] = 1
+        hdu_out[0].header['BUNIT'] = units 
         hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
         hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
+        hdu_out[0].header['CRPIX1'] =hdu_out[0].data.shape[0]/2
+        hdu_out[0].header['CDELT1']  =  -1*np.sign(hdu_out[0].header['CRVAL1'])*self.pixscale[0]/360  
+        hdu_out[0].header['CRPIX2'] =hdu_out[0].data.shape[1]/2
+        hdu_out[0].header['CDELT2']  =  -1*np.sign(hdu_out[0].header['CRVAL2'])*self.pixscale[0]/3600  
+
 
         hdu_out[0].writeto(outfile, overwrite=True)
         print('Model written to ', outfile)
@@ -1879,6 +2061,7 @@ class Model:
         References
         ------------
         2-16 - Geiser - Representations of spectral coordinates in FITS
+        https://heasarc.gsfc.nasa.gov/docs/fcg/standard_dict.html
         
         Todo
         ----- 
@@ -1906,14 +2089,14 @@ class Model:
 
 
         if header:
-            #hdulist[0].header['SIMPLE']  =  True #Standard FITS
-            # hdulist[0].header['BITPIX']  =  -32 #Floating point (32 bit)
-            # hdulist[0].header['NAXIS']   =   4                                                  
-            # hdulist[0].header['NAXIS1']  =   self.imsize                                                  
-            # hdulist[0].header['NAXIS2']  =   self.imsize                                                   
-            # hdulist[0].header['NAXIS3']  =                    1                                                  
-            # hdulist[0].header['NAXIS4']  =                    1                                                  
-            #hdulist[0].header['EXTEND']  =   True   #?                                                
+            hdulist[0].header['SIMPLE']  =  True #Standard FITS
+            hdulist[0].header['BITPIX']  =  -32 #Floating point (32 bit)
+            hdulist[0].header['NAXIS']   =   4                                                  
+            hdulist[0].header['NAXIS1']  =   self.imsize                                                  
+            hdulist[0].header['NAXIS2']  =   self.imsize                                                   
+            hdulist[0].header['NAXIS3']  =                    1                                                  
+            hdulist[0].header['NAXIS4']  =                    1                                                  
+            hdulist[0].header['EXTEND']  =   True   #?                                                
             hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
             hdulist[0].header['BZERO']   =   0.000000000000E+00                                              
             hdulist[0].header['BMAJ']    =   self.pixscale[0]/3600                                                  
@@ -1949,26 +2132,26 @@ class Model:
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
                 hdulist[0].header['CRVAL1']  =   self.ra #'{:02E}'.format(self.ra)                                                
                 hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale[0]/3600                                                 
-                hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2)+1 # Reference pixel                                                
+                hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2) # Reference pixel                                                
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
                 hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)                                              
                 hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale[0]/3600                                                   
-                hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)+1                                                  
+                hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
           
-            # hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
-            # hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
-            # hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
-            # hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
-            # hdulist[0].header['CUNIT3']  = 'Hz '
+            hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
+            hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
+            hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
+            hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
+            hdulist[0].header['CUNIT3']  = 'Hz '
 
-            # hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
-            # hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
-            # hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
-            # hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
-            # hdulist[0].header['CUNIT4']  = '        '  
+            hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
+            hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CUNIT4']  = '        '  
             # hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
             # hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
             # hdulist[0].header['CUNIT5']  = 'K     '
@@ -2000,8 +2183,8 @@ class Model:
             if ephemeris: 
                 hdulist[0].header['TELESCOP']= 'Model  '                                                            
                 hdulist[0].header['OBSERVER']= 'C. Moeckel'  
-                modeltime = datetime.strptime(self.time.strip(),'%Y-%b-%d %H:%M:%S.%f')                                           
-                hdulist[0].header['DATE-OBS']=  modeltime.strftime("%Y-%m-%dT%H:%M.%S")                                         
+                modeltime = datetime.strptime(self.time.strip(),'%Y-%b-%d %H:%M:%S.%f')                                      
+                hdulist[0].header['DATE-OBS']=  modeltime.strftime("%Y-%m-%dT%H:%M:%S.%f")                                         
                 hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
                 hdulist[0].header['OBSRA']   =   self.ra                                                  
                 hdulist[0].header['OBSDEC']  =   self.dec                                                 
@@ -2013,7 +2196,7 @@ class Model:
                 hdulist[0].header['INSTRUME']= 'Model    '                                                            
                 hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
             
-            hdulist[0].header['DATE']    = now.strftime("%Y-%m-%dT%H:%M.%S") #Date FITS file was written              
+            hdulist[0].header['DATE']    = now.strftime("%Y-%m-%dT%H:%M:%S.%f") #Date FITS file was written              
             hdulist[0].header['ORIGIN']  = 'pyPR'
         try: 
             outfile = (pathdata+exportname+'.fits')
