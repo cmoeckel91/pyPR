@@ -345,8 +345,10 @@ def ephem_uncertainties(target,orange):
     elif target.casefold().strip() == 'Pluto'.casefold():
         pl = 7
     else:
-        sys.exit('Planet not found. Return')
-
+        warnings.warn('Body not found. No uncertainties prescribed. Evrything should still work')
+        dra,ddec,dorange = 0,0,0
+        return [dra,ddec,dorange]
+        
     dra = np.degrees(dra_paper[pl]/orange) # Right ascension uncertainty
     ddec = np.degrees(ddec_paper[pl]/orange) # Declination uncertainty 
     dorange = dorange_paper[pl] # (m) Range uncertainty
@@ -684,8 +686,10 @@ def arcsec2rad(arcsec):
     return arcsec/3600.*np.pi/180.
 
 
-def ldvis(mu,asize,lam, ): 
-    '''Approximate the bessel's function first null for a uniform disk  
+def lldvis(mu,asize,lam, ): 
+    '''Computes the visibility function of a linear limbdarkened disk 
+    I(theta) = I(0)*(1 - mu*(1-cos(theta))) 
+
 
     
     
@@ -707,14 +711,15 @@ def ldvis(mu,asize,lam, ):
 
     Example
     -------
-    >>> mu = 0.01; asize = arcsec2rad(50); lam = 0.3/8  
+    mu = 0.01; asize = arcsec2rad(50); lam = 0.3/8  
     Vsq,B = ldvis(mu,asize,lam)
     uvwave = B/lam
+    plt.plot(uvwave,Vsq)
 
     References
     ------------
-    Basic Radio Interferometry – Geometry
-    Rick Perley, NRAO/Socorro
+    Hanburry Brown - The effect of Limb darkened disk 
+    Baines - Testing limb darkening laws using NPOI observatons  
 
     Notes
     -------
@@ -733,6 +738,72 @@ def ldvis(mu,asize,lam, ):
 
     return Vsq, B 
 
+
+def cldvis(k,amp,lam,B,a): 
+    '''Computes the visibility function of a cos(theta)**p limb-darkened disk   
+
+    
+    
+    Parameters
+    -------
+    k : [1] float
+        [-] Limb darkening parameter to be plotted 
+    amp : [1] float
+        [Jy] zero baseline flux amplitude 
+    lam :[1] float 
+        [m] Wavelength of the observation 
+    B : [N] float
+        [m] Baseline array      
+    a : [1] float 
+        [arcseconds] size of the planet (diameter) 
+
+    Returns
+    ----------
+    V_abs: [N] flpat 
+        [Jy] Visibility function 
+    
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    k = 0.1; amp = 13.5; lam = 0.3/224; B = np.arange(0,500); a = np.radians(2.2/3600) 
+    V = ldvis2(k,amp,lam,B,a)
+    plt.plot(B,V,label='limb darkened: k = {:2.2f}'.format(k)) 
+    plt.legend()
+    plt.show()
+
+    References
+    ------------
+    http://www.iue.tuwien.ac.at/phd/minixhofer/node59.html
+
+    Notes
+    -------
+    08/08/2018, CM, Initial Commit
+    '''
+
+    from scipy.special import jv  
+    from scipy import integrate 
+    import matplotlib.pyplot as plt  
+
+    rho = B/2./lam
+
+    # val = np.abs((2*jv(1,2*np.pi*rho*a)/(2*np.pi*rho*a)))
+    integral_val = np.zeros_like(rho)
+    for i in range(len(rho)): 
+        f = lambda r: r*np.sqrt(1-r**2/a**2)**k*jv(0,2*np.pi*rho[i]*r) 
+        integral_val[i] = np.abs(2*np.pi*scipy.integrate.quad(f,0,a)[0] )
+
+
+    # Normalize and scale to  
+    integral_val = amp*integral_val/integral_val[0]
+
+
+    return integral_val
+
+
 def fringesize(asize):
     '''Approximate the bessel's function first null for a uniform disk  
 
@@ -748,7 +819,7 @@ def fringesize(asize):
     ----------
     firstnull: [] flpat 
         [] The first null in wavenumbers 
-    
+    gen
 
     Keywords
     ----------
@@ -768,8 +839,8 @@ def fringesize(asize):
     08/06/2018, CM, Initial Commit
     '''      
 
-    rad2arc = 1/arcsec2rad(1) # [] arceseconds per radians 
-    print('The first null can be found at {:2.2f}'.format(rad2arc/asize)) 
+    rad2arc = 1./arcsec2rad(1) # [] arceseconds per radians 
+    print('The first null can be found at {:2.2}'.format(str(rad2arc/asize))) 
 
     return rad2arc/asize
 
@@ -953,9 +1024,18 @@ def hms2deg(hms):
         -------
         11/18/2017, CM, Initial Commit
         """
-        split = (hms.rsplit(' '))
-
         
+
+        if len((hms.rsplit(' '))) > 1:
+            split = (hms.rsplit(' '))
+        elif len((hms.rsplit(':'))) > 1:
+            split = (hms.rsplit(':'))
+        elif len((hms.rsplit('.'))) > 1:
+            split = (hms.rsplit('.'))
+        else : 
+            print('Did not recognize format')
+
+
         angle = ((float(split[0]) + 
                 float(split[1])/60 + 
                 float(split[2])/3600)*360/24)
@@ -990,13 +1070,33 @@ def dms2deg(dms):
         -------
         11/18/2017, CM, Initial Commit
         """
-        split = (dms.rsplit(' '))
 
+        if len((dms.rsplit(' '))) > 1:
+            split = (dms.rsplit(' '))
+        elif len((dms.rsplit(':'))) > 1:
+            split = (dms.rsplit(':'))
+        elif len((dms.rsplit('.'))) > 1:
+            split = (dms.rsplit('.'))
+        else : 
+            print('Did not recognize format')
+        
        
-        angle = (np.sign(float(split[0]))*
-            (np.abs(float(split[0])) 
-             + float(split[1])/60 
-             + float(split[2])/3600))  
+        if (np.sign(float(split[0]))) == 0: 
+            if split[0][0] == '-': 
+                sign = -1.
+            else: sign = +1. 
+        else: sign =  np.sign(float(split[0])) 
+
+        if len(split) == 4 : 
+            angle = (sign*
+                (np.abs(float(split[0])) 
+                 + float(split[1])/60 
+                 + (float(split[2])+float(split[3])*10**(-(len(split[3]))))/3600))  
+        else: 
+            angle = (sign*
+                (np.abs(float(split[0])) 
+                 + float(split[1])/60 
+                 + (float(split[2]))/3600))  
 
         return angle
 
@@ -1029,9 +1129,9 @@ def deg2hms(angle):
         -------
         11/18/2017, CM, Initial Commit
         """
-        h = np.floor(angle/360*24.) 
-        m = np.floor((angle/360*24. - h )*60)
-        s = np.floor((((angle/360*24. - h )*60) - m)*60)
+        h = np.fix(angle/360*24.) 
+        m = np.fix((angle/360*24. - h )*60)
+        s = np.fix((((angle/360*24. - h )*60) - m)*60)
         f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
 
         string = '{:n}h {:n}m {:n}.{:n}s'.format(h,m,s,f) 
@@ -1039,7 +1139,7 @@ def deg2hms(angle):
         return string
 
 def deg2dms(angle): 
-        """Convert angel in deg to hour format . Used for right ascension
+        '''Convert angel in deg to hour format . Used for right ascension
         
         Parameters
         -------
@@ -1065,17 +1165,188 @@ def deg2dms(angle):
         Notes
         -------
         11/18/2017, CM, Initial Commit
-        """
-        d = np.floor(angle)
-        h = np.floor(angle/360*24.) 
-        m = np.floor((angle/360*24. - h )*60)
-        s = np.floor((((angle/360*24. - h )*60) - m)*60)
-        f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
+        '''
 
-        string = '{:n}d {:n}m {:n}.{:n}s'.format(d,m,s,f) 
+        sign = np.sign(angle)
+        angle = np.abs(angle) 
+        d = np.fix(angle)
+        dd = (angle - d)
+        m = np.fix(dd*60)
+        dm = dd*60 - m
+        s = np.fix(dm*60)
+        ds = dm*60 - s 
+        f = round((ds*100000))
+
+
+        string = '{:n}d {:n}m {:n}.{:n}s'.format(sign*d,m,s,f) 
 
         return string
 
+
+def interpmodelparams(center, planetname = 'jupiter', units = 'hz', printoutput = False): 
+    '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
+    peering below the clouds 
+
+    Parameters
+    -------
+    center : [1] float
+        [] center frequency or wavelength 
+
+    Returns
+    ----------
+    T : [1] K
+        [deg] Disk averaged brightness temperature 
+    p : [1] 
+        [-] limb darkening coefficient 
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> 
+
+    References
+    ------------
+
+    Notes
+    -------
+    5/7/2018, CM, Initial Commit
+    '''
+
+    if planetname.casefold().strip() != 'jupiter': 
+        sys.exit('Functionality only available for Jupiter')
+
+
+    temperature = (np.array(
+           [[0.06321, 144.92740],
+            [0.06526, 148.91039],
+            [0.06791, 152.53045],
+            [0.07067, 156.15050],
+            [0.07472, 159.40699],
+            [0.07838, 162.66410],
+            [0.08221, 164.47194],
+            [0.08487, 167.00566],
+            [0.08761, 168.81475],
+            [0.09263, 170.98429],
+            [0.09486, 171.70705],
+            [0.09871, 171.34161],
+            [0.10436, 173.87346],
+            [0.11122, 177.12932],
+            [0.12234, 179.29573],
+            [0.13246, 179.65180],
+            [0.14002, 178.92279],
+            [0.14340, 180.00787],
+            [0.14687, 181.09295],
+            [0.15404, 182.17616],
+            [0.16155, 181.81009],
+            [0.17078, 181.08108],
+            [0.18054, 180.71439],
+            [0.18936, 181.79760],
+            [0.19703, 182.88143],
+            [0.20666, 183.96463],
+            [0.22552, 184.32008],
+            [0.23280, 184.31758],
+            [0.24031, 184.31508],
+            [0.25607, 183.94776],
+            [0.27503, 183.57982],
+            [0.29306, 183.03135],
+            [0.30980, 182.12118],
+            [0.33010, 181.02923],
+            [0.35173, 179.57496],
+            [0.36887, 178.48426],
+            [0.39305, 177.39231],
+            [0.41879, 175.57573],
+            [0.43920, 173.76039],
+            [0.45697, 173.03263],
+            [0.47545, 171.94255],
+            [0.50659, 169.76365],
+            [0.53977, 167.58475],
+            [0.57969, 165.04290],
+            [0.62752, 162.13811],
+            [0.66332, 159.59752],
+            [0.70675, 157.05629],
+            [0.76507, 154.15151],
+            [0.86853, 149.06906],
+            [0.95517, 144.35144],
+            [1.07577, 139.26962],
+            [1.16445, 134.55324],
+            [1.21148, 132.01389],
+            [1.25051, 130.56212],
+            [1.32203, 131.64470],
+            [1.36481, 133.81611],
+            [1.43155, 136.34859],
+            [1.51356, 139.60507],
+            [1.58757, 142.13755],
+            [1.67845, 144.30708],
+            [1.76047, 146.11492],
+            [1.89115, 149.73248],
+            [2.03153, 153.35003],
+            [2.14792, 156.60652],
+            [2.32585, 161.31040],
+            [2.51852, 166.01429],
+            [2.83780, 172.52664],
+            [3.14727, 179.76487],
+            [3.63227, 189.89852],
+            [4.29336, 201.84189],
+            [4.95525, 213.42481],
+            [5.95141, 227.54083],
+            [7.09139, 242.01980],
+            [8.38255, 255.41243],
+            [10.0684, 271.34004],
+            [12.5845, 290.16307],
+            [15.1161, 307.17764],
+            [18.6000, 331.43668],
+            [22.1692, 353.16200],
+            [25.5936, 371.26664],
+            [28.6192, 385.75061],
+            [30.2636, 392.99259],] ))
+
+    interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1])
+
+    # limb darkening 
+    # GHz, limb darkening coefficient 
+    limbd = (np.array(
+            [[4.52  ,0.16 ], 
+             [5.49  ,0.16 ],
+             [6.5   ,0.16 ],
+             [7.5   ,0.16 ], 
+             [8.5   ,0.16 ],
+             [9.52  ,0.16 ],
+             [10.46 ,0.16 ],
+             [11.46 ,0.16 ],
+             [13.18 ,0.08 ],
+             [14.21 ,0.08 ],
+             [15.18 ,0.08 ],
+             [16.21 ,0.08 ],
+             [17.38 ,0.06 ],]))
+
+
+    intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
+
+
+    # Convert to units of cm 
+    if units.casefold().strip() == 'hz': 
+        frequency = center 
+    elif units.casefold().strip() == 'm': 
+        frequency = cst.c.value/center 
+    elif units.casefold().strip() == 'cm':
+        frequency = cst.c.value/(center/100) 
+    else: 
+        sys.exit('Units not recognized.')
+
+    # Disk averaged brightness temperature 
+    # Limb darking coefficient 
+    T = interpT(frequency)
+    p = intperld(frequency)
+
+    if printoutput:
+        print('The disk averaged brightness temperature is: {:3.2f}'.format(float(T)))
+        print('The limb darkening coeffient is: {:3.3f}'.format(float(p)))
+
+
+    return np.array([T,p])
 
 
 
@@ -1244,170 +1515,6 @@ class Planet:
         self.Model(self.name)
 
 
-
-    def interpmodelparams(self, center, planetname = 'jupiter', units = 'hz', printoutput = False): 
-        '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
-        peering below the clouds 
-    
-        Parameters
-        -------
-        center : [1] float
-            [] center frequency or wavelength 
-    
-        Returns
-        ----------
-        T : [1] K
-            [deg] Disk averaged brightness temperature 
-        p : [1] 
-            [-] limb darkening coefficient 
-    
-        Keywords
-        ----------
-    
-    
-        Example
-        -------
-        >>> 
-    
-        References
-        ------------
-    
-        Notes
-        -------
-        5/7/2018, CM, Initial Commit
-        '''
-
-        if planetname.casefold().strip() != 'jupiter': 
-            sys.exit('Functionality only available for Jupiter')
-    
-    
-        temperature = (np.array(
-               [[0.06321, 144.92740],
-                [0.06526, 148.91039],
-                [0.06791, 152.53045],
-                [0.07067, 156.15050],
-                [0.07472, 159.40699],
-                [0.07838, 162.66410],
-                [0.08221, 164.47194],
-                [0.08487, 167.00566],
-                [0.08761, 168.81475],
-                [0.09263, 170.98429],
-                [0.09486, 171.70705],
-                [0.09871, 171.34161],
-                [0.10436, 173.87346],
-                [0.11122, 177.12932],
-                [0.12234, 179.29573],
-                [0.13246, 179.65180],
-                [0.14002, 178.92279],
-                [0.14340, 180.00787],
-                [0.14687, 181.09295],
-                [0.15404, 182.17616],
-                [0.16155, 181.81009],
-                [0.17078, 181.08108],
-                [0.18054, 180.71439],
-                [0.18936, 181.79760],
-                [0.19703, 182.88143],
-                [0.20666, 183.96463],
-                [0.22552, 184.32008],
-                [0.23280, 184.31758],
-                [0.24031, 184.31508],
-                [0.25607, 183.94776],
-                [0.27503, 183.57982],
-                [0.29306, 183.03135],
-                [0.30980, 182.12118],
-                [0.33010, 181.02923],
-                [0.35173, 179.57496],
-                [0.36887, 178.48426],
-                [0.39305, 177.39231],
-                [0.41879, 175.57573],
-                [0.43920, 173.76039],
-                [0.45697, 173.03263],
-                [0.47545, 171.94255],
-                [0.50659, 169.76365],
-                [0.53977, 167.58475],
-                [0.57969, 165.04290],
-                [0.62752, 162.13811],
-                [0.66332, 159.59752],
-                [0.70675, 157.05629],
-                [0.76507, 154.15151],
-                [0.86853, 149.06906],
-                [0.95517, 144.35144],
-                [1.07577, 139.26962],
-                [1.16445, 134.55324],
-                [1.21148, 132.01389],
-                [1.25051, 130.56212],
-                [1.32203, 131.64470],
-                [1.36481, 133.81611],
-                [1.43155, 136.34859],
-                [1.51356, 139.60507],
-                [1.58757, 142.13755],
-                [1.67845, 144.30708],
-                [1.76047, 146.11492],
-                [1.89115, 149.73248],
-                [2.03153, 153.35003],
-                [2.14792, 156.60652],
-                [2.32585, 161.31040],
-                [2.51852, 166.01429],
-                [2.83780, 172.52664],
-                [3.14727, 179.76487],
-                [3.63227, 189.89852],
-                [4.29336, 201.84189],
-                [4.95525, 213.42481],
-                [5.95141, 227.54083],
-                [7.09139, 242.01980],
-                [8.38255, 255.41243],
-                [10.0684, 271.34004],
-                [12.5845, 290.16307],
-                [15.1161, 307.17764],
-                [18.6000, 331.43668],
-                [22.1692, 353.16200],
-                [25.5936, 371.26664],
-                [28.6192, 385.75061],
-                [30.2636, 392.99259],] ))
-    
-        interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1])
-    
-        # limb darkening 
-        # GHz, limb darkening coefficient 
-        limbd = (np.array(
-                [[4.52  ,0.16 ], 
-                 [5.49  ,0.16 ],
-                 [6.5   ,0.16 ],
-                 [7.5   ,0.16 ], 
-                 [8.5   ,0.16 ],
-                 [9.52  ,0.16 ],
-                 [10.46 ,0.16 ],
-                 [11.46 ,0.16 ],
-                 [13.18 ,0.08 ],
-                 [14.21 ,0.08 ],
-                 [15.18 ,0.08 ],
-                 [16.21 ,0.08 ],
-                 [17.38 ,0.06 ],]))
-    
-    
-        intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
-    
-    
-        # Convert to units of cm 
-        if units.casefold().strip() == 'hz': 
-            frequency = center 
-        elif units.casefold().strip() == 'm': 
-            frequency = cst.c.value/center 
-        elif units.casefold().strip() == 'cm':
-            frequency = cst.c.value/(center/100) 
-        else: 
-            sys.exit('Units not recognized.')
-
-        # Disk averaged brightness temperature 
-        # Limb darking coefficient 
-        T = interpT(frequency)
-        p = intperld(frequency)
-
-        if printoutput:
-            print('The disk averaged brightness temperature is: {:3.1f}'.format(float(T)))
-            print('The limb darkening coeffient is: {:2.1f}'.format(float(p)))
-
-        return np.array([T,p])
     
 class Model: 
     """Class containing the required information to create, modify and 
@@ -2070,6 +2177,7 @@ class Model:
         -------
         mm/dd/yy, Initials of Author, Short description of update
         """
+    
         if ephemeris:
             try:
                 self.ra
@@ -2214,9 +2322,19 @@ class Model:
         self.data[np.abs(self.data)<1e-10] = 0.0
 
     def shift_center(self, d_p_ra,d_p_dec):
-        # shift the right asencsion and declination 
+        # shift the right asencsion and declination for units in pixel 
         self.ra = float(self.ra + d_p_ra*self.pixscale/3600)
         self.dec = float(self.dec + d_p_dec*self.pixscale/3600)
+
+    def shift_header(self, d_p_ra,d_p_dec):
+        # shift the right asencsion and declination for units in hms and dms
+        self.ra = float(self.ra +hms2deg(d_p_ra))
+        self.dec = float(self.dec +dms2deg(d_p_dec))
+
+    def set_center(self, p_ra,p_dec):
+        # shift the right asencsion and declination for units in hms and dms
+        self.ra = float(hms2deg(p_ra))
+        self.dec = float(dms2deg(p_dec))
 
     # def maskforplanet(self,nu,T,p,beamsize,psfsampling=5,): 
     def maskforplanet(self,scalefactor=1.2,export = False,rotangle=0): 

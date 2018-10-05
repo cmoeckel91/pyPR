@@ -263,3 +263,116 @@ def locate2template(logger,output,analytics=False):
 
             # line = fp.readline()
             # cnt += 1
+
+
+
+
+
+
+
+
+def ldvis2(): 
+
+    from scipy.special import jv  
+    from scipy import integrate 
+    import matplotlib.pyplot as plt  
+
+    plt.close('all')
+    rho = np.arange(0.1,10,0.01)
+
+    k = 0.05
+    a = 1
+
+    val = (a/rho*jv(1,2*np.pi*rho*a))**2  
+
+
+    integral_val = np.zeros_like(rho)
+    for i in range(len(rho)): 
+        f = lambda r: r*np.sqrt(1-r**2/a**2)**k*jv(0,2*np.pi*rho[i]*r) 
+        #f = lambda r: r*jv(0,2*np.pi*rho[i]*r)
+        integral_val[i] = (2*np.pi*scipy.integrate.quad(f,0,a)[0] )**2
+
+    plt.plot(rho/0.01,integral_val,label='limb darkened') 
+    plt.plot(rho/0.01,val,label='uniform disk')
+    plt.legend()
+    # plt.ylim(0,1)
+    plt.xlim(0,200)
+    plt.show()
+
+
+def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'): 
+    """Create an oblate spheroid 
+
+
+
+    Returns
+    ----------
+
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    import CASAtools
+    filepath = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2017/Jup_x_20170111/'
+    name = 'vca.tp'  
+    uvhole = 18000 # [lambda] 
+    nu = 10e9 # [Hz] Observing frequency 
+    CASAtools.shortspacingobservatory(nu,uvhole,name,filepath = filepath,n_ants = 70) 
+    os.system('cat ' + filepath+name + '.cfg') 
+
+    References
+    ------------
+    Triaxial ellipsoid http://mathworld.wolfram.com/Ellipsoid.html
+
+    Notes
+    -------
+    10/24/2017, CM, Initial Commit
+    """
+
+    from astropy import constants as cst 
+    import os
+
+    if obs.lower().strip() == 'vla':
+        d_ant = 25 # [m] antenna diameter
+    elif obs.lower().strip() == 'almba':
+        d_ant = 12 # [m] antenna diameter 
+    else: 
+        print('Observatory not yet implemented. Should be easy to add') 
+
+    # The radius in which the antennas can be found. 
+    spread = uvhole*cst.c.value/nu/2
+
+    # Create the inner ring 
+    n_ring = 8 
+    ring_ang = np.arange(0,2*np.pi,2*np.pi/n_ring)
+    ring_loc = np.zeros([8,2])
+    for i in range(n_ring): 
+        ring_loc[i,:] = np.cos(ring_ang[i]), np.sin(ring_ang[i])
+
+    ring_loc = ring_loc*d_ant/2
+    
+    loc = np.multiply(np.random.rand(n_ants,2)*spread,np.random.choice([-1, 1],  size=(n_ants,2), p=[1./2, 1./2])) 
+
+
+    file = filepath + name + '.cfg'
+    # print(os.system('ls '+ filepath))
+    with open(file,'w+') as fo: 
+        fo.write('# observatory='+obs.upper() + '\n') 
+        fo.write('# coordsys=LOC (local tangent plane)' + '\n') 
+        fo.write('0         0           0           ' + str(d_ant) + '          A' + '01\n' )
+        for i in range(n_ring):
+            fo.write('{:.0f}         {:.0f}         0          {:d}           A{:02d}\n'.format(ring_loc[i,0],ring_loc[i,1],d_ant,i + 2) )
+
+        for j in range(n_ants-n_ring-1):
+            fo.write('{:.0f}         {:.0f}         0          {:d}           A{:02d}\n'.format(loc[j,0],loc[j,1],d_ant,j+n_ring + 2) )
+
+    fo.close() 
+
+    return 
+
+
+
+
