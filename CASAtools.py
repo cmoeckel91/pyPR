@@ -199,9 +199,9 @@ def locate2template(logger,output,analytics=False):
         rlist, _, _ = select([sys.stdin], [], [], timeout)
         if rlist:
             s = sys.stdin.readline()
-            if s.lower() == 'y' or s.lower() == 'yes': 
+            if s.lower() == 'y\n' or s.lower() == 'yes\n': 
                 print('File will be overwritten!')
-                os.system('rm -rf' + output) 
+                os.system('rm -rf ' + output) 
             else: 
                 output = output + '_vx'
                 print('File will NOT be overwritten! Output can be found under ' + output)
@@ -424,7 +424,15 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
     Example
     -------
-
+    import CASAtools
+    cd 'Development'  
+    m_ncore = 12 
+    uvfits = 'jup-x.uv.comp' 
+    latrange = 120  
+    latint = 2.5 
+    cell = 0.039 
+    planet = 'jupiter'
+    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter' )
 
     References
     ------------
@@ -439,7 +447,9 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     uvfits = '../'+uvfits
 
     # Create new subdirectories 
-    import os 
+    import os
+    import sys
+    from select import select
     import numpy as np 
 
     # Calculate the corresponding latitude ranges 
@@ -476,9 +486,25 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     #         lat_upper = latrange/2 
     #     print(i,lat_lower, lat_upper) 
     #     lat_lower = lat_upper
+    temp_folder = 'temp_p'
+    if os.path.exists(temp_folder+'0'): 
+        timeout = 10
+        print("The folders exists already. Are you sure you want to overwrite it?: (y/N)")
+        rlist, _, _ = select([sys.stdin], [], [], timeout)
+        if rlist:
+            s = sys.stdin.readline()
+            if s.lower() == 'y\n' or s.lower() == 'yes\n': 
+                print('Folders will be overwritten!')
+                os.system('rm -rf ' + temp_folder + '*') 
+            else: 
+                sys.exit('Move your files manually')
+        else: 
+            sys.exit('Move your files manually')
+
 
     for i in range(ncore): 
-        temp_name = 'temp_p'+ i # Mkdir where temp data are stored 
+        temp_name = temp_folder+ str(i) # Mkdir where temp data are stored 
+
         os.system('mkdir ' + temp_name )
         # os.system('cp -r' + uvfits + ' ' + temp_name +'/'  ) # Copy the file to temp folder 
         # Write params.file 
@@ -494,7 +520,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
         with open(filepath,'a') as fo:  
             fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
             fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfits))
-            fo.write('$cell = {:2.2f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
+            fo.write('$cell = {:4.4f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
             fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(lat_lower))
             fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_upper))
             fo.write('$minlon = 0;        # Min longitude (degrees)\n')
@@ -504,7 +530,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
             fo.write('#$fwhm_km = 3200;       # Optional extra smoothing function.\n')
             fo.write('$robust = 0.0;          # Optional imaging weighting parameter.\n')
             fo.write('$plradius = 71492.0     # Optional planet radius in kilometers.\n')
-            fo.write('# $obstime = "17jan11"  # Optional observation time used for geometry.\n')
+            fo.write('# $obstime = ""  # Optional observation time used for geometry.\n')
             fo.close()
 
         lat_lower = lat_upper
@@ -512,16 +538,16 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
         # Make a bin file that you can execute that points to all the correct points 
 
-        str = 'mkdir facets && \n'
-        filepath = 'P_facets.bsh'
-        with open(filepath,'w') as fo:
-            fo.write('#!/bin/bash\n')
-            for i in range(ncore):
-                str = str + ('(cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) & \n'.format(i))
-            
-            str = str +('& mail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
-            fo.write(str)
-        # Format (cd temp1 && nohup ./sleep 2> .errorlog_temp1.log ) & (cd temp2 && nohup ./sleep 2> .errorlog_temp2.log )  & (cd temp3 && nohup ./sleep 2> .errorlog_temp3.log )
-        # 
+    bashcmd = 'mkdir facets && \n'
+    filepath = 'P_facets.bsh'
+    with open(filepath,'w') as fo:
+        fo.write('#!/bin/bash\n')
+        for i in range(ncore):
+            bashcmd = bashcmd + ('(cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) & \n'.format(i))
+        
+        bashcmd = bashcmd +('& mail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
+        fo.write(bashcmd)
+    # Format (cd temp1 && nohup ./sleep 2> .errorlog_temp1.log ) & (cd temp2 && nohup ./sleep 2> .errorlog_temp2.log )  & (cd temp3 && nohup ./sleep 2> .errorlog_temp3.log )
+    # 
 
 
