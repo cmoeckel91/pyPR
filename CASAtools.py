@@ -435,6 +435,9 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
     """
 
+    # uvfits should sit in the parent folder 
+    uvfits = '../'+uvfits
+
     # Create new subdirectories 
     import os 
     import numpy as np 
@@ -477,7 +480,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     for i in range(ncore): 
         temp_name = 'temp_p'+ i # Mkdir where temp data are stored 
         os.system('mkdir ' + temp_name )
-        os.system('cp -r' + uvfits + ' ' + temp_name +'/'  ) # Copy the file to temp folder 
+        # os.system('cp -r' + uvfits + ' ' + temp_name +'/'  ) # Copy the file to temp folder 
         # Write params.file 
 
 
