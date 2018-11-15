@@ -348,7 +348,7 @@ def ephem_uncertainties(target,orange):
         warnings.warn('Body not found. No uncertainties prescribed. Evrything should still work')
         dra,ddec,dorange = 0,0,0
         return [dra,ddec,dorange]
-        
+
     dra = np.degrees(dra_paper[pl]/orange) # Right ascension uncertainty
     ddec = np.degrees(ddec_paper[pl]/orange) # Declination uncertainty 
     dorange = dorange_paper[pl] # (m) Range uncertainty
@@ -1182,8 +1182,48 @@ def deg2dms(angle):
 
         return string
 
+def c_to_g(lat,R_e,R_p): 
+    '''Convert planetocentric latitud eto planetographic latitude 
+    
+            Parameters
+            -------
+            lat : [1] float
+                [rad] latitude 
 
-def interpmodelparams(center, planetname = 'jupiter', units = 'hz', printoutput = False): 
+            f : [1] float
+                [-] (a-b)/a
+
+            Returns
+            ----------
+            self : [1] str
+                [] 'hh mm ss.ss' 
+
+            Keywords
+            ----------
+
+
+            Example
+            -------
+            >>> 
+            References
+            ------------
+            2016 - Implications of MAVEN’s planetographic coordinate
+            system for comparisons to other recent Mars orbital
+            missions
+
+            Notes
+            -------
+            11/18/2017, CM, Initial Commit
+    '''
+
+
+    threshold = np.radians(89)
+    lat[np.where(np.abs(lat)>=threshold)] = np.nan
+    f = (R_e - R_p)/R_e
+    return np.arctan(np.tan(lat)*(1-f)**2)
+    
+
+def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = False): 
     '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
     peering below the clouds 
 
@@ -1320,7 +1360,8 @@ def interpmodelparams(center, planetname = 'jupiter', units = 'hz', printoutput 
              [14.21 ,0.08 ],
              [15.18 ,0.08 ],
              [16.21 ,0.08 ],
-             [17.38 ,0.06 ],]))
+             [17.38 ,0.06 ],
+             [25.00 ,0.06 ],]))
 
 
     intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
@@ -1328,11 +1369,11 @@ def interpmodelparams(center, planetname = 'jupiter', units = 'hz', printoutput 
 
     # Convert to units of cm 
     if units.casefold().strip() == 'hz': 
-        frequency = center 
+        frequency = f 
     elif units.casefold().strip() == 'm': 
-        frequency = cst.c.value/center 
+        frequency = cst.c.value/f 
     elif units.casefold().strip() == 'cm':
-        frequency = cst.c.value/(center/100) 
+        frequency = cst.c.value/(f/100) 
     else: 
         sys.exit('Units not recognized.')
 

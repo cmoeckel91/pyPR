@@ -271,34 +271,69 @@ def locate2template(logger,output,analytics=False):
 
 
 
-def ldvis2(): 
+def ldvis(k,amp,lam,B,a): 
+    '''Computes the visibility function of a cos(theta)**p limb-darkened disk   
+
+    
+    
+    Parameters
+    -------
+    k : [1] float
+        [-] Limb darkening parameter to be plotted 
+    amp : [1] float
+        [Jy] zero baseline flux amplitude 
+    lam :[1] float 
+        [m] Wavelength of the observation 
+    B : [N] float
+        [m] Baseline array      
+    a : [1] float 
+        [arcseconds] size of the planet (diameter) 
+
+    Returns
+    ----------
+    V_abs: [N] flpat 
+        [Jy] Visibility function 
+    
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    k = 0.1; amp = 13.5; lam = 0.3/224; B = np.arange(0,500); a = np.radians(2.2/3600) 
+    V = ldvis2(k,amp,lam,B,a)
+    plt.plot(B,V,label='limb darkened: k = {:2.2f}'.format(k)) 
+    plt.legend()
+    plt.show()
+
+    References
+    ------------
+    Josh Ivy league education
+
+    Notes
+    -------
+    08/08/2018, CM, Initial Commit
+    '''
 
     from scipy.special import jv  
     from scipy import integrate 
     import matplotlib.pyplot as plt  
 
-    plt.close('all')
-    rho = np.arange(0.1,10,0.01)
+    rho = B/2./lam
 
-    k = 0.05
-    a = 1
-
-    val = (a/rho*jv(1,2*np.pi*rho*a))**2  
-
-
+    # val = np.abs((2*jv(1,2*np.pi*rho*a)/(2*np.pi*rho*a)))
     integral_val = np.zeros_like(rho)
     for i in range(len(rho)): 
         f = lambda r: r*np.sqrt(1-r**2/a**2)**k*jv(0,2*np.pi*rho[i]*r) 
-        #f = lambda r: r*jv(0,2*np.pi*rho[i]*r)
-        integral_val[i] = (2*np.pi*scipy.integrate.quad(f,0,a)[0] )**2
+        integral_val[i] = np.abs(2*np.pi*scipy.integrate.quad(f,0,a)[0] )
 
-    plt.plot(rho/0.01,integral_val,label='limb darkened') 
-    plt.plot(rho/0.01,val,label='uniform disk')
-    plt.legend()
-    # plt.ylim(0,1)
-    plt.xlim(0,200)
-    plt.show()
 
+    # Normalize and scale to  
+    integral_val = amp*integral_val/integral_val[0]
+
+
+    return integral_val
 
 def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'): 
     """Create an oblate spheroid 
@@ -374,5 +409,116 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
     return 
 
 
+def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter' ): 
+    """Write a bash script that allows for parrallel execution 
+
+    You need to be within the folder 
+
+    Returns
+    ----------
+
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+
+
+    References
+    ------------
+    
+
+    Notes
+    -------
+
+    """
+
+    # Create new subdirectories 
+    import os 
+    import numpy as np 
+
+    # Calculate the corresponding latitude ranges 
+    dlat = latrange/np.ceil(latrange/latint)
+    # Number of latitude circles 
+    nlat = latrange/dlat 
+
+    # Find optimum number of cores (Assures that they will finish around the same time) 
+    cond = True
+    perf_p = 0.5
+    ncore = m_ncore
+    while cond: 
+        if np.ceil(nlat/ncore) != np.round (nlat/ncore):  
+            ncore -=1 
+        else: 
+            perf = np.ceil(nlat/ncore  ) - (nlat/ncore)  
+            perf_r = np.ceil(nlat/(ncore-1)) - nlat/(ncore-1)
+            if  perf_r < perf: 
+                ncore -=1 
+            else: 
+                cond = False 
+
+    # Number of latitude bands per core 
+    nband = np.ceil(nlat/ncore) 
+
+    lat_lower = -latrange/2 
+
+    # Test code: 
+    # for i in range(ncore): 
+    #     # Calculate the latitude range 
+    #     lat_upper = lat_lower + nband*dlat
+        
+    #     if lat_upper > latrange/2: 
+    #         lat_upper = latrange/2 
+    #     print(i,lat_lower, lat_upper) 
+    #     lat_lower = lat_upper
+
+    for i in range(ncore): 
+        temp_name = 'temp_p'+ i # Mkdir where temp data are stored 
+        os.system('mkdir ' + temp_name )
+        os.system('cp -r' + uvfits + ' ' + temp_name +'/'  ) # Copy the file to temp folder 
+        # Write params.file 
+
+
+        # Calculate the latitude range 
+        lat_upper = lat_lower + nband*dlat 
+        if lat_upper > latrange/2: 
+            lat_upper = latrange/2
+
+
+        filepath = temp_name+'/params' + '.pl' 
+        with open(filepath,'a') as fo:  
+            fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
+            fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfits))
+            fo.write('$cell = {:2.2f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
+            fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(lat_lower))
+            fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_upper))
+            fo.write('$minlon = 0;        # Min longitude (degrees)\n')
+            fo.write('$maxlon = 360;      # Max longitude\n')
+            fo.write('$latint = {:2.1f};      # Increment in latitude for facets, in degrees.\n'.format(latint))
+            fo.write('$imsize = 150;          # Facet pixel size.\n')
+            fo.write('#$fwhm_km = 3200;       # Optional extra smoothing function.\n')
+            fo.write('$robust = 0.0;          # Optional imaging weighting parameter.\n')
+            fo.write('$plradius = 71492.0     # Optional planet radius in kilometers.\n')
+            fo.write('# $obstime = "17jan11"  # Optional observation time used for geometry.\n')
+            fo.close()
+
+        lat_lower = lat_upper
+
+
+        # Make a bin file that you can execute that points to all the correct points 
+
+        str = 'mkdir facets && \n'
+        filepath = 'P_facets.bsh'
+        with open(filepath,'w') as fo:
+            fo.write('#!/bin/bash\n')
+            for i in range(ncore):
+                str = str + ('(cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) & \n'.format(i))
+            
+            str = str +('& mail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
+            fo.write(str)
+        # Format (cd temp1 && nohup ./sleep 2> .errorlog_temp1.log ) & (cd temp2 && nohup ./sleep 2> .errorlog_temp2.log )  & (cd temp3 && nohup ./sleep 2> .errorlog_temp3.log )
+        # 
 
 
