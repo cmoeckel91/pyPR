@@ -425,8 +425,9 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     Example
     -------
     import CASAtools
-    cd 'Development'  
-    m_ncore = 12 
+    import os
+    os.system('cd /Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0')
+    m_ncore = 24
     uvfits = 'jup-x.uv.comp' 
     latrange = 120  
     latint = 2.5 
@@ -538,15 +539,18 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
         # Make a bin file that you can execute that points to all the correct points 
 
-    bashcmd = 'mkdir facets && \n'
-    filepath = 'P_facets.bsh'
+    bashcmd = 'mkdir facets &&'
+    filepath = 'Parallel_facets.bsh'
     with open(filepath,'w') as fo:
         fo.write('#!/bin/bash\n')
         for i in range(ncore):
-            bashcmd = bashcmd + ('(cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) & \n'.format(i))
-        
-        bashcmd = bashcmd +('& mail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
+            # bashcmd = bashcmd + (' \n(cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
+            bashcmd = bashcmd + (' \n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
+       
+        bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         fo.write(bashcmd)
+    # Change permisson   
+    os.system('chmod u+x ' + filepath)
     # Format (cd temp1 && nohup ./sleep 2> .errorlog_temp1.log ) & (cd temp2 && nohup ./sleep 2> .errorlog_temp2.log )  & (cd temp3 && nohup ./sleep 2> .errorlog_temp3.log )
     # 
 
