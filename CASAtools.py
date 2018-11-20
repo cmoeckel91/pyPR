@@ -424,6 +424,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
     Example
     -------
+    import pyPR
     import CASAtools
     import os
     os.system('cd /Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0')
@@ -487,6 +488,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     #         lat_upper = latrange/2 
     #     print(i,lat_lower, lat_upper) 
     #     lat_lower = lat_upper
+
+
     temp_folder = 'temp_p'
     if os.path.exists(temp_folder+'0'): 
         timeout = 10
@@ -534,7 +537,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
             fo.write('# $obstime = ""  # Optional observation time used for geometry.\n')
             fo.close()
 
-        lat_lower = lat_upper
+        lat_lower = lat_upper+dlat
 
 
         # Make a bin file that you can execute that points to all the correct points 
@@ -544,8 +547,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     with open(filepath,'w') as fo:
         fo.write('#!/bin/bash\n')
         for i in range(ncore):
-            # bashcmd = bashcmd + (' \n(cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-            bashcmd = bashcmd + (' \n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
+            # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
+            bashcmd = bashcmd + (' \n(rm -rf /Volumes/scratch/tmp{:d} && mkdir /Volumes/scratch/tmp{:d} && TMPDIR="/Volumes/scratch/tmp{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &>> logger.txt  && cp -r facets/* ../facets/) &'.format(i,i,i,i))
        
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         fo.write(bashcmd)
@@ -554,4 +557,4 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     # Format (cd temp1 && nohup ./sleep 2> .errorlog_temp1.log ) & (cd temp2 && nohup ./sleep 2> .errorlog_temp2.log )  & (cd temp3 && nohup ./sleep 2> .errorlog_temp3.log )
     # 
 
-
+# itemize in=temp_p2/facets/n50p11.icln 
