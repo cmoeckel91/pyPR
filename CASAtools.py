@@ -431,8 +431,9 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     import pyPR
     import CASAtools
     import os
-    os.system('cd /Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0')
-    m_ncore = 12
+    cd /Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0
+
+    m_ncore = 24
     uvfits = 'jup-x.uv.comp' 
     latrange = 120  
     latint = 2.5 
@@ -496,7 +497,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 os.system('rm -rf ' + temp_folder + '*') 
                 overwrite = True
             else: 
-                sys.exit('Assume files are there already')
+                sys.warnings('Assume files are there already')
         else: 
             sys.exit('Move your files manually')
 
