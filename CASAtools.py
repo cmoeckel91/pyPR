@@ -482,17 +482,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
     lat_lower = -latrange/2 
 
-    # Test code: 
-    # for i in range(ncore): 
-    #     # Calculate the latitude range 
-    #     lat_upper = lat_lower + nband*dlat
-        
-    #     if lat_upper > latrange/2: 
-    #         lat_upper = latrange/2 
-    #     print(i,lat_lower, lat_upper) 
-    #     lat_lower = lat_upper
 
-
+    overwrite = False
     temp_folder = 'temp_p'
     if os.path.exists(temp_folder+'0'): 
         timeout = 10
@@ -506,7 +497,6 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 overwrite = True
             else: 
                 sys.exit('Assume files are there already')
-                overwrite = False
         else: 
             sys.exit('Move your files manually')
 
