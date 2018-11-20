@@ -409,7 +409,11 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
     return 
 
 
-def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter', filepath_script = 'Parallel_facets.bsh'): 
+def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, 
+    planet = 'jupiter', 
+    filepath_data= './', 
+    filepath_script = 'Parallel_facets.bsh', 
+    tmp_directory = '/Volumes/scratch/tmp'): 
     """Write a bash script that allows for parrallel execution 
 
     You need to be within the folder 
@@ -434,7 +438,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     latint = 2.5 
     cell = 0.039 
     planet = 'jupiter'
-    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter',filepath_script = 'Parallel_facets_v2.bsh') )
+    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter',filepath_script = 'Parallel_facets_v2.bsh',tmp_directory = '/Users/chris/Documents/Research/Toolbox/Development/tmp') 
 
     References
     ------------
@@ -445,8 +449,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
     """
 
-    # uvfits should sit in the parent folder 
-    uvfits = '../'+uvfits
+
 
     # Create new subdirectories 
     import os
@@ -475,7 +478,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
                 cond = False 
 
     # Number of latitude bands per core 
-    nband = np.ceil(nlat/ncore) 
+    nband = np.ceil(nlat/ncore) - 1
 
     lat_lower = -latrange/2 
 
@@ -493,15 +496,17 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     temp_folder = 'temp_p'
     if os.path.exists(temp_folder+'0'): 
         timeout = 10
-        print("The folders exists already. Are you sure you want to overwrite it?: (y/N)")
+        print("The folders exists already. Are you sure you want to overwrite it? Abort after 10 seconds: (y/N)")
         rlist, _, _ = select([sys.stdin], [], [], timeout)
         if rlist:
             s = sys.stdin.readline()
             if s.lower() == 'y\n' or s.lower() == 'yes\n': 
                 print('Folders will be overwritten!')
                 os.system('rm -rf ' + temp_folder + '*') 
+                overwrite = True
             else: 
-                sys.exit('Move your files manually')
+                sys.exit('Assume files are there already')
+                overwrite = False
         else: 
             sys.exit('Move your files manually')
 
@@ -509,7 +514,10 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     for i in range(ncore): 
         temp_name = temp_folder+ str(i) # Mkdir where temp data are stored 
 
-        os.system('mkdir ' + temp_name )
+        if overwrite:
+            os.system('mkdir ' + temp_name )
+        else: 
+            os.system('rm -rf {:s}/params.pl'.format(temp_name) )
         # os.system('cp -r' + uvfits + ' ' + temp_name +'/'  ) # Copy the file to temp folder 
         # Write params.file 
 
@@ -521,9 +529,9 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
 
 
         filepath = temp_name+'/params' + '.pl' 
-        with open(filepath,'a') as fo:  
+        with open(filepath,'w') as fo:  
             fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
-            fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfits))
+            fo.write('$vis = "../{:s}";     # Visibility file\n'.format(uvfits))
             fo.write('$cell = {:4.4f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
             fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(lat_lower))
             fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_upper))
@@ -543,17 +551,16 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
         # Make a bin file that you can execute that points to all the correct points 
 
     bashcmd = 'mkdir facets &&'
-    with open(filepath,'w') as fo:
+    with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash\n')
         for i in range(ncore):
             # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-            bashcmd = bashcmd + (' \n(rm -rf /Volumes/scratch/tmp{:d} && mkdir /Volumes/scratch/tmp{:d} && TMPDIR="/Volumes/scratch/tmp{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &>> logger.txt  && cp -r facets/* ../facets/) &'.format(i,i,i,i))
+            bashcmd = bashcmd + (' \n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
        
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         fo.write(bashcmd)
     # Change permisson   
-    os.system('chmod u+x ' + filepath)
-    # Format (cd temp1 && nohup ./sleep 2> .errorlog_temp1.log ) & (cd temp2 && nohup ./sleep 2> .errorlog_temp2.log )  & (cd temp3 && nohup ./sleep 2> .errorlog_temp3.log )
-    # 
+    os.system('chmod u+x ' + filepath_script)
+    return 
 
 # itemize in=temp_p2/facets/n50p11.icln 
