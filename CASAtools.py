@@ -409,7 +409,7 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
     return 
 
 
-def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter' ): 
+def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter', filepath_script = 'Parallel_facets.bsh'): 
     """Write a bash script that allows for parrallel execution 
 
     You need to be within the folder 
@@ -428,13 +428,13 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
     import CASAtools
     import os
     os.system('cd /Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0')
-    m_ncore = 24
+    m_ncore = 12
     uvfits = 'jup-x.uv.comp' 
     latrange = 120  
     latint = 2.5 
     cell = 0.039 
     planet = 'jupiter'
-    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter' )
+    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter',filepath_script = 'Parallel_facets_v2.bsh') )
 
     References
     ------------
@@ -543,7 +543,6 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'j
         # Make a bin file that you can execute that points to all the correct points 
 
     bashcmd = 'mkdir facets &&'
-    filepath = 'Parallel_facets.bsh'
     with open(filepath,'w') as fo:
         fo.write('#!/bin/bash\n')
         for i in range(ncore):
