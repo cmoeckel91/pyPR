@@ -415,8 +415,10 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     filepath_script = 'Parallel_facets.bsh', 
     tmp_directory = '/Volumes/scratch/tmp'): 
     """Write a bash script that allows for parrallel execution 
+    of Bob's Deprojection technique in MIRIAD 
 
-    You need to be within the folder 
+    You need to be within the folder where the uv file sits normally. 
+    The script will generate temporary directories and distribute them 
 
     Returns
     ----------
@@ -432,7 +434,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     import CASAtools
     import os
 
-    cd /Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0
+    cd '/Volumes/CASA/chris/2017-Jan-11/Deprojection/spw2~33_p0'
 
     m_ncore = 24
     uvfits = 'jup-x.uv.comp' 
@@ -440,7 +442,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     latint = 2.5 
     cell = 0.039 
     planet = 'jupiter'
-    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter',filepath_script = 'Parallel_facets_v2.bsh',tmp_directory = '/Users/chris/Documents/Research/Toolbox/Development/tmp') 
+    CASAtools.parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, planet = 'jupiter',filepath_script = 'Parallel_facets_v2.bsh',tmp_directory = '/tmp') 
 
     References
     ------------
@@ -480,7 +482,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 cond = False 
 
     # Number of latitude bands per core 
-    nband = np.ceil(nlat/ncore) - 1
+    nband = np.ceil(nlat/ncore) 
 
     lat_lower = -latrange/2 
 
@@ -542,13 +544,15 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
         # Make a bin file that you can execute that points to all the correct points 
 
-    bashcmd = 'mkdir facets &&'
+    bashcmd = 'mkdir facets &'
     with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash\n')
         for i in range(ncore):
             # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-            bashcmd = bashcmd + (' \n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
-       
+            bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+            if i > ncore/2:
+                bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         fo.write(bashcmd)
     # Change permisson   

@@ -17,12 +17,13 @@ from astropy import constants as cst
 from astropy.io import fits
 
 import matplotlib.pyplot as plt
+import importlib
+import time
 
 # Debug 
 import warnings
 import IPython
-import importlib
-import time
+
 
 
 
@@ -125,7 +126,7 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
     observatory_coords : [3x1] float
         [latxlongxkm] NAIF observatory coordinates 
     radii : [3x1] flaot
-        [km] Radius of target body 
+        [km] Radius of target body {Equator, meridian, pole}
 
 
     0  UTdate UTtime
@@ -244,7 +245,6 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
                 R = np.zeros(3) # Radius (km)
                 for j in range(3):
                     R[j] = np.float(radii.split('x')[j])
-                R = R[[0,2,1]]
             # get observatory lat, lon, alt for later
             if ephem[i].startswith('Center geodetic'):
                 l = ephem[i].split(':')[1]
@@ -371,16 +371,20 @@ def read_ephem_line(arr):
 
 
 # Make an oblate spheroid 
-def triaxialellipsoid(a,b,c,x,y): 
+def triaxialellipsoid(R,x,y): 
     """Create an oblate spheroid 
 
     Create a 3D ellipsoid with a,b,c referring to x,y,z
 
-      y,b   ^ 
+    # Note that this is a difference convention. Z is in this case chosen 
+    to come out of the plane. a,b,c and refer to the standard ellipsoid axis 
+    defined by x,a out of plane, z,c upwards, y,b completes the frame
+
+      y,c   ^ 
             |
             |
             |
-             ------> x,a
+             ------> x,b
            / 
           /
          /
@@ -388,14 +392,10 @@ def triaxialellipsoid(a,b,c,x,y):
 
     Parameters
     -------
-    a [1] float 
-        [m] Semi  axis 
-    b [1] float 
-        [m] Semi  axis
-    c [1] float 
-        [m] Semi axi 
+    R [3x1] float 
+        [m] a,b,c three semi major axis of the system 
     x [1] float 
-        [m] x axis 
+        [m] x axis on which the the system will be build  
     y [1] float 
         [m] y axis 
     
@@ -425,13 +425,15 @@ def triaxialellipsoid(a,b,c,x,y):
     # x = np.linspace(-1,1,N)*a
     # y = np.linspace(-1,1,N)*b
 
+    a,b,c = R
+
     # warnings.filterwarnings("ignore")
     xv, yv = np.meshgrid(x, y) 
 
     # Create the surface 
-    surf = 1. - xv**2/a**2 - yv**2/b**2
+    surf = 1. - xv**2/b**2 - yv**2/c**2
     surf[surf<0] = 0.0
-    zv= c*np.sqrt(surf)
+    zv= a*np.sqrt(surf)
 
     # remove nan outside of the planet 
     zv[~np.isfinite(zv)] = 0
@@ -443,7 +445,7 @@ def triaxialellipsoid(a,b,c,x,y):
 
 
 # Read in the Jupiter brightness map 
-def brightnessmap(R,x,y,T_dab,p): 
+def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01): 
     """Create a brightness map of Jupiter
 
     Based on x,y and grid, create a brightness map of Jupiter. Iterative 
@@ -458,7 +460,7 @@ def brightnessmap(R,x,y,T_dab,p):
     T_dab: [1] float
         Disk averaged brightness temperature 
     R : [3x1] float 
-        Radius of the planet [equator,polar,equator]
+        [pix] Radius of the planet [equator,polar,equator]
     p : [1x2] float 
         [EW,NS] Limb darkening coefficient 
 
@@ -491,9 +493,9 @@ def brightnessmap(R,x,y,T_dab,p):
     -------
     10/24/2017, CM, Initial Commit
     """
-
-    # Call the three dimension surface 
-    (xv,yv,zv) = triaxialellipsoid(R[0],R[1],R[2],x,y)
+    R = R/R[0]*r_pla
+    # Call the three dimension surface and return value in pixels 
+    (xv,yv,zv) = triaxialellipsoid(R,x,y)
     # Avoid singularities 
     zv[zv==0] = float('nan')
     # Obtain the emission angle 
@@ -508,7 +510,6 @@ def brightnessmap(R,x,y,T_dab,p):
     # brightness temperature 
     pixels = np.ones_like(zv) 
     cond = 1 
-    conv = 0.01
     T_scale = T_dab
 
     # Build a uniform disk model 
@@ -524,7 +525,7 @@ def brightnessmap(R,x,y,T_dab,p):
             cos = np.cos(th)
             cos[cos<1e-5] = 0
             # Exponent p, should always be smaller than p max 
-            pexp = (p[0]+(np.abs(yv)/R[1])*(p[1]-p[0]))
+            pexp = (p[0]+(np.abs(yv)/R[2])*(p[1]-p[0]))
             pexp[pexp > np.max(p)] = np.max(p)
             pexp[pexp < np.min(p)] = np.min(p)
             T = T_scale*cos**(pexp)
@@ -545,8 +546,253 @@ def brightnessmap(R,x,y,T_dab,p):
             'Peak T: {:3.2f} '.format(T_scale))
 
         T[zv<1e-5] = 0
-
         return T
+
+def emissionangle(lat_c, lat_d, ob_lat_d, orange, R): 
+    """Calculate the zonally averaged emission angle based on the 
+    goedetic and geocentric latitudes 
+
+    Based on x,y and grid, create a brightness map of Jupiter. Iterative 
+    solution that solves for the brightness distribution 
+
+    Parameters
+    -------
+ 
+
+
+
+    Returns
+    ----------
+
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    lat_c =(np.arange(-np.pi/2,np.pi/2,np.pi/179))
+    ob_lat_d = np.radians(-3.27) 
+    R = np.array([71492., 71492., 66854.])
+    orange = 8.0491221e+11  # [m] 5.4 AU
+    # Estimate the distance to the center as: 
+    r_l = R[2]+(R[0]-R[2])*np.cos(ob_lat_d)
+    f = 1 - R[2]/R[0] 
+    lat_d = geoc2geod( orange+r_l, lat_c, f )[0]   
+    alpha, lat = emissionangle(lat_c, lat_d, ob_lat_d, orange, R)
+
+    References
+    ------------
+
+    Notes
+    -------
+    10/24/2017, CM, Initial Commit
+    """
+
+    # [rad] Convert observer geodetic latitude to geocentric latitude
+    ob_lat_c = geod2geoc(ob_lat_d, orange, R[0], 1-R[2]/R[0]) 
+
+
+    # Find the angle between the Center-Observer and the point to the viewing point 
+    lat_p = np.radians(np.arange(-89,90,1)) 
+    lat = lat_p+ob_lat_c
+
+
+    # [m] Find local radius for a given 
+    r_s = R[0]*R[2]/(np.sqrt((R[2]*np.cos(lat_p))**2 + (R[0]*np.sin(lat_p))**2))
+
+    # [m] Calculate the surface intercept distance from observer using cosine law
+    s = np.sqrt(r_s**2 + orange**2 - 2*r_s*orange*np.cos(np.radians(ob_lat_c)))
+
+    # [deg] Calculate the angle beta between local tangent and the local radius 
+    beta = np.abs(lat_d - lat_c)
+
+    # Calculate the angle of the Triangle, Center-Observer-Surface intercept 
+    gam = np.pi/2 - np.arcsin(orange/s*np.sin(np.abs(lat_p))) - beta
+
+    # Calculate the emission angle 
+    alpha = np.pi/2 - gam 
+
+    return alpha, lat
+
+
+def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, lat_res, conv = 0.01): 
+    """Create a brightness map with structure of Jupiter 
+
+    Based on x,y and grid, create a brightness map of Jupiter. Iterative 
+    solution that solves for the brightness distribution 
+
+    Parameters
+    -------
+    x : [1xN] float
+        [R] Normlized x - coordinate  
+    y : [1xN] float
+        [R] Normlized y - coordinate  
+    T_dab: [1] float
+        Disk averaged brightness temperature 
+    R : [3x1] float 
+        [pix] Radius of the planet [equator,polar,equator] 
+        Rotated into correct view 
+    p : [1x2] float 
+        [EW,NS] Limb darkening coefficient 
+    Tscan : [1xN] float
+        [T] Brightness temperature residual, zonally averaged 
+    lat : [1xN] float
+        [R] Corresponding latitudes for the residual temperatures 
+
+
+    Returns
+    ----------
+    T : [NxN] float 
+        [K or Jy] Brightness distribution on the sky 
+
+    Keywords
+    ----------
+    Jy : Boolean
+        If true, output in Jansky 
+        If false, output in K 
+
+    Example
+    -------
+    >>> R = np.array([72e6,66e6,72e6])
+    >>> R = R/R[0]
+    >>> N = 200 
+    >>> T_dab = 350
+    >>> p = np.array([0.08,0.08])
+    BrightnessMap(R,N,T_dab,p)
+
+    References
+    ------------
+
+    Notes
+    -------
+    10/24/2017, CM, Initial Commit
+    """
+
+    
+    from mpl_toolkits.basemap import Basemap, addcyclic
+    import scipy.interpolate
+
+    # Correct for the limb darkening given that the residuals are on 
+    # top of a limb darkened disk. 
+    # ------------------------------------------------------------------
+    
+    # Obtain emission angle. 
+    lat_c =(np.arange(-np.pi/2,np.pi/2,np.pi/179))
+    flat = 1 - R[2]/R[0] 
+    lat_d = geoc2geod( orange + R[2]+(R[0]-R[2])*np.cos(ob_lat_d), lat_c, flat )[0]  
+    alpha, lat_emission = emissionangle(lat_c, lat_d, np.radians(ob_lat_d), orange, R)
+
+    # Input residual striructure in limb darkened. 
+
+    f = scipy.interpolate.interp1d(lat_res, T_res,bounds_error=False,fill_value=np.mean(T_res))
+    lats = np.arange(-89,90,2)
+    lons =  np.arange(0,360,2)
+    T =f(lats) - np.mean(f(lats)) # Residual structure after and levelled to zero 
+
+    # Detrend the residuals from emission angle, my diving by cos(theta)**p
+    f = scipy.interpolate.interp1d(np.degrees(lat_emission), alpha,bounds_error=False,fill_value=np.nan)
+    T_db = T/np.cos(f(lats))**p[0]
+
+    # Create a map due zonally averaged values 
+    T_map = np.transpose(np.tile(T_db,(180,1)))
+
+    # Bug in Basemaps
+    try: 
+        T_map, lons = addcyclic(T_map, lons)
+    except: 
+        print('Basemap bug has not yet been removed')
+
+    # create Basemap instance for Robinson projection.
+    m = Basemap(projection='ortho',lat_0=ob_lat_d
+                ,lon_0=90)
+
+    # compute map projection coordinates for lat/lon grid.
+    x, y = m(*np.meshgrid(lons,lats))
+    lonpt, latpt = m(x,y,inverse=True)
+
+
+    # make filled contour plot.
+    plt.figure()
+    cs = m.contourf(x,y,T_map,30,cmap=plt.cm.jet)
+    plt.colorbar(cs)
+    m.drawmapboundary() # draw a line around the map region
+    m.drawparallels(np.arange(-90.,120.,30.),labels=[1,0,0,0]) # draw parallels
+    m.drawmeridians(np.arange(0.,420.,60.),labels=[0,0,0,1]) # draw meridians
+    plt.title('Orthographic Projection') # add a title
+    plt.show() 
+
+    
+    # Projected axis of ellipsod R[1], and R[2]
+
+    # Call the three dimension surface 
+    (xv,yv,zv) = triaxialellipsoid(R/R[0]*r_pla,x_pix,y_pix)
+    # Avoid singularities 
+    zv[zv==0] = float('nan')
+    # Obtain the emission angle 
+    th = np.arccos(zv/np.sqrt(xv**2+yv**2+zv**2))
+    
+    # Where the value is nan, the model should be zero 
+    th[~np.isfinite(th)] = np.pi/2.
+    zv[~np.isfinite(zv)] = 0.
+
+    # Interpolate the structure onto the same grid as the limb darkened disk 
+    # Note that the ld model is in pixel, so we covert them here  
+    x_temp = x.flatten()/m.rmajor # [R_E] units of RE
+    x_t = x_temp[x_temp<2.0]*r_pla # [pix] Multiply with R_E
+    y_temp = y.flatten()/m.rmajor
+    y_t = y_temp[x_temp<2.0]*R[2]/R[0]*r_pla # [pix] Multiply with R_P 
+    T_temp = T_map.flatten()
+    T_t = T_temp[x_temp<2.0]
+    # Center the array so that 0,0 refers to the center of the planet 
+    x_t -= r_pla 
+    y_t  -= R[2]/R[0]*r_pla
+    p_in=(np.stack((x_t,y_t))).transpose()
+
+    # Interpolate on the output 
+    T_resmap = scipy.interpolate.griddata(p_in,T_t,(xv.T, yv.T),fill_value = 0,method='cubic')
+
+    # plotting the residuals 
+
+    fig, axs = fig, axs = plt.subplots(1, 1)
+    cs = plt.contourf(xv.T, yv.T,T_resmap,30,cmap=plt.cm.jet)
+    plt.title('Zonal residual NOT limb darkened')
+    plt.colorbar(cs)
+    axs.set_aspect('equal', 'box')
+    plt.show()
+
+    # Element wise multiplication of theta with T_resmap to limbdarken the residuals 
+                # Avoiding numeric issues 
+    cos = np.cos(th)
+    cos[cos<1e-5] = 0
+    # Exponent p, should always be smaller than p max 
+    pexp = (p[0]+(np.abs(yv)*r_pla/R[2])*(p[1]-p[0]))
+    pexp[pexp > np.max(p)] = np.max(p)
+    pexp[pexp < np.min(p)] = np.min(p)
+    T_res_ld = T_resmap*cos**(pexp)
+
+    # 
+    # T_res_ld = np.multiply(T_resmap,np.cos(th)**np.mean(p)) 
+
+    # Normalize so that the structure has zero flux 
+    pixels = np.ones_like(zv) # Pixels that contain flux 
+    T_res_ld -= (np.sum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+
+    fig, axs = fig, axs = plt.subplots(1, 1)
+    cs = plt.contourf(xv.T, yv.T,T_res_ld,30,cmap=plt.cm.jet)
+    plt.title('Zonal residual limb darkened')
+    axs.set_aspect('equal', 'box')
+    plt.colorbar(cs)
+
+    plt.show()
+
+    # Subtraction forces off-planet residuals below zero 
+    T_res_ld[zv<0.1] = 0 
+    
+    #IPython.embed()
+ 
+    return T_res_ld.T
+
 
 # Conversions 
 
@@ -914,15 +1160,433 @@ def rotation_matrix(axis, theta):
                      [2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc]])
 
 
+def geo2eci(r,lon,lat,):
+    """Conversion from geocentric coords to eci coords. 
 
-def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale, Jansky = True,uniform=False): 
+    Parameters
+    ----------
+    r : float
+        [m] Radius from center 
+    lon : float
+        [rad] Longitude
+    lat : float
+        [rad] Latitude
+
+
+    Keyword Arguments
+    ----------
+
+
+    Returns
+    -------
+    r : [3x1] float
+        [m,m,m] Position in rectengular coordinates
+
+    Warnings
+    -------
+    Assuming spherical Earth rather than WGS Spheroid. To Be Added
+
+    Example
+    -------
+
+    References
+    ------------
+
+    Notes
+    -------
+    08/30/18, SB, Initial commit, Geocentric only
+    """
+    
+
+
+    # Convert latitude to spherical polar angle
+    th = np.pi/2. - lat
+
+    r_eci = r*np.array([
+                        np.sin(th)*np.cos(lon),
+                        np.sin(th)*np.sin(lon),
+                        np.cos(th)
+                       ])
+    return r_eci
+
+def geoc2geod( r, lat_c, f ): 
+    """Conversion from geocentric to geodetic. '
+    
+    
+    Planetocentric: Defined with respect to a sphere 
+        Longitude: Positive eastwards 
+        Latitude: Positive northward 
+    Planetodetic: Defined with respect to the local tangent plane
+        Longitude: Positive eastwards   
+        Latitude: Positive northward 
+    Planetographic: Defined with respect to the local tangent plane, 
+    and longitude is increasing with time for the observer 
+        Longitude: Positive WESTwards   
+        Latitude: Positive northward 
+    
+    Source: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/Tutorials
+    /pdf/individual_docs/17_frames_and_coordinate_systems.pdf (slide 23-25)
+
+
+    Parameters
+    ----------
+    r : float
+        [m] Radius from center 
+    lat_c : float
+        [rad] Geocentric Latitude
+    f: float 
+        [-] Flattening parameter (1-R_p/R_e) or (R_e-R_p)/R_e
+
+
+    Keyword Arguments
+    ----------
+
+
+    Returns
+    -------
+    lat_d : float
+        [rad] Geodetic Latitude
+    h: float 
+        [m] Height above the surface  
+
+    Warnings
+    -------
+    Assuming spherical Earth rather than WGS Spheroid. To Be Added
+
+    Example
+    -------
+    import pyPR.PlanetGeometry as PG
+    lat_c = np.radians(48.66594); f = 1/298.257223563
+    r = 6366453 # 400 m above Paris
+    np.degrees(PG.geoc2geod( r, lat_c, f ))[0] # 48.8563
+
+    
+
+    References
+    ------------
+    https://www.mathworks.com/help/aeroblks/geocentrictogeodeticlatitude.html 
+
+    Notes
+    -------
+    12/11/18, CM, Initial commit, Geocentric only
+    """
+    # 
+    # Find the coordinates of the surface intersection point  
+    x_s = (1-f)*r/(np.sqrt(np.tan(lat_c)**2 + (1 - f)**2))
+    y_s = np.sqrt(r**2 - x_s**2)*(1-f) 
+
+    # Find the angle between the surface intersect and the point where 
+    # the surface tanget crosses the equator 
+    lat_s = np.arctan(np.tan(lat_c)/(1-f)**2) 
+
+    # Check for sign due atan ambiguity  
+    lat_s = (np.sign(lat_c)/np.sign(lat_s))*lat_s
+
+    # Calculate the local radius for a given ellipsoid 
+    r_s = x_s/np.cos(lat_c) 
+
+    # Distance from surface intercept to observer 
+    l = r - r_s 
+
+    # Difference in latitude at surface intercept 
+    dlat_s = lat_s - lat_c 
+
+    # Calculate the mean altitude of the observer above the surface 
+    h = l*np.cos(dlat_s)
+
+    # Curvate of the surface at the intercept to calculate the local tangent 
+    rho_s = r*(1-f)**2/(1-(2*f-f**2)*np.sin(lat_s)**2)**(3/2)
+
+    # Difference between the two latitude 
+    dlat = np.arctan(l*np.sin(dlat_s)/(rho_s + h))
+
+    # Calculate the geodetic latitude 
+    lat_d = lat_s - dlat
+
+    return lat_d, h
+
+def geod2geoc( lat_d, h, r_e,  f ): 
+    """Conversion from geodetic to geocentric. '
+    
+
+    
+    Planetocentric: Defined with respect to a sphere 
+        Longitude: Positive eastwards 
+        Latitude: Positive northward 
+    Planetodetic: Defined with respect to the local tangent plane
+        Longitude: Positive eastwards   
+        Latitude: Positive northward 
+    Planetographic: Defined with respect to the local tangent plane, 
+    and longitude is increasing with time for the observer 
+        Longitude: Positive WESTwards   
+        Latitude: Positive northward 
+    
+    Source: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/Tutorials
+    /pdf/individual_docs/17_frames_and_coordinate_systems.pdf (slide 23-25)
+
+
+    Parameters
+    ----------
+    h : float
+        [m] height of the observer 
+    r_e : float
+        [m] equatorial radius of the planet 
+    lat_d : float
+        [rad] Geodetic Latitude
+    flat: float 
+        [-] Flattening parameter (1-R_p/R_e) or (R_e-R_p)/R_e
+
+
+    Keyword Arguments
+    ----------
+
+
+    Returns
+    -------
+    lat_c : float
+        [rad] Geocentric Latitude
+
+    Warnings
+    -------
+    Assuming spherical Earth rather than WGS Spheroid. To Be Added
+
+    Example
+    -------
+    import pyPR.PlanetGeometry as PG 
+    # Earth WGS - 84, Paris 
+    f = 1/298.257223563; lat_d = np.radians(48.8567); r_e = 6378.137e3; h = 400
+    np.degrees(PG.geod2geoc(h, r_e, lat_d, f)) # 48.665943820540754
+
+
+
+    References
+    ------------
+    https://www.mathworks.com/help/aeroblks/geodetictogeocentriclatitude.html
+
+    Notes
+    -------
+    12/11/18, CM, Initial commit, Geocentric only
+    """
+
+    # Calculate the geocentric latitude at the surface intercept 
+    lat_s = np.arctan((1-f)**2*np.tan(lat_d))
+    
+    lat_c = (np.arctan((h*np.sin(lat_d) + r_e*np.sin(lat_s))/
+                      (h*np.cos(lat_d) + r_e*np.cos(lat_s))))
+
+    return lat_c
+
+
+def rotateprincipalaxis(R, ob_lat): 
+    """Obtain the principal axis of an ellopsoid seen at an angle. 
+
+    Applicable for a 2D body, such as prolate spheroid
+
+    When an ellipsoid is seen off the equator, the principal axis change. 
+    A planet seen face on, is squished due to rotational flattening, 
+    and the principal axis are R_equator, and R_pole. With increasing 
+    observer latitude, the projection becomes more cirular, until we 
+    observe the planet above the pole as a perfect sphere. 
+
+    Input maybe be in any unit! 
+
+    
+    Parameters
+    -------
+    R : [3x1] float
+        [m] Principal rotation axis of the planet (equator, pole, equator)
+    obs_lat : [1] float
+        [deg] Observer's latitude 
+
+
+
+    Returns
+    ----------
+    R_rot: [3x1] float 
+        [m]: Rotated principal axis 
+
+    Keywords
+    ----------
+ 
+
+    Example
+    -------
+    >>> import pyPR.PlanetGeometry as PG
+    >>> PG.rotateprincipalaxis(np.array([71492., 71492., 66854.]),np.radians(-3.27))
+    References
+    ------------
+    https://www.geometrictools.com/Documentation/PerspectiveProjectionEllipsoid.pdf 
+
+    Notes
+    -------
+    12/10/2018 CM, Initial Commit
+    """    
+    
+   
+    # Rotate around the y axis to correct for the sub latitude 
+    # Note that the longitude should not matter, for an rotational ellipsoid.
+    # (pixel) Polar radius for triaxial ellipsoid
+
+    a = (R[1]*np.cos(np.radians(ob_lat))**2 
+            + R[2]*np.sin(np.radians(ob_lat))**2 )
+    # (pixel) Equatorial radius for triaxial ellipsoid 
+    b = (R[2]*np.cos(np.radians(ob_lat))**2 
+            + R[1]*np.sin(np.radians(ob_lat))**2)
+
+    return [a,b]
+
+def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range): 
+    """Obtain the principal axis of an ellopsoid seen at an angle. 
+    Applicable for a 3D body 
+
+    When an ellipsoid is seen off the equator, the principal axis change. 
+    A planet seen face on, is squished due to rotational flattening, 
+    and the principal axis are R_equator, and R_pole. With increasing 
+    observer latitude, the projection becomes more cirular, until we 
+    observe the planet above the pole as a perfect sphere. 
+
+    Input maybe be in any unit! 
+
+    
+    Parameters
+    -------
+    R : [3x1] float
+        [m] Principal rotation axis of the planet (equator, pole, equator)
+    obs_range : [1] float
+        [m] Observer's distance from surface 
+            Best obtained by calculating the distance of light travel time 
+            from NAIF P.lt*c
+
+    Remember that ephemeris is in degree 
+
+    Returns
+    ----------
+    R_rot: [3x1] float 
+        [m]: Rotated principal axis 
+
+    Keywords
+    ----------
+    
+
+    Example
+    -------
+    # Example by running ephem on some Jupiter data 
+    R = np.array([71492., 71492., 66854.])
+    ob_range = 8.0491221e+11
+    ob_lat_d = np.radians(-3.267)
+    ob_lon = np.radians(73.12)
+    axis , center = rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+
+    Warnings
+    -------
+    It might be avisable to scale the distances.  Test first unscaled 
+
+    References
+    ------------
+    https://www.geometrictools.com/Documentation/PerspectiveProjectionEllipsoid.pdf
+    https://math.stackexchange.com/questions/2243974/perspective-projection-of-ellipsoid-to-ellipse-solving-for-standard-form-ellips 
+    
+    Notes
+    -------
+    12/10/2018 CM, Initial Commit
+    """ 
+
+    import numpy.linalg as npl
+
+    # Given the ob_lat, ob_long, and the range we can compute the observer 
+    # Horizons: Obrv range, obs sub-lon, obs sub_lat, f from radius 
+    # pypr: lt*c, ob_lon, ob_lat
+
+    # There is a problem for negative latitudes 
+    # ob_lat_d = np.abs(ob_lat_d)
+
+    # Flattening parameter of the planet 
+    f = (R[0]-R[2])/R[0] 
+    
+    # [rad] Convert into geocentric latitude based on altitude, radius and latitude
+    ob_lat_c = geod2geoc( ob_lat_d, ob_range, R[0], f )  
+
+    # [m] Obtain local radius 
+    r_s = R[0]*R[2]/(np.sqrt((R[2]*np.cos(ob_lat_c))**2 + (R[0]*np.sin(ob_lat_c))**2))
+ 
+    # Obtain the coordinates of the observer in an Jovian-centered frame 
+    r_J = geo2eci(ob_range+r_s,ob_lon,ob_lat_c).reshape(3,1)
+    # Normalized vector to define projection plane 
+    n = -r_J/npl.norm(r_J) 
+
+    # A plane is defined by a point and a normal (Use the y intercept with the body 
+    # Plane not going through origin, but through point x_s 
+    x_s = np.array([0,0,0]) 
+    lam = np.dot(n.T,x_s)
+
+    # Ellipsoid is defined as x.T*A*x + b*x + c = 0 
+
+    # Set up the quadratic form of the ellipsoid equation 
+    # http://mathworld.wolfram.com/QuadraticSurface.html
+    A = np.diag([1./R[0]**2,1./R[1]**2,1./R[2]**2])
+    c = 1 
+
+    # Obtaining a repeated real root for the intersection of the ray 
+    # eminating from the viewing point assures that we are the tangent 
+    # point. Two distinct roots mean we are crossing the spheroid 
+
+    M = (2*A@r_J)@(2*A@r_J).T - 4*(r_J.T@A@r_J + c)*A
+
+
+    # Use temporary variables in the view plane to convert to a standard ellipse 
+    # r_J_hat is normal vector of the viewing plane. In this case the viewing plane 
+    # is aligned 
+    # u,v, and n build a orthonormal basis 
+    # make a random vector, find the perpendicular part to n and scale it to 1 
+    u = np.random.randn(3)
+    u -= np.reshape((u.dot(n) * n / npl.norm(n)**2),(3,))
+    u /= npl.norm(u)
+    u = np.reshape(u,(3,1))
+    n = np.reshape(n,(3,1))
+    v = np.cross(n,u,axis=0)
+    v /= npl.norm(v)
+
+
+    # Finding the parametric equation for the projected ellipse 
+    k0 = u.T@M@u
+    k1 = u.T@M@v
+    k2 = v.T@M@v
+    k3 = 2*(lam - np.dot(n.T,r_J))*u.T@M@n
+    k4 = 2*(lam - np.dot(n.T,r_J))*v.T@M@n
+    k5 = (lam - np.dot(n.T,r_J))**2*n.T@M@n
+
+    # Conver to standard quadritc form for an ellipsoid 
+    P = (np.array([[np.asscalar(k0),np.asscalar(k1)],
+               [np.asscalar(k1),np.asscalar(k2)]])) 
+    sign = 1 
+    if np.all(npl.eig(P)[0]<0): 
+        sign = -1 
+
+    eva, eve = npl.eig(sign*P) 
+    Rot = eve
+    
+    D = np.diag([eva[0],eva[1]])
+    q = sign*np.array([np.asscalar(k3),np.asscalar(k4)])
+    r = sign*np.asscalar(k5)
+
+
+    beta = Rot@q 
+    phi = np.abs((beta[0]**2/(4*D[0,0]) + beta[1]**2/(4*D[1,1]) - r)/(D[0,0]*D[1,1])) 
+
+    center = np.array([ -beta[0]/(2*D[0,0]), -beta[1]/(2*D[1,1])])
+    axis = np.array([np.sqrt(D[1,1]*phi),np.sqrt(D[0,0]*phi)])
+    axis = np.sort(axis)[::-1]
+
+    return axis,center
+
+def planetmodel(nu,T_dab,p, R, imsize,planet,pixscale, Jansky = True, uniform=False, conv = 0.01): 
+    # Planet is in pixel already 
 
     t0 = time.time()  # start time
     (x,y,) = axisforcasamodel(imsize, planet/pixscale)
     t1 = time.time() # end time
     print('1',t1 - t0,'s')  
 
-   
 
     t0 = time.time()  # start time
 
@@ -931,7 +1595,7 @@ def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale, Jansky = True,uniform=False
         # Call the three dimension surface 
         t0 = time.time()  # start time
         #IPython.embed()
-        (xv,yv,zv) = triaxialellipsoid(R[0],R[1],R[2],x,y)
+        (xv,yv,zv) = triaxialellipsoid(R/R[0]*planet/2/pixscale,x,y)
         t1 = time.time() # end time
         print('2',t1 - t0,'s') 
         # Avoid singularities 
@@ -943,7 +1607,8 @@ def planetmodel(nu,T_dab,p,R,imsize,planet,pixscale, Jansky = True,uniform=False
         # the code to time goes here
     
     else :
-        model = brightnessmap(R,x,y,T_dab,p)
+        print(planet/2/pixscale, planet, pixscale)
+        model = brightnessmap(R,planet/2,x,y,T_dab,p,conv)
 
  
 
@@ -1525,19 +2190,19 @@ class Planet:
         self.np_dec = read_ephem_line(self.ephem[intv,31])
 
 
-        # Calculate the mean geometric radius 
-        # (http://starlink.eao.hawaii.edu/docs/sun213.htx/sun213se9.html)
+
 
         # Equatorial radius for triaxial ellipsoid 
-        R_ma = (self.radius[0]*np.cos(np.radians(self.ob_lat))**2 
-                + self.radius[1]*np.sin(np.radians(self.ob_lat))**2 )
-        # Polar radius for triaxial ellipsoid 
-        R_mi = (self.radius[1]*np.cos(np.radians(self.ob_lat))**2 
-                + self.radius[0]*np.sin(np.radians(self.ob_lat))**2)
+        self.principalaxis = np.copy(self.radius)
+        self.principalaxis[1:3] = (rotateprincipalaxis_3D(
+                            self.radius, np.radians(self.ob_lat), 
+                            np.radians(self.ob_lon), self.orange*cst.au.value))[0] 
+        
 
 
-        # [sterradians] solid angle extended by the disc 
-        self.sa = np.pi*(np.sqrt(R_ma*R_mi*1e6)/self.hrange/cst.au.value)**2
+        # [sterradians] solid angle extended by the disc as seen by earth  
+        # (http://starlink.eao.hawaii.edu/docs/sun213.htx/sun213se9.html)
+        self.sa = np.pi*(np.sqrt(self.principalaxis[1]*self.principalaxis[2]*1e6)/self.orange/cst.au.value)**2
 
 
 
@@ -1599,6 +2264,8 @@ class Model:
             self.ang_diam = planet.ang_diam 
             self.radius = planet.radius
             self.ob_lat = planet.ob_lat
+            self.ob_lon = planet.ob_lon
+            self.orange = planet.orange
             self.np_ang = planet.np_ang 
             # For the export 
             self.ra = planet.ra
@@ -1614,8 +2281,11 @@ class Model:
         self.ob_lat   = ob_lat
         self.np_ang   = np_ang 
 
+    
     def gen_casa(self, nu, T, p, beamsize = 0.7, psfsampling=5, 
-                 Jansky = True, setimsize = False, ):
+                 Jansky = True, setimsize = False, conv = 0.01, 
+                 T_res=np.zeros(100),
+                 lat_res=np.arange(-np.pi/2,np.pi/2,np.pi/100) ):
         """Generate a model for casa 
         
         Parameters
@@ -1671,24 +2341,29 @@ class Model:
 
         # Assign the parameter 
         self.obsfrequency = nu 
-        self.Tdiskaveraged = T 
+        self.T_da = T 
         self.limbdarkening = p
 
 
         # Radius of the planet in pixel 
-        r_pla = self.ang_diam/self.pixscale/2
-        self.planetsize = 2*r_pla
+        self.r_pla = self.ang_diam/self.pixscale/2
+        self.planetsize = 2*self.r_pla
 
-        # Normalize the axis for the triaxial ellipsoid and convert to pixel
-        R = self.radius/self.radius[0]*r_pla
+        # Normalize the axis for the triaxial ellipsoid and convert to pixel 
+
+
         # Rotate around x axis to correct for the sub latitude 
-        # (pixel) Polar radius for triaxial ellipsoid
-        R[1] = (R[1]*np.cos(np.radians(self.ob_lat))**2 
-                + R[2]*np.sin(np.radians(self.ob_lat))**2 )
-        # (pixel) Equatorial radius for triaxial ellipsoid 
-        R[2] = (R[2]*np.cos(np.radians(self.ob_lat))**2 
-                + R[1]*np.sin(np.radians(self.ob_lat))**2)
+        # (pixel) [equator, polar, equator]
+
+        self.principalaxis = np.copy(self.radius)
+        print(np.radians(self.ob_lat),np.radians(self.ob_lon),self.radius)
+        self.principalaxis[1:3] = (rotateprincipalaxis_3D(self.radius, 
+                                                     np.radians(self.ob_lat), 
+                                                     np.radians(self.ob_lon), 
+                                                     self.orange*cst.au.value))[0]
         
+        R_temp  = self.principalaxis/self.principalaxis[0]*self.r_pla
+
         if setimsize: 
             self.imsize = setimsize
         else: 
@@ -1697,16 +2372,37 @@ class Model:
         print('Imsize: ', self.imsize) 
         print('Cell : ', self.pixscale)
         print('\n')
-        model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
-                self.limbdarkening, R, self.imsize, self.planetsize, 
-                self.pixscale, Jansky))
- 
-        # First iteration rotation. Needs automization 
+      
         rotangle = -(self.np_ang)
-        self.data = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
+        # I can probably short cut this ToDo 
+        # model = (planetmodel(self.obsfrequency, self.T_da, 
+        #         self.limbdarkening, self.principalaxis, self.imsize, self.planetsize, 
+        #         self.pixscale, Jansky, conv = conv))
+        # self.data = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
 
-        # Store pixelscale correctly for brightness model in brightness temperature 
-        self.pixscale = self.ang_diam/self.planetsize
+        # Create axis of the model  
+         # self.ang_diam/self.pixscale is 
+        rotangle = -(self.np_ang)
+        (x,y,) = axisforcasamodel(self.imsize, self.planetsize/self.pixscale)
+        ld_model = (brightnessmap(self.principalaxis, self.r_pla, x, y, 
+                        self.T_da, self.limbdarkening, conv = 0.01))
+        self.Tdata = scipy.ndimage.rotate(ld_model,rotangle,order=0,reshape = False)
+        self.Bdata = scipy.ndimage.rotate(tb2jy(ld_model, nu, self.pixscale),rotangle,order=0,reshape = False)
+        # To agree with previous version 
+        self.data = self.Bdata
+
+        if np.all(T_res != np.zeros(100)): 
+            zonal_model = (zonal_residual_model(self.principalaxis, self.r_pla, 
+                                             x, y, 
+                                             self.limbdarkening, 
+                                             self.ob_lat, self.orange*cst.au.value, 
+                                             T_res, lat_res, 
+                                             conv = 0.01))
+            self.Tzonaldata = scipy.ndimage.rotate(zonal_model,rotangle,order=0,reshape = False)
+            self.Bzonaldata = scipy.ndimage.rotate(tb2jy(zonal_model, nu, self.pixscale),rotangle,order=0,reshape = False)
+    
+
+
 
     def gen_gaussian_structure(self,n_a,sig_xi,sig_yi,scalefactor, spacingfactor = 1, inc_negative=True): 
         """Generate random structure on Jupiter 
@@ -2063,7 +2759,7 @@ class Model:
 
         # Assign the parameter 
         self.obsfrequency = nu 
-        self.Tdiskaveraged = T 
+        self.T_da = T 
 
 
 
@@ -2093,7 +2789,7 @@ class Model:
 
         self.limbdarkening = 0 
 
-        model = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
+        model = (planetmodel(self.obsfrequency, self.T_da, 
                 self.limbdarkening, R, self.imsize, self.planetsize, 
                 self.pixscale, Jansky,uniform = True))
  
@@ -2119,7 +2815,7 @@ class Model:
         R = radius/radius[0]*planetsize
         # Rotate around x axis to correct for the sub latitude  
         Jansky = False # Jansky requires a beam size        
-        self.data = (planetmodel(self.obsfrequency, self.Tdiskaveraged, 
+        self.data = (planetmodel(self.obsfrequency, self.T_da, 
                 self.limbdarkening, R, self.imsize, self.planetsize, 
                 1., Jansky=False))
         # First iteration rotation. Needs automization 
@@ -2155,9 +2851,9 @@ class Model:
         hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
         hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
         hdu_out[0].header['CRPIX1'] =hdu_out[0].data.shape[0]/2
-        hdu_out[0].header['CDELT1']  =  -1*np.sign(hdu_out[0].header['CRVAL1'])*self.pixscale[0]/360  
+        hdu_out[0].header['CDELT1']  =  -1*np.sign(hdu_out[0].header['CRVAL1'])*self.pixscale/360  
         hdu_out[0].header['CRPIX2'] =hdu_out[0].data.shape[1]/2
-        hdu_out[0].header['CDELT2']  =  -1*np.sign(hdu_out[0].header['CRVAL2'])*self.pixscale[0]/3600  
+        hdu_out[0].header['CDELT2']  =  -1*np.sign(hdu_out[0].header['CRVAL2'])*self.pixscale/3600  
 
 
         hdu_out[0].writeto(outfile, overwrite=True)
@@ -2248,8 +2944,8 @@ class Model:
             hdulist[0].header['EXTEND']  =   True   #?                                                
             hdulist[0].header['BSCALE']  =   1.000000000000E+00 #PHYSICAL = PIXEL*BSCALE + BZERO                 
             hdulist[0].header['BZERO']   =   0.000000000000E+00                                              
-            hdulist[0].header['BMAJ']    =   self.pixscale[0]/3600                                                  
-            hdulist[0].header['BMIN']    =   self.pixscale[0]/3600                                                   
+            hdulist[0].header['BMAJ']    =   self.pixscale/3600                                                  
+            hdulist[0].header['BMIN']    =   self.pixscale/3600                                                   
             hdulist[0].header['BPA']     =   45. # Position angle 
             hdulist[0].header['BTYPE']   = 'Intensity'                                                           
             hdulist[0].header['OBJECT']  = self.name.upper()                                                                                                                            
@@ -2280,13 +2976,13 @@ class Model:
             if ephemeris: 
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
                 hdulist[0].header['CRVAL1']  =   self.ra #'{:02E}'.format(self.ra)                                                
-                hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale[0]/3600                                                 
+                hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale/3600                                                 
                 hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2) # Reference pixel                                                
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
                 hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)                                              
-                hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale[0]/3600                                                   
+                hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
           
@@ -2302,7 +2998,7 @@ class Model:
             hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
             hdulist[0].header['CUNIT4']  = '        '  
             # hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
-            # hdulist[0].header['CRVAL5']  =  self.Tdiskaveraged
+            # hdulist[0].header['CRVAL5']  =  self.T_da
             # hdulist[0].header['CUNIT5']  = 'K     '
             
             # try: 
@@ -2393,7 +3089,7 @@ class Model:
 
         R = self.radius/self.radius[0]*planetsize/2.
         (x,y,) = axisforcasamodel(self.imsize, planetsize)
-        (xv,yv,zv) = triaxialellipsoid(R[0],R[1],R[2],x,y)
+        (xv,yv,zv) = triaxialellipsoid(R,x,y)
 
         # # Avoid singularities 
         zv[zv>1] = 1
@@ -2442,21 +3138,23 @@ class Model:
 
  
 
-    def plot(self,data):
+    def plot(self,data,title=''):
         fig,ax = plt.subplots()
         try: 
             x = (np.linspace(-self.imsize/2.,self.imsize/2,self.imsize)
                 *self.pixscale)
             y = x
-            C = plt.contourf(x,y,data)
+            C = plt.contourf(x,y,data,30)
+            plt.title(title)
             plt.xlabel('X [arcseconds]')
             plt.ylabel('Y [arcseconds]')
         except AttributeError:
-            C = plt.contourf(data)
+            C = plt.contourf(data,30)
+            plt.title(title)
             plt.xlabel('X [pix]')
             plt.ylabel('Y [pix]')
         try: 
-            plt.title('Brightness model: T = {:2.1f} K'.format(self.Tdiskaveraged))
+            plt.title('Brightness model: T = {:2.1f} K'.format(self.T_da))
         except AttributeError:
             sys.exit('No temperature defined. Initialize the model parameter')  
    
@@ -2468,17 +3166,12 @@ class Model:
         ax.set_aspect('equal', 'datalim') 
         plt.ion()
         # Add a small reference system for RA and DEC
-        xref = self.imsize*0.3*self.pixscale[0] 
-        yref = -self.imsize*0.4*self.pixscale[0]
-        vl = self.imsize*0.075*self.pixscale[0] # vector length 
+        xref = self.imsize*0.3*self.pixscale 
+        yref = -self.imsize*0.4*self.pixscale
+        vl = self.imsize*0.075*self.pixscale # vector length 
         ax.arrow(xref, yref, vl, 0, head_width=1, head_length=3, fc='k', ec='k')
         ax.text(xref,yref-0.65*vl,'RA: {:2.1f}'.format(float(self.ra)))
         ax.text(xref-3*vl,yref+0.75*vl,'DEC: {:2.1f}'.format(float(self.dec)))
 
         ax.arrow(xref, yref,  0, vl, head_width=1, head_length=3, fc='k', ec='k')
         plt.show() 
-      
-
-
-    
-
