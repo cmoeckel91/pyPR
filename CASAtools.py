@@ -503,6 +503,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 print('Assume files are there already')
         else: 
             sys.exit('Move your files manually')
+    else: 
+        overwrite = True
 
 
     for i in range(ncore): 
