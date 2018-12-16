@@ -413,7 +413,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
     planet = 'jupiter', 
     filepath_data= './', 
     filepath_script = 'Parallel_facets.bsh', 
-    tmp_directory = '/Volumes/scratch/tmp'): 
+    tmp_directory = '/tmp'): 
     """Write a bash script that allows for parrallel execution 
     of Bob's Deprojection technique in MIRIAD 
 
@@ -568,14 +568,18 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
         fo.write('  uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
         fo.write('fi\n\n')
         # Initiate temporary directory and append relevant scripts 
+        fo.write('export TMPDIR={:s}'.format(tmp_directory))
         bashcmd = 'echo "Script is running" \nrm -rf facets; mkdir facets '
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
             if i < ncore/2:
                 # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-                bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+                bashcmd = bashcmd + ('\n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+                # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+
             else: 
-                bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+                bashcmd = bashcmd + ('\n(cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+                # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         
