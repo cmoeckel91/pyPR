@@ -552,7 +552,6 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
 
     with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash -xef\n\n')
-        
 
         # Reduce the size of the uvfits file if it doesn't exist already  
         spwids = list(range(1,spwn+1))
