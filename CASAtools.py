@@ -550,9 +550,10 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
 
 
-    bashcmd = 'echo "Script is running" \n mkdir facets '
+
     with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash -xef\n')
+        
         # Reduce the size of the uvfits file  
         spwids = list(range(spwrange[0],spwrange[1]+1))
         spwstr = ''
@@ -564,7 +565,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         fo.write('end\n')
         fo.write('uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
 
-        fo.write(bashcmd)
+        # Initiate temporary directory and append relevant scripts 
+        bashcmd = 'echo "Script is running" \n mkdir facets '
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
             if i < ncore/2:
@@ -574,6 +576,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
+        
         fo.write(bashcmd)
     # Change permisson   
     os.system('chmod u+x ' + filepath_script)
