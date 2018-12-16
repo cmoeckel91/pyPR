@@ -583,7 +583,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         fo.close()
 
     print('Data/scripts can be found here')
-    print('cd ' + os.system('pwd'))
+    print('cd ' + os.getcwd())
 
     return 
 
