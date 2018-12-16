@@ -546,19 +546,43 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
         # Make a bin file that you can execute that points to all the correct points 
 
-    bashcmd = 'mkdir facets &'
+    bashcmd = 'mkdir facets && echo "Script is running" && '
     with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash\n')
         for i in range(ncore):
-            # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-            bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
-            if i > ncore/2:
+            # Reduce memory allocation problems by running them out of phase 
+            if i < ncore/2:
+                # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
+                bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+            else: 
                 bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         fo.write(bashcmd)
     # Change permisson   
     os.system('chmod u+x ' + filepath_script)
+
+
+    # Also write a master script and place in main folder 
+
+    filepath = '/params' + '.pl' 
+    with open(filepath,'w') as fo:  
+        fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
+        fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfits))
+        fo.write('$cell = {:4.4f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
+        fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(-lat_range/2))
+        fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_range/2))
+        fo.write('$minlon = 0;        # Min longitude (degrees)\n')
+        fo.write('$maxlon = 360;      # Max longitude\n')
+        fo.write('$latint = {:2.1f};      # Increment in latitude for facets, in degrees.\n'.format(latint))
+        fo.write('$imsize = 150;          # Facet pixel size.\n')
+        fo.write('#$fwhm_km = 3200;       # Optional extra smoothing function.\n')
+        fo.write('$robust = 0.0;          # Optional imaging weighting parameter.\n')
+        fo.write('$plradius = 71492.0     # Optional planet radius in kilometers.\n')
+        fo.write('# $obstime = ""  # Optional observation time used for geometry.\n')
+        fo.close()
+
+
     return 
 
 # itemize in=temp_p2/facets/n50p11.icln 
