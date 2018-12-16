@@ -559,23 +559,23 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
         spwstr = ''
         for i in spwids: 
             spwstr += ' {:d}'.format(i)
-        fo.write('if [ ! -f {:s} ]; then'.format(uvfits+'.comp'))   
+        fo.write('if [ ! -e {:s} ]; then\n'.format(uvfits+'.comp'))   
         fo.write('  for i in {:s} \n'.format(spwstr))
         fo.write('  do\n')  
         fo.write('  rm -rf junk$i.uv\n') 
         fo.write('    uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
         fo.write('  done\n')
         fo.write('  uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
-        fo.write('fi')
+        fo.write('fi\n\n')
         # Initiate temporary directory and append relevant scripts 
         bashcmd = 'echo "Script is running" \nrm -rf facets; mkdir facets '
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
             if i < ncore/2:
                 # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-                bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+                bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
             else: 
-                bashcmd = bashcmd + ('\n(rm -rf {:s}{:d} && mkdir {:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+                bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         
