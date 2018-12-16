@@ -409,8 +409,7 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
     return 
 
 
-def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, 
-    spwrange = [0 ,100],
+def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
     planet = 'jupiter', 
     filepath_data= './', 
     filepath_script = 'Parallel_facets.bsh', 
@@ -555,14 +554,15 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         fo.write('#!/bin/bash -xef\n\n')
         
         # Reduce the size of the uvfits file  
-        spwids = list(range(spwrange[0],spwrange[1]+1))
+        spwids = list(range(1,spwn+1))
         spwstr = ''
         for i in spwids: 
             spwstr += ' {:d}'.format(i)
         fo.write('for i in {:s} \n'.format(spwstr))
-        fo.write('  rm -rf junk$i.uv\n') 
+        fo.write('do\n')  
+        fo.write('rm -rf junk$i.uv\n') 
         fo.write('  uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
-        fo.write('end\n')
+        fo.write('done\n')
         fo.write('uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
 
         # Initiate temporary directory and append relevant scripts 
