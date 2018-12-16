@@ -410,6 +410,7 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
 
 
 def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, 
+    spw_range = [0 ,100],
     planet = 'jupiter', 
     filepath_data= './', 
     filepath_script = 'Parallel_facets.bsh', 
@@ -460,6 +461,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     import sys
     from select import select
     import numpy as np 
+
 
     # Calculate the corresponding latitude ranges 
     dlat = latrange/np.ceil(latrange/latint)
@@ -527,7 +529,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         filepath = temp_name+'/params' + '.pl' 
         with open(filepath,'w') as fo:  
             fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
-            fo.write('$vis = "../{:s}";     # Visibility file\n'.format(uvfits))
+            fo.write('$vis = "../{:s}";     # Visibility file\n'.format(uvfits+'.comp'))
             fo.write('$cell = {:4.4f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
             fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(lat_lower))
             fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_upper))
@@ -546,9 +548,23 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
         # Make a bin file that you can execute that points to all the correct points 
 
+
+
     bashcmd = 'mkdir facets && echo "Script is running" && '
     with open(filepath_script,'w') as fo:
-        fo.write('#!/bin/bash\n')
+        fo.write('#!/bin/bash\n -xef ')
+        # Reduce the size of the uvfits file  
+        spwids = list(range(spwrange[0],spwrange[1]+1))
+        spwstr = ''
+        for i in spwids: 
+            spwstr += ' {:d}'.format(i)
+        fo.write('for each i ({:s}) '.format(spwstr))
+        fo.write('  rm -rf junk$i.uv') 
+        fo.write('  uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i'.format(uvfits))
+        fo.write('end')
+        fo.write('uvaver vis=junk*.uv out='.format(uvfits+'.comp'))
+
+
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
             if i < ncore/2:
