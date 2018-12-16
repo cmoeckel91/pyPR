@@ -410,7 +410,7 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
 
 
 def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, 
-    spw_range = [0 ,100],
+    spwrange = [0 ,100],
     planet = 'jupiter', 
     filepath_data= './', 
     filepath_script = 'Parallel_facets.bsh', 
