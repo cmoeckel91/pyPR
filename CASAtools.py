@@ -552,21 +552,21 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
 
     with open(filepath_script,'w') as fo:
-        fo.write('#!/bin/bash -xef\n')
+        fo.write('#!/bin/bash -xef\n\n')
         
         # Reduce the size of the uvfits file  
         spwids = list(range(spwrange[0],spwrange[1]+1))
         spwstr = ''
         for i in spwids: 
             spwstr += ' {:d}'.format(i)
-        fo.write('for each i ({:s} )\n'.format(spwstr))
+        fo.write('for i in {:s} \n'.format(spwstr))
         fo.write('  rm -rf junk$i.uv\n') 
         fo.write('  uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
         fo.write('end\n')
         fo.write('uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
 
         # Initiate temporary directory and append relevant scripts 
-        bashcmd = 'echo "Script is running" \n mkdir facets '
+        bashcmd = 'echo "Script is running" \nmkdir facets '
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
             if i < ncore/2:
