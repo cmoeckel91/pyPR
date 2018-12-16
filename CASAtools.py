@@ -565,7 +565,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
     # Also write a master script and place in main folder 
 
-    filepath = '/params' + '.pl' 
+    filepath = 'params' + '.pl' 
     with open(filepath,'w') as fo:  
         fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
         fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfits))
