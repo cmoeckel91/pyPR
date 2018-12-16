@@ -582,6 +582,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         fo.write('# $obstime = ""  # Optional observation time used for geometry.\n')
         fo.close()
 
+    print('Data/scripts can be found here')
+    print('cd ' + os.system('pwd'))
 
     return 
 
