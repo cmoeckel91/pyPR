@@ -550,7 +550,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
 
 
-    bashcmd = 'mkdir facets && echo "Script is running" && '
+    bashcmd = 'echo "Script is running" \n mkdir facets '
     with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash -xef\n')
         # Reduce the size of the uvfits file  
@@ -564,7 +564,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         fo.write('end\n')
         fo.write('uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
 
-
+        fo.write(bashcmd)
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
             if i < ncore/2:
