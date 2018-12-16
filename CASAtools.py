@@ -559,7 +559,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
         spwstr = ''
         for i in spwids: 
             spwstr += ' {:d}'.format(i)
-        fo.write('if [ ! -f {:d} ]; then'.format(uvfits+'.comp'))   
+        fo.write('if [ ! -f {:s} ]; then'.format(uvfits+'.comp'))   
         fo.write('  for i in {:s} \n'.format(spwstr))
         fo.write('  do\n')  
         fo.write('  rm -rf junk$i.uv\n') 
