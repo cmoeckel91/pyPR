@@ -562,7 +562,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         fo.write('  rm -rf junk$i.uv\n') 
         fo.write('  uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
         fo.write('end\n')
-        fo.write('uvaver vis=junk*.uv out={:d}\n'.format(uvfits+'.comp'))
+        fo.write('uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
 
 
         for i in range(ncore):
