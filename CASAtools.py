@@ -552,17 +552,17 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
     bashcmd = 'mkdir facets && echo "Script is running" && '
     with open(filepath_script,'w') as fo:
-        fo.write('#!/bin/bash\n -xef ')
+        fo.write('#!/bin/bash -xef\n')
         # Reduce the size of the uvfits file  
         spwids = list(range(spwrange[0],spwrange[1]+1))
         spwstr = ''
         for i in spwids: 
             spwstr += ' {:d}'.format(i)
-        fo.write('for each i ({:s}) '.format(spwstr))
-        fo.write('  rm -rf junk$i.uv') 
-        fo.write('  uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i'.format(uvfits))
-        fo.write('end')
-        fo.write('uvaver vis=junk*.uv out='.format(uvfits+'.comp'))
+        fo.write('for each i ({:s} )\n'.format(spwstr))
+        fo.write('  rm -rf junk$i.uv\n') 
+        fo.write('  uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
+        fo.write('end\n')
+        fo.write('uvaver vis=junk*.uv out={:d}\n'.format(uvfits+'.comp'))
 
 
         for i in range(ncore):
