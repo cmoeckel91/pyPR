@@ -636,7 +636,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, lat
     p : [1x2] float 
         [EW,NS] Limb darkening coefficient 
     Tscan : [1xN] float
-        [T] Brightness temperature residual, zonally averaged 
+        [T] Brightness temperature residual, zonally averaged, limb-darkened 
     lat : [1xN] float
         [R] Corresponding latitudes for the residual temperatures 
 
@@ -1870,6 +1870,7 @@ def c_to_g(lat,R_e,R_p):
             Example
             -------
             >>> 
+
             References
             ------------
             2016 - Implications of MAVEN’s planetographic coordinate
@@ -1887,6 +1888,72 @@ def c_to_g(lat,R_e,R_p):
     f = (R_e - R_p)/R_e
     return np.arctan(np.tan(lat)*(1-f)**2)
     
+def zonalstructure(fitsfile, f , residual = True ):
+    '''Read out the zonal structure. 
+
+    Current version reads out the residuals from Imke de Pater, 2014 
+    VLA scans for Jupiter.  
+
+    Parameters
+    -------
+    fitsfile : [1] string
+        [] Name of the input fits file 
+    f : [1] float 
+        [Hz] Required frequency  
+
+    Returns
+    ----------
+    T : [1] K
+        [deg] Disk averaged brightness temperature 
+    p : [1] 
+        [-] limb darkening coefficient 
+
+    Keywords
+    ----------
+    residual : [1] boolean
+        [] Only return the residual structure after subtracting the ld disk 
+
+
+    Example
+    -------
+    import pyPR.PlanetGeometry as PG  
+    fitsfile = 'data/VLA_ZonalScans_2014.fits'
+    f = 10.1e9 # [Hz] Frequency 
+
+    References
+    ------------
+    2018, Imke de Pater, Jupiter’s ammonia distribution derived from VLA maps at 3–37 GHz
+
+    Notes
+    -------
+    12/23/2018, CM, Initial Commit
+    ''' 
+
+
+    hdul = fits.open(fits)     
+
+    # Emission angle     
+    th_center   = hdu[0].header['CRPIX1']
+    dth         = hdu[0].header['CDELT1'] 
+    nth         = hdu[0].header['NAXIS1']
+
+    # Frequency 
+    f_center    = hdu[0].header['CRPIX2']
+    df          = hdu[0].header['CDELT2']    
+    nf          = hdu[0].header['NAXIS2']
+
+    # Read the temperature data 
+    T_g = hdul[0].data # [Hz] frequency [30] 
+    
+    # Build the axis 
+    th_l = np.arange(th_center - nth/2*dth,th_center + nth/2*dth )
+    
+    
+    # Remove the limb darkened disk 
+
+    # Interpolate onto an even grid 
+    T_map = scipy.interpolate.interp2d(f,th,T.T, kind='cubic')
+
 
 def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = False): 
     '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
@@ -1910,7 +1977,8 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
 
     Example
     -------
-    >>> 
+    import pyPR.PlanetGeometry as PG  
+    PG.interpmodelparams(10e9)
 
     References
     ------------

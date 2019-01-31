@@ -14,7 +14,7 @@ import warnings
 import IPython
 
 
-def locate2template(logger,output,analytics=False): 
+def locate2template(loggers,output,analytics=False): 
     """ Reads out the located visibilities and transform them into 
     flagging template format 
 
@@ -48,7 +48,7 @@ def locate2template(logger,output,analytics=False):
     text
     
     from pyPR.CASAtools import * 
-    logger = '/Users/chris/Documents/Research/Toolbox/Testfiles/casa-20180117-011733.log'
+    logger = ['/Users/chris/Documents/Research/Toolbox/Testfiles/casa-20180117-011733.log']
     test  = locate2template(logger, 'test')
 
     # testing 
@@ -78,15 +78,19 @@ def locate2template(logger,output,analytics=False):
     import sys
     from select import select
 
-    
+    # Make sure that you are not re-reading the files 
+    if len(loggers) > 3: 
+        print('Currently reading {:d} log files. If that is not correct, \
+           make sure your log files are given as a list [log1, log2,]\
+        '.format(len(logger)))
 
     flags = []
 
     # Loop over all logger files 
-    for logfiles in range(len(logger)):
+    for logfiles in loggers:
 
         # Loop through the logger file 
-        filepath = logger
+        filepath = logfiles
         with open(filepath) as fp:  
             line = fp.readline()
             cnt = 1
@@ -178,15 +182,15 @@ def locate2template(logger,output,analytics=False):
     # Do analytics 
     if analytics:
         from collections import Counter
-        scan    = [item[0] for item in data]
-        field   = [item[1] for item in data]
-        fieldid = [item[2] for item in data]
-        time    = [item[3] for item in data]
-        ant1    = [item[4] for item in data]
-        ant2    = [item[5] for item in data]
-        spw     = [item[6] for item in data]
-        chan    = [item[7] for item in data]
-        corr    = [item[8] for item in data]
+        scan    = [item[0] for item in flags]
+        field   = [item[1] for item in flags]
+        fieldid = [item[2] for item in flags]
+        time    = [item[3] for item in flags]
+        ant1    = [item[4] for item in flags]
+        ant2    = [item[5] for item in flags]
+        spw     = [item[6] for item in flags]
+        chan    = [item[7] for item in flags]
+        corr    = [item[8] for item in flags]
 
         Counter(ant1)
 
@@ -267,9 +271,239 @@ def locate2template(logger,output,analytics=False):
 
 
 
+def flagstatistics(flags,minfreq=10, plotting=True ): 
 
 
 
+    # # Sort by spw for example 
+    # sbs = sorted(flags, key=itemgetter(6)) 
+
+    # # fsbs 
+    # ssbs =  [t for t in flags if int(t[6]) == 33]
+
+    # tlist = ssbs 
+
+
+    # see how often certain baselines pop up 
+    from collections import Counter
+    from operator import itemgetter  
+    import matplotlib.pyplot as plt
+
+
+    spwrange = np.arange(2,34)
+    spwrange = np.append(np.array([-1]),spwrange,)
+    # Loop through each spw and look for affected data per spw 
+    for ispw in spwrange: 
+        if ispw == -1: 
+            tlist = flags 
+        else: 
+            tlist = [t for t in flags if int(t[6]) == ispw] 
+        
+        # Skip if there are no information on this specific spws 
+        if tlist ==[]: 
+            continue 
+
+        scan    = [item[0] for item in tlist]
+        field   = [item[1] for item in tlist]
+        fieldid = [item[2] for item in tlist]
+        time    = [item[3] for item in tlist]
+        ant1    = [item[4] for item in tlist]
+        ant2    = [item[5] for item in tlist]
+        spw     = [item[6] for item in tlist]
+        chan    = [item[7] for item in tlist]
+        corr    = [item[8] for item in tlist]
+
+        bl = [(item[4]+item[5]) for item in tlist]
+
+        # Find the most common baselines 
+        # https://stackoverflow.com/questions/20950650/how-to-sort-counter-by-value-python
+        blc = Counter(bl) 
+
+
+
+        # Create statstics for the analysis across all flags 
+
+        if ispw == -1: 
+            # Find all the flagged baselines 
+            temp = list(blc.items())
+            u_bl = [item[0] for item in temp]  
+            nbl = len(u_bl)
+            # Obtain the number of spws involved 
+            spwa = np.array(spw)
+            _, idx = np.unique(spwa, return_index=True)
+            u_spw=spwa[np.sort(idx)] # Unique values in spw) 
+            nspw = len(u_spw) 
+            # Create an array where we can sum the individual spw 
+            Blspw = np.zeros([nbl,nspw])
+
+
+        # Populate the Blspw matrix 
+        if ispw != -1: 
+            ind_spw = list(u_spw).index(str(ispw))
+            temp = list(blc.items())
+            for i in range(len(temp)): 
+                ind_bl = u_bl.index(temp[i][0])
+                Blspw[ind_bl,ind_spw] = temp[i][1]
+            
+
+        # Show the antenna histogram 
+        # labels, values = zip(*Counter(ant1+ant2).items())
+        # indexes = np.arange(len(labels))
+        # width = 1
+        # plt.figure()
+        # plt.bar(indexes, values, width)
+        # plt.xticks(indexes + width * 0.5, labels)
+        # plt.title('Flagged antennas for spw{:d}'.format(ispw))
+        # plt.show()
+
+
+
+        # Baseline histogram 
+        labels, heights = zip(*sorted(((k, v) for k, v in blc.items()), key=itemgetter(1), reverse=True))
+        # Add the baseline sign into this 
+        labels = [item[0:4]+'&'+item[4:8] for item in labels]
+        # Remove baselines below a certain value
+        heights_f,labels_f = np.array([]),  np.array([]), 
+        for i in range(len(heights)): 
+            if heights[i] > minfreq: 
+                heights_f = np.append(heights_f,(heights[i]))
+                labels_f = np.append(labels_f,(labels[i]))
+
+        if  plotting:  
+        # lefthand edge of each bar
+
+            left = np.arange(len(heights_f))
+            fig, ax = plt.subplots(1, 1)
+            ax.bar(left, heights_f, 1)
+            ax.set_xticks(left)
+            ax.set_xticklabels(labels,rotation=45,  fontsize='small')
+            plt.title('Flagged baseline for spw{:d}'.format(ispw))
+            plt.show()              
+
+        flagstring = ('mode=\'manual\' field=\'1\' spw=\'{:d}\' '.format(ispw),('antenna=\''+'{:s};'*len(labels_f)+'\'').format(*labels_f))
+        print(flagstring[0], flagstring[1][0:-2]+'\'')
+
+    if plotting: 
+    # Stacked barplot 
+        fig, ax = plt.subplots(1, 1)
+        plt.imshow(Blspw.T)
+        plt.ylabel('Spectral window')
+        plt.xlabel('Baselines')
+        plt.show()
+
+        # Flags per baseline 
+        fpbl = np.sum(Blspw, axis = 1) 
+        sort_ind_bl = np.argsort(fpbl)[::-1][:len(fpbl)]
+
+        
+        # Sort by spw 
+        fl_spw = [float(t) for t in u_spw]  
+        sort_ind_spw = np.argsort(fl_spw)  
+     
+
+        # Plot only the major baselines 
+        sort_ind_bl_fil = np.array([])
+        for i in range(len(sort_ind_bl)): 
+            if fpbl[sort_ind_bl[i]]> minfreq*10:
+                sort_ind_bl_fil = np.append(sort_ind_bl_fil,int(sort_ind_bl[i]))
+
+        sort_ind_bl_fil = [int(t) for t in sort_ind_bl_fil ]       
+            
+       
+        # Sort to have baselines sorted 
+        Blspw_sort = Blspw[sort_ind_bl_fil,:]
+        # Sort by spw 
+        Blspw_sort = Blspw_sort[:,sort_ind_spw]
+
+        series_labels = u_spw[sort_ind_spw].tolist() 
+
+        data = Blspw_sort.T.tolist() 
+
+        category_labels = np.array(u_bl)[sort_ind_bl_fil].tolist()# baselines 
+
+        stacked_bar(
+            data, 
+            series_labels, 
+            category_labels=category_labels, 
+            show_values=False, 
+            value_format="{:.1f}",
+            y_label="Flagged amplitudes ", grid=False
+        )
+
+        plt.show()
+
+
+
+    return Blspw
+
+def stacked_bar(data, series_labels, category_labels=None, 
+                show_values=False, value_format="{}", y_label=None, 
+                grid=True, reverse=False):
+    """Plots a stacked bar chart with the data and labels provided.
+
+    Keyword arguments:
+    data            -- 2-dimensional numpy array or nested list
+                       containing data for each series in rows
+    series_labels   -- list of series labels (these appear in
+                       the legend)
+    category_labels -- list of category labels (these appear
+                       on the x-axis)
+    show_values     -- If True then numeric value labels will 
+                       be shown on each bar
+    value_format    -- Format string for numeric value labels
+                       (default is "{}")
+    y_label         -- Label for y-axis (str)
+    grid            -- If True display grid
+    reverse         -- If True reverse the order that the
+                       series are displayed (left-to-right
+                       or right-to-left)
+    
+    # reference https://stackoverflow.com/questions/44309507/stacked-bar-plot-using-matplotlib 
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(1, 1)
+
+    ny = len(data[0])
+    ind = list(range(ny))
+
+    axes = []
+    cum_size = np.zeros(ny)
+
+    data = np.array(data)
+
+    if reverse:
+        data = np.flip(data, axis=1)
+        category_labels = reversed(category_labels)
+
+    for i, row_data in enumerate(data):
+        axes.append(plt.bar(ind, row_data, bottom=cum_size, 
+                            label=series_labels[i]))
+        cum_size += row_data
+
+    if category_labels:
+        plt.xticks(ind, category_labels)
+        ax.set_xticklabels(category_labels,rotation=90,  fontsize='small')
+
+    if y_label:
+        plt.ylabel(y_label)
+
+
+
+    plt.legend()
+
+    if grid:
+        plt.grid()
+
+    if show_values:
+        for axis in axes:
+            for bar in axis:
+                w, h = bar.get_width(), bar.get_height()
+                plt.text(bar.get_x() + w/2, bar.get_y() + h/2, 
+                         value_format.format(h), ha="center", 
+                         va="center")
 
 def ldvis(k,amp,lam,B,a): 
     '''Computes the visibility function of a cos(theta)**p limb-darkened disk   
@@ -520,7 +754,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
 
 
         # Calculate the latitude range 
-        lat_upper = lat_lower + nband*dlat 
+        lat_upper = lat_lower + (nband-1)*dlat 
         if lat_upper > latrange/2: 
             lat_upper = latrange/2
 
@@ -567,18 +801,18 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
         fo.write('  uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
         fo.write('fi\n\n')
         # Initiate temporary directory and append relevant scripts 
-        fo.write('export TMPDIR={:s}'.format(tmp_directory))
+        fo.write('export TMPDIR={:s}\n'.format(tmp_directory))
         bashcmd = 'echo "Script is running" \nrm -rf facets; mkdir facets '
         for i in range(ncore):
             # Reduce memory allocation problems by running them out of phase 
-            if i < ncore/2:
-                # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-                bashcmd = bashcmd + ('\n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(i))
-                # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+        # if i < ncore/2:
+            # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
+            bashcmd = bashcmd + ('\n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(i))
+            # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
-            else: 
-                bashcmd = bashcmd + ('\n(cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(i))
-                # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
+        # else: 
+            # bashcmd = bashcmd + ('\n(cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(i))
+            # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
         
@@ -608,6 +842,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
 
     print('Data/scripts can be found here')
     print('cd ' + os.getcwd())
+
 
     return 
 
