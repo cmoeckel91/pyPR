@@ -271,7 +271,7 @@ def locate2template(loggers,output,analytics=False):
 
 
 
-def flagstatistics(flags,minfreq=10, plotting=True ): 
+def flagstatistics(flags,minfreq=10, targetfieldID=1 , plotting=True ): 
 
 
 
@@ -357,7 +357,6 @@ def flagstatistics(flags,minfreq=10, plotting=True ):
         # plt.show()
 
 
-
         # Baseline histogram 
         labels, heights = zip(*sorted(((k, v) for k, v in blc.items()), key=itemgetter(1), reverse=True))
         # Add the baseline sign into this 
@@ -380,7 +379,7 @@ def flagstatistics(flags,minfreq=10, plotting=True ):
             plt.title('Flagged baseline for spw{:d}'.format(ispw))
             plt.show()              
 
-        flagstring = ('mode=\'manual\' field=\'1\' spw=\'{:d}\' '.format(ispw),('antenna=\''+'{:s};'*len(labels_f)+'\'').format(*labels_f))
+        flagstring = ('mode=\'manual\' field=\'{:d}\' spw=\'{:d}\' '.format(targetfieldID, ispw),('antenna=\''+'{:s};'*len(labels_f)+'\'').format(*labels_f))
         print(flagstring[0], flagstring[1][0:-2]+'\'')
 
     if plotting: 
@@ -434,7 +433,7 @@ def flagstatistics(flags,minfreq=10, plotting=True ):
 
 
 
-    return Blspw
+    return 
 
 def stacked_bar(data, series_labels, category_labels=None, 
                 show_values=False, value_format="{}", y_label=None, 
