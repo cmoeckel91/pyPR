@@ -696,10 +696,10 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     import numpy as np 
 
     # Establish if averaging is happening or not 
-    if spw != 1: 
+    if spwn != 1: 
         uvfitsc = uvfits + '.comp' 
     else: 
-        uvfitsc = uvfits  
+        uvfitsc = uvfits  # Has been compressed outside 
 
     # Calculate the corresponding latitude ranges 
     dlat = latrange/np.ceil(latrange/latint)
