@@ -642,7 +642,8 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
     return 
 
 
-def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
+def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
+    spwn=1,
     planet = 'jupiter', 
     filepath_data= './', 
     filepath_script = 'Parallel_facets.bsh', 
@@ -782,23 +783,24 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell, spwn,
 
 
 
+    # Write the main script that will launch all the subscripts 
 
     with open(filepath_script,'w') as fo:
         fo.write('#!/bin/bash -xef\n\n')
-
+        if spwn != 1: 
         # Reduce the size of the uvfits file if it doesn't exist already  
-        spwids = list(range(1,spwn+1))
-        spwstr = ''
-        for i in spwids: 
-            spwstr += ' {:d}'.format(i)
-        fo.write('if [ ! -e {:s} ]; then\n'.format(uvfits+'.comp'))   
-        fo.write('  for i in {:s} \n'.format(spwstr))
-        fo.write('  do\n')  
-        fo.write('  rm -rf junk$i.uv\n') 
-        fo.write('    uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
-        fo.write('  done\n')
-        fo.write('  uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
-        fo.write('fi\n\n')
+            spwids = list(range(1,spwn+1))
+            spwstr = ''
+            for i in spwids: 
+                spwstr += ' {:d}'.format(i)
+            fo.write('if [ ! -e {:s} ]; then\n'.format(uvfits+'.comp'))   
+            fo.write('  for i in {:s} \n'.format(spwstr))
+            fo.write('  do\n')  
+            fo.write('  rm -rf junk$i.uv\n') 
+            fo.write('    uvaver vis={:s} out=junk$i.uv "select=win($i)" stokes=i\n'.format(uvfits))
+            fo.write('  done\n')
+            fo.write('  uvaver vis=junk*.uv out={:s}\n'.format(uvfits+'.comp'))
+            fo.write('fi\n\n')
         # Initiate temporary directory and append relevant scripts 
         fo.write('export TMPDIR={:s}\n'.format(tmp_directory))
         bashcmd = 'echo "Script is running" \nrm -rf facets; mkdir facets '
