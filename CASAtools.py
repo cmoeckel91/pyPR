@@ -695,6 +695,11 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     from select import select
     import numpy as np 
 
+    # Establish if averaging is happening or not 
+    if spw != 1: 
+        uvfitsc = uvfits + '.comp' 
+    else: 
+        uvfitsc = uvfits  
 
     # Calculate the corresponding latitude ranges 
     dlat = latrange/np.ceil(latrange/latint)
@@ -762,7 +767,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         filepath = temp_name+'/params' + '.pl' 
         with open(filepath,'w') as fo:  
             fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
-            fo.write('$vis = "../{:s}";     # Visibility file\n'.format(uvfits+'.comp'))
+            fo.write('$vis = "../{:s}";     # Visibility file\n'.format(uvfitsc))
             fo.write('$cell = {:4.4f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
             fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(lat_lower))
             fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_upper))
@@ -827,7 +832,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     filepath = 'params' + '.pl' 
     with open(filepath,'w') as fo:  
         fo.write('$planet = "{:s}";# Planet name\n'.format(planet))
-        fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfits))
+        fo.write('$vis = "{:s}";     # Visibility file\n'.format(uvfitsc))
         fo.write('$cell = {:4.4f};      # Image pixel size, in arcseconds (!).\n'.format(cell))
         fo.write('$minlat = {:2.10f};      # Min latitude (degrees) to map\n'.format(-latrange/2))
         fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(latrange/2))
