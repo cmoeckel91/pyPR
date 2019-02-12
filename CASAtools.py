@@ -605,7 +605,7 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
 
     if obs.lower().strip() == 'vla':
         d_ant = 25 # [m] antenna diameter
-    elif obs.lower().strip() == 'almba':
+    elif obs.lower().strip() == 'alma':
         d_ant = 12 # [m] antenna diameter 
     else: 
         print('Observatory not yet implemented. Should be easy to add') 
@@ -640,6 +640,94 @@ def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'
     fo.close() 
 
     return 
+
+def miriad_processing(uv, niter, robust=0.5, ): 
+    """Prepare the uvfits file for Miriad's Deprojection. 
+
+    This script will go through the steps required for preparing the 
+    CASA derived, uvsubbed data set. It create rotationally smeared 
+    images in units of brightness temperature on the way. 
+
+
+    This assumes that uvsubtraction has been done in CASA already
+    
+    Parameters
+    -------
+    uv : [-] str
+        [-] Name of the CASA fits file WITHOUT extension 
+
+    niter: [-] int
+        [-] Number of clean iterations for the rotationally smeared images 
+
+
+
+    Returns
+    ----------
+    script : [-] str
+        [-] create a script called miriad.bsh that can be executed in 
+            the folder where the uv file resides  
+
+   
+
+    Keywords
+    ----------
+    robust : [-] int 
+        [-] robustness parameter for cleaning. 0.5 is the sweet spot 
+
+
+    Example
+    -------
+    import CASAtools
+
+    uvdata = 'jup_x' # Uvdata set is called jup_x.uvfits
+    niter = 10 
+    CASAtools.miriad_processing(uvdata, niter, )
+
+    References
+    ------------
+    
+
+    Notes
+    -------
+    02/11/2019, CM, Initial Commit
+
+    """  
+    
+    filepath = 'miriad.bsh'
+    with open(filepath_script,'w') as fo:
+        fo.write('#!/bin/bash -xef\n\n')
+        
+        fo.write('# Read the uvdata into Miriad\n')  
+        fo.write('fits op=uvin in={:s}.fits out=temp.uv\n'.format(uvfits))
+        
+        fo.write('# Add planet ephemeris data to the dataset\n')  
+        fo.write('uvplanet vis=temp.uv out={:s}.uv pltb=0,0\n'.format(uvfits))
+
+        fo.write('# Average the uvdataset in Stokes i\n')  
+        fo.write('uvaver vis={:s}.uv out={:s}.uv.comp stokes=i\n'.format(uvfits,uvfits)) 
+        
+        fo.write('# Create rotationally averaged maps\n')
+        fo.write('invert vis={:s} map=pl_r{:1.1f}.imap beam=pl.ibem options=mfs robust={:1.1f}\n'.format(uvfits + '.uv',robust,robust)) 
+        fo.write('cgdisp in=pl_r{:1.1f}.imap  device=LS_r{:1.1f}.ps/vps\n'.format(robust,robust)) 
+        
+        fo.write('#Convert to brightness temperature\n')
+        if niter <= 1: 
+            fo.write('clean map=pl_r{:1.1f}.imap beam=pl.ibem out=p_dirty.imod niters={:d} gain=0.01\n'.format(robust,niter)) 
+            fo.write('restor map=pl_r{:1.1f}.imap beam=pl.ibem model=pl_dirty.imod out=pl.icln \n'.format(robust))
+
+        else: 
+            fo.write('clean map=pl_r{:1.1f}.imap beam=pl.ibem out=pl_cli{:d}.imod niters={:d}\n'.format(robust,niter,niter))      
+            fo.write('restor map=pl_r{:1.1f}.imap beam=pl.ibem model=pl_cli{:d}.imod out=pl.icln \n'.format(robust,niter))
+        
+        fo.write('# Convert to brightness temperature\n')
+        fo.write('tok.pl in=pl.icln out=pl_Tb.imap\n') 
+
+        fo.write('# Export rotationally smeared images\n') 
+        fo.write('fits op=xyout in=pl_Tb.imap out={:s}_Tb.fits'.format(uvfits)) 
+        fo.close()
+
+    return 
+
 
 
 def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
@@ -813,7 +901,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
             # Reduce memory allocation problems by running them out of phase 
         # if i < ncore/2:
             # bashcmd = bashcmd + (' \n(rm -rf ~/tmp{:d} && mkdir ~/tmp{:d} && TMPDIR="~/tmp{:d}" && cd temp_p{:d} && nohup perl /usr/local/miriad/bin/darwin/facets.pl && cp facets/* ../facets/) &'.format(i))
-            bashcmd = bashcmd + ('\n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(i))
+            bashcmd = bashcmd + ('\n(cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/ ../facets/) &'.format(i))
             # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
         # else: 

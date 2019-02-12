@@ -1471,7 +1471,7 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     Example
     -------
     # Example by running ephem on some Jupiter data 
-    R = np.array([71492., 71492., 66854.])
+    R = np.array([71492., 71492., 66854.]) 
     ob_range = 8.0491221e+11
     ob_lat_d = np.radians(-3.267)
     ob_lon = np.radians(73.12)
