@@ -271,7 +271,7 @@ def locate2template(loggers,output,analytics=False):
 
 
 
-def flagstatistics(flags,minfreq=10, targetfieldID=1 , plotting=True ): 
+def flagstatistics(flags, spwrange = np.arange(0,99), minfreq=10, targetfieldID=1 , plotting=True ): 
 
 
 
@@ -290,7 +290,7 @@ def flagstatistics(flags,minfreq=10, targetfieldID=1 , plotting=True ):
     import matplotlib.pyplot as plt
 
 
-    spwrange = np.arange(2,34)
+    # 
     spwrange = np.append(np.array([-1]),spwrange,)
     # Loop through each spw and look for affected data per spw 
     for ispw in spwrange: 
@@ -318,8 +318,6 @@ def flagstatistics(flags,minfreq=10, targetfieldID=1 , plotting=True ):
         # Find the most common baselines 
         # https://stackoverflow.com/questions/20950650/how-to-sort-counter-by-value-python
         blc = Counter(bl) 
-
-
 
         # Create statstics for the analysis across all flags 
 
@@ -370,14 +368,14 @@ def flagstatistics(flags,minfreq=10, targetfieldID=1 , plotting=True ):
 
         if  plotting:  
         # lefthand edge of each bar
-
-            left = np.arange(len(heights_f))
-            fig, ax = plt.subplots(1, 1)
-            ax.bar(left, heights_f, 1)
-            ax.set_xticks(left)
-            ax.set_xticklabels(labels,rotation=45,  fontsize='small')
-            plt.title('Flagged baseline for spw{:d}'.format(ispw))
-            plt.show()              
+            if labels != '': 
+                left = np.arange(len(heights_f))
+                fig, ax = plt.subplots(1, 1)
+                ax.bar(left, heights_f, 1)
+                ax.set_xticks(left)
+                ax.set_xticklabels(labels,rotation=45,  fontsize='small')
+                plt.title('Flagged baseline for spw{:d}'.format(ispw))
+                plt.show()              
 
         flagstring = ('mode=\'manual\' field=\'{:d}\' spw=\'{:d}\' '.format(targetfieldID, ispw),('antenna=\''+'{:s};'*len(labels_f)+'\'').format(*labels_f))
         print(flagstring[0], flagstring[1][0:-2]+'\'')
@@ -789,6 +787,12 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     else: 
         uvfitsc = uvfits  # Has been compressed outside 
 
+
+    # Split the uvfits file into their individual components, seperate by comma, add upper directory to each 
+
+
+
+
     # Calculate the corresponding latitude ranges 
     dlat = latrange/np.ceil(latrange/latint)
     # Number of latitude circles 
@@ -908,9 +912,12 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
             # bashcmd = bashcmd + ('\n(cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(i))
             # bashcmd = bashcmd + ('\n(rm -rf /tmp{:s}{:d} ; mkdir /tmp{:s}{:d} && TMPDIR="{:s}{:d}" && cd temp_p{:d} && sleep && perl /usr/local/miriad/bin/darwin/facets.pl &> logger.txt  && cp -r facets/* ../facets/) &'.format(tmp_directory,i,tmp_directory,i,tmp_directory,i,i))
 
-        bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " "')
+        bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " " ')
         
         fo.write(bashcmd)
+        fo.write('&&\nperl /usr/local/miriad/bin/darwin/stitch.pl')
+
+
     # Change permisson   
     os.system('chmod u+x ' + filepath_script)
 
