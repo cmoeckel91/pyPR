@@ -3115,17 +3115,17 @@ class Model:
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
           
-            hdulist[0].header['CTYPE3']  = 'FREQ    '                                                            
-            hdulist[0].header['CRVAL3']  =   self.obsfrequency                                                 
-            hdulist[0].header['CDELT3']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
-            hdulist[0].header['CRPIX3']  =   1.000000000000E+00   
-            hdulist[0].header['CUNIT3']  = 'Hz '
+            hdulist[0].header['CTYPE4']  = 'FREQ    '                                                            
+            hdulist[0].header['CRVAL4']  =   self.obsfrequency                                                 
+            hdulist[0].header['CDELT4']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
+            hdulist[0].header['CRPIX4']  =   1.000000000000E+00   
+            hdulist[0].header['CUNIT4']  = 'Hz '
 
-            hdulist[0].header['CTYPE4']  = 'STOKES  '                                                            
-            hdulist[0].header['CRVAL4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CDELT4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CRPIX4']  =   1.000000000000E+00                                                  
-            hdulist[0].header['CUNIT4']  = '        '  
+            hdulist[0].header['CTYPE3']  = 'STOKES  '                                                            
+            hdulist[0].header['CRVAL3']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CDELT3']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CRPIX3']  =   1.000000000000E+00                                                  
+            hdulist[0].header['CUNIT3']  = '        '  
             # hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
             # hdulist[0].header['CRVAL5']  =  self.T_da
             # hdulist[0].header['CUNIT5']  = 'K     '
@@ -3188,6 +3188,10 @@ class Model:
         self.Bdata = (scipy.ndimage.interpolation.shift(self.Bdata,
             [dy,dx],mode = 'wrap')) 
         self.Bdata[np.abs(self.Bdata)<1e-10] = 0.0
+        if hasattr(self,'Bzonaldata'):
+            self.Bzonaldata = (scipy.ndimage.interpolation.shift(self.Bzonaldata,
+                [dy,dx],mode = 'wrap')) 
+            self.Bzonaldata[np.abs(self.Bzonaldata)<1e-10] = 0.0
 
     def shift_center(self, d_p_ra,d_p_dec):
         # shift the right asencsion and declination for units in pixel 
