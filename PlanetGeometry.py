@@ -2741,9 +2741,12 @@ class Planet:
 
         # Equatorial radius for triaxial ellipsoid 
         self.principalaxis = np.copy(self.radius)
-        self.principalaxis[1:3] = (rotateprincipalaxis_3D(
-                            self.radius, np.radians(self.ob_lat), 
-                            np.radians(self.ob_lon), self.orange*cst.au.value))[0] 
+        #self.principalaxis[1:3] = (rotateprincipalaxis_3D(
+        #                    self.radius, np.radians(self.ob_lat), 
+        #                    np.radians(self.ob_lon), self.orange*cst.au.value))[0] 
+
+        self.principalaxis[1:3] = rotateprincipalaxis(self.radius,self.ob_lat)
+        print(self.principalaxis)
         # Scale factor 
         self.scalefactor = 1.0 
 
@@ -2962,10 +2965,12 @@ class Model:
 
         self.principalaxis = np.copy(self.radius)
         # print(np.radians(self.ob_lat),np.radians(self.ob_lon),self.radius)
-        self.principalaxis[1:3] = (rotateprincipalaxis_3D(self.radius, 
-                                                     np.radians(self.ob_lat), 
-                                                     np.radians(self.ob_lon), 
-                                                     self.orange*cst.au.value))[0]
+        # self.principalaxis[1:3] = (rotateprincipalaxis_3D(self.radius, 
+        #                                              np.radians(self.ob_lat), 
+        #                                              np.radians(self.ob_lon), 
+        #                                              self.orange*cst.au.value))[0]
+
+        self.principalaxis[1:3] = rotateprincipalaxis(self.radius,self.ob_lat)
         
         R_temp  = self.principalaxis/self.principalaxis[0]*self.r_pla
 
