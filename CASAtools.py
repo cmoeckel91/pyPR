@@ -502,21 +502,19 @@ def stacked_bar(data, series_labels, category_labels=None,
                          value_format.format(h), ha="center", 
                          va="center")
 
-def ldvis(k,amp,lam,B,a): 
+def ldvis(rho, amp, k,  a, ): 
     '''Computes the visibility function of a cos(theta)**p limb-darkened disk   
 
     
     
     Parameters
     -------
+    rho : [N] float
+        [lambda] Baseline length in wavelength
     k : [1] float
-        [-] Limb darkening parameter to be plotted 
+        [-] Limb darkening parameter 
     amp : [1] float
-        [Jy] zero baseline flux amplitude 
-    lam :[1] float 
-        [m] Wavelength of the observation 
-    B : [N] float
-        [m] Baseline array      
+        [Jy] zero baseline flux amplitude    
     a : [1] float 
         [arcseconds] size of the planet (diameter) 
 
@@ -533,7 +531,7 @@ def ldvis(k,amp,lam,B,a):
     Example
     -------
     k = 0.1; amp = 13.5; lam = 0.3/224; B = np.arange(0,500); a = np.radians(2.2/3600) 
-    V = ldvis2(k,amp,lam,B,a)
+    V = ldvis(B/2./lam,k,amp,a)
     plt.plot(B,V,label='limb darkened: k = {:2.2f}'.format(k)) 
     plt.legend()
     plt.show()
@@ -551,13 +549,13 @@ def ldvis(k,amp,lam,B,a):
     from scipy import integrate 
     import matplotlib.pyplot as plt  
 
-    rho = B/2./lam
+    # rho = B/2./lam
 
     # val = np.abs((2*jv(1,2*np.pi*rho*a)/(2*np.pi*rho*a)))
     integral_val = np.zeros_like(rho)
     for i in range(len(rho)): 
         f = lambda r: r*np.sqrt(1-r**2/a**2)**k*jv(0,2*np.pi*rho[i]*r) 
-        integral_val[i] = np.abs(2*np.pi*scipy.integrate.quad(f,0,a)[0] )
+        integral_val[i] = np.abs(2*np.pi*integrate.quad(f,0,a)[0] )
 
 
     # Normalize and scale to  
@@ -566,8 +564,63 @@ def ldvis(k,amp,lam,B,a):
 
     return integral_val
 
-def shortspacingobservatory(nu,uvhole,name, obs='VLA',n_ants = 30, filepath='./'): 
-    """Create an oblate spheroid 
+def import_vis(pickle_vis, nu, uvd_limit = 1000,): 
+
+    import pickle 
+    from astropy import constants as cst
+
+
+    p = open(pickle_vis,"rb")
+    vis = pickle.load(p,encoding='latin1') 
+
+    amp = vis['amplitude']
+    uvd  = vis["uvdist"]
+
+    # 
+    uvd_t = uvd[uvd<uvd_limit] 
+    amp_t = amp[0,0,uvd<uvd_limit]  
+
+    # Sort the array 
+    i_s = np.argsort(uvd_t)
+    uvd_s = uvd_t[i_s]
+    amp_s = amp_t[i_s]
+
+    # Corresponding wavelength
+    lam = cst.c.value/nu
+    uvw_s = uvd_s/2/lam #[lambda] UVwave distance 
+    B = np.arange(0,uvd_limit) # [m] reference array, uvdistance 
+    rho = B/2/lam       #[lambda] reference array, uvwave 
+
+    return uvw_s, amp_s, rho
+
+def flux_fitting(uvw, amp, p0=None, bounds=(-np.inf,np.inf),  Plotting=False):
+
+    
+    from scipy.optimize import curve_fit
+
+    rho = np.arange(0,uvw[-1])
+
+    popt, pcov = curve_fit(ldvis, uvw, amp, p0=p0, method='dogbox', bounds=bounds)
+    mvis = ldvis(rho,*popt)
+
+    if Plotting: 
+
+        plt.figure(figsize=(16,9))
+        plt.plot(uvw_s,amp_s,'.',label='calibrated vis')
+        plt.plot(rho,mvis,label='curve fit: flux=%5.3f, p=%5.3f, size=%5.3f' % (popt[0],popt[1],popt[2]*3600*180/np.pi) )
+        plt.plot(rho,mvisp0,label='initial guess: flux=%5.3f, p=%5.3f, size=%5.3f' % (p0[0],p0[1],p0[2]*3600*180/np.pi) )
+        plt.xlim(0,uvd_limit/lam/2)
+        plt.ylim(0,1)
+        plt.xlabel('UVwave [lambda]')
+        plt.ylabel('Amplitude [Jy]')
+        plt.legend()
+        plt.show()
+
+    return popt, pcov
+
+
+def shortspacingobservatory(nu, uvhole, name, obs='VLA',n_ants = 30, filepath='./'): 
+    """ Create a short spacing observatory for CASA simobserve 
 
 
 

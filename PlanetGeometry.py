@@ -370,8 +370,6 @@ def read_ephem_line(arr):
     return np.asarray(arr_out) 
 
 
-
-
 # Make an oblate spheroid 
 def triaxialellipsoid(R,x,y): 
     """Create an oblate spheroid 
@@ -447,7 +445,7 @@ def triaxialellipsoid(R,x,y):
 
 
 # Read in the Jupiter brightness map 
-def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01): 
+def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01, verbose=False): 
     """Create a brightness map of Jupiter
 
     Based on x,y and grid, create a brightness map of Jupiter. Iterative 
@@ -495,15 +493,16 @@ def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01):
     -------
     10/24/2017, CM, Initial Commit
     """
+
+    np.seterr(divide='ignore', invalid='ignore')
     R = R/R[0]*r_pla
     # Call the three dimension surface and return value in pixels 
     (xv,yv,zv) = triaxialellipsoid(R,x,y)
     # Avoid singularities 
     zv[zv==0] = float('nan')
     # Obtain the emission angle 
-    th = np.arccos(zv/np.sqrt(xv**2+yv**2+zv**2))
+    th = np.arccos((zv)/np.sqrt(np.float64(xv**2+yv**2+zv**2)))
     
-
     # Where the value is nan, the model should be zero 
     th[~np.isfinite(th)] = np.pi/2.
     zv[~np.isfinite(zv)] = 0.
@@ -515,7 +514,7 @@ def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01):
     T_scale = T_dab
 
     # Build a uniform disk model 
-    if (p == [0,0]).all() or (p == 0).all() : 
+    if (np.array(p) == [0,0]).all() or (np.array(p) == 0).all() : 
         T = np.ones_like(zv)*T_dab
         T[zv==0] = 0
         return T
@@ -541,14 +540,16 @@ def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01):
                 #     'Target T: {:3.2f}'.format(T_dab), \
                 #     'Computed T: {:3.2f}'.format(T_model), \
                 #     'Peak T: {:3.2f} '.format(T_scale))
-
-        print('Disk averaged brighntess temperature\n',
-            'Target T: {:3.2f}'.format(T_dab), \
-            'Computed T: {:3.2f}'.format(T_model), \
-            'Peak T: {:3.2f} '.format(T_scale))
+        if verbose: 
+            print('Disk averaged brighntess temperature\n',
+                'Target T: {:3.2f}'.format(T_dab), \
+                'Computed T: {:3.2f}'.format(T_model), \
+                'Peak T: {:3.2f} '.format(T_scale))
 
         T[zv<1e-5] = 0
-        return T
+        return T, T_scale
+
+
 
 def emissionangle(lat_c, lat_d, ob_lat_d, orange, R): 
     """Calculate the zonally averaged emission angle based on the 
@@ -618,7 +619,7 @@ def emissionangle(lat_c, lat_d, ob_lat_d, orange, R):
     return alpha, lat
 
 
-def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_res, conv = 0.01, plotting = False ): 
+def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening, T_res, th_res, conv = 0.01, plotting = False ): 
     """Create a brightness map with structure of Jupiter 
 
     Based on x,y and grid, create a brightness map of Jupiter. Iterative 
@@ -646,7 +647,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
     T_res : [1xN] float
         [K] Brightness temperature residual, zonally averaged, limb-darkened 
     th_res : [1xN] float
-        [rad] Corresponding latitudes for the residual temperatures 
+        [rad] Corresponding latitudes for the residual temperatures, planetrographic 
     
 
     Returns
@@ -656,19 +657,9 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
 
     Keywords
     ----------
-    conv = 0.01 : float
-        Converge criteria for limb darkening disk computation 
-        A high value will create a disk very close to the peak temperature. 
-        A low value will iterate until the disk averaged temperature matches the required value 
 
     Example
     -------
-    >>> R = np.array([72e6,66e6,72e6])
-    >>> R = R/R[0]
-    >>> N = 200 
-    >>> T_dab = 350
-    >>> p = np.array([0.08,0.08])
-    BrightnessMap(R,N,T_dab,p)
 
     References
     ------------
@@ -694,17 +685,22 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
     lat_d = geoc2geod( orange + R[2]+(R[0]-R[2])*np.cos(ob_lat_d), lat_c, flat )[0]  
     alpha, lat_emission = emissionangle(lat_c, lat_d, (ob_lat_d), orange, R)
 
-    # Input residual striructure in limb darkened. 
+    # Convert input goedetic latitudes to geocentric 
+    th_res_c = geod2geoc( th_res, orange-R[2]+(R[0]-R[2])*np.cos(ob_lat_d), R[0],  flattening)
+    
 
     # Pad residual with 0 to 
+    f = scipy.interpolate.interp1d(np.degrees(th_res_c), T_res, bounds_error=False,fill_value=(T_res[0],T_res[-1]))
+  
 
-    f = scipy.interpolate.interp1d(np.degrees(th_res), T_res, bounds_error=False,fill_value=np.mean(T_res))
     lats = np.arange(-89,90,2)
     lons =  np.arange(0,360,2)
     T = f(lats) - np.mean(f(lats)) # Residual structure after and levelled to zero 
 
+
+
     # Detrend the residuals from emission angle by diving by cos(theta)**p
-    f = scipy.interpolate.interp1d(np.degrees(lat_emission), alpha, bounds_error=False, fill_value=0)
+    f = scipy.interpolate.interp1d(np.degrees(lat_emission), alpha, bounds_error=False, fill_value=([alpha[0]],[alpha[-1]]))
     T_db = T/np.cos(f(lats))**p[0] 
 
 
@@ -729,7 +725,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
     # make filled contour plot.
     if plotting: 
         plt.figure()
-        cs = m.contourf(x,y,T_map,30,cmap=plt.cm.jet)
+        cs = m.contourf(x,y,T_map,50,cmap=plt.cm.jet)
         plt.colorbar(cs)
         m.drawmapboundary() # draw a line around the map region
         m.drawparallels(np.arange(-90.,120.,30.),labels=[1,0,0,0]) # draw parallels
@@ -742,8 +738,10 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
 
     # Call the three dimension surface 
     (xv,yv,zv) = triaxialellipsoid(R/R[0]*r_pla,x_pix,y_pix)
+
     # Avoid singularities 
     zv[zv==0] = float('nan')
+
     # Obtain the emission angle 
     th = np.arccos(zv/np.sqrt(xv**2+yv**2+zv**2))
     
@@ -753,25 +751,35 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
 
     # Interpolate the structure onto the same grid as the limb darkened disk 
     # Note that the ld model is in pixel, so we covert them here  
-    x_temp = x.flatten()/m.rmajor # [R_E] units of RE
-    x_t = x_temp[x_temp<2.0]*r_pla # [pix] Multiply with R_E
-    y_temp = y.flatten()/m.rmajor
-    y_t = y_temp[x_temp<2.0]*R[2]/R[0]*r_pla # [pix] Multiply with R_P 
-    T_temp = T_map.flatten()
-    T_t = T_temp[x_temp<2.0]
+    x_temp = x.flatten()/m.rmajor - 1. # [R_E] units of RE
+    x_t = x_temp[np.abs(x_temp<1.0)]*r_pla # [pix] Multiply with R_E
 
-    # Center the array so that 0,0 refers to the center of the planet 
-    x_t -= r_pla 
-    y_t -= R[2]/R[0]*r_pla
+    y_temp = y.flatten()/m.rmajor - 1. #R[2]/R[0]
+    y_t2 = y_temp[np.abs(x_temp<1.0)]*R[2]/R[0]*r_pla # [pix] Multiply with R_P 
+    # IPython.embed()
+    # Convert y_t to correspond to a planet that is flattened. 
+
+    # The scaling goes by the cosine  
+    y_t = y_temp[np.abs(x_temp)<1.0]
+    for i in range(len(y_t)):  
+        if np.abs(y_t[i]) < 1.0:
+            y_t[i] = rc2rp(y_t[i],R/R[0],)[0]
+ 
+    y_t *= r_pla
+
+    T_temp = T_map.flatten()
+    T_t = T_temp[np.abs(x_temp)<1.0]
+
     p_in=(np.stack((x_t,y_t))).transpose()
 
+    
     # Interpolate on the output 
     T_resmap = scipy.interpolate.griddata(p_in,T_t,(xv.T, yv.T), fill_value = 0, method='cubic')
 
     # plotting the residuals 
     if plotting: 
-        fig, axs = fig, axs = plt.subplots(1, 1)
-        cs = plt.contourf(xv.T, yv.T,T_resmap,30,cmap=plt.cm.jet)
+        fig, axs = fig, faxs = plt.subplots(1, 1)
+        cs = plt.contourf(xv.T, yv.T, T_resmap,50,cmap=plt.cm.jet)
         plt.title('Zonal residual NOT limb darkened')
         plt.colorbar(cs)
         axs.set_aspect('equal', 'box')
@@ -790,21 +798,60 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, T_res, th_
     # 
     # T_res_ld = np.multiply(T_resmap,np.cos(th)**np.mean(p)) 
 
-    # Normalize so that the structure has zero flux 
+    # Normalize so that the overall structure has zero flux 
     pixels = np.ones_like(zv) # Pixels that contain flux 
-    T_res_ld -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+    # This works, not pretty, but it works 
+    ldpix = T_res_ld != 0 
+
+    T_res_ld[ldpix] -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+
+    #T_res_ld -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.01])) 
+    
     if plotting: 
         fig, axs = fig, axs = plt.subplots(1, 1)
-        cs = plt.contourf(xv.T, yv.T,T_res_ld,30,cmap=plt.cm.jet)
+        cs = plt.contourf(xv.T, yv.T,T_res_ld,50,cmap=plt.cm.jet)
         plt.title('Zonal residual limb darkened')
         axs.set_aspect('equal', 'box')
         plt.colorbar(cs)
         plt.show()
 
     # Subtraction forces off-planet residuals below zero 
-    T_res_ld[zv<0.1] = 0 
+    # T_res_ld[zv<0.001] = 0 
+
+    # Normalize so that the structure has zero flux 
+    # pixels = np.ones_like(zv) # Pixels that contain flux 
+    # if plotting: 
+    #     fig, axs = fig, axs = plt.subplots(1, 1)
+    #     cs = plt.contourf(xv.T, yv.T,T_res_ld,50,cmap=plt.cm.jet)
+    #     plt.title('Zonal residual limb darkened, normalized')
+    #     axs.set_aspect('equal', 'box')
+    #     plt.colorbar(cs)
+    #     plt.show()
     
+    #IPython.embed()
     return T_res_ld.T
+
+def rc2rp(R_f,R): 
+    '''Convert fractional radius between system 
+    System 1: R_f = 1 corresponds to surface of the planet for both pole and equator  
+    System 2: R_f = f*R_f correspond to surface at the pole 
+
+    This function calculates the equivalent radius for a rotationally squished body 
+
+
+    '''
+    # find corresponding latitude 
+    lat = np.arcsin(R_f) 
+    # Find local radius for corresponding latitude 
+    R_l = local_radius(R,lat) 
+
+    return R_l*np.sin(lat), lat
+
+def local_radius(R,lat_c): 
+    """ Compute local radius given a geocentric latitude """ 
+
+    return np.sqrt((R[0]*np.cos(lat_c))**2+(R[2]*np.sin(lat_c))**2)
+
 
 
 # Conversions 
@@ -1993,8 +2040,37 @@ def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = Fals
 
     return T_interp, th_interp 
 
+def planetary_spectrum(T,nu):
 
-def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = False): 
+    import astropy.constants as cst 
+    h = cst.h.value 
+    c = cst.c.value
+    k = cst.k_B.value 
+
+    nu = np.logspace(6, 12, num=1000)
+    F =  2*h*nu**3/c**2/(np.exp(h*nu/(k*T)) - 1)
+
+    return F
+
+# def fit_shape(self,dirty): 
+    # https://stackoverflow.com/questions/53918522/ellipse-fitting-for-images-using-fitellipse
+    
+    # import cv2
+    # img = cv2.imread('test.jpg')
+    # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # th, threshed = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+
+    # ## findContours, then fitEllipse for each contour.
+    # ## 使用 cv2.findContours(...)[-2:] 对 2.x|3.x|4.x 兼容
+    # cnts, hiers = cv2.findContours(threshed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[-2:]
+
+    # for cnt in cnts:
+    #     ellipse = cv2.fitEllipse(cnt)
+    #     cv2.ellipse(img, ellipse, (255,0, 255), 1, cv2.LINE_AA)
+
+    # cv2.imwrite("dst.png", img)
+
+def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = False, verbose=False): 
     '''Read out disk averaged brightness temp from Imke de Pater, 2016, 
     peering below the clouds 
 
@@ -2115,7 +2191,7 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
             [28.6192, 385.75061],
             [30.2636, 392.99259],] ))
 
-    interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1])
+    interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1],bounds_error=False)
 
     # limb darkening 
     # GHz, limb darkening coefficient 
@@ -2136,7 +2212,7 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
              [25.00 ,0.06 ],]))
 
 
-    intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1])
+    intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1],bounds_error=False)
 
 
     # Convert to units of cm 
@@ -2151,17 +2227,381 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
 
     # Disk averaged brightness temperature 
     # Limb darking coefficient 
-    T = interpT(frequency)
+    T = interpT(frequency) - cmb_correction_estimate(frequency)
     p = intperld(frequency)
 
-    if printoutput:
-        print('The disk averaged brightness temperature is: {:3.2f}'.format(float(T)))
+    if verbose:
+        print('The disk averaged brightness temperature (on top of the CMB) is: {:3.2f}'.format(float(T)))
         print('The limb darkening coeffient is: {:3.3f}'.format(float(p)))
 
+    if printoutput: 
+        print('Keyword changed! Use verbose instead of printoutput')
 
     return np.array([T,p])
 
 
+def cmb_correction_estimate(nu,): 
+    '''Estimating the CMB correction. For a better estimate you use the 
+    embedded function for the Model data. 
+
+    Parameters
+    -------
+    nu : [1] list
+        [str] Name of files that contain the image 
+
+    Returns
+    ----------
+    p : [1] 
+        [-] limb darkening coefficient 
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+
+    path_map = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2017/Jup_x_20170111/Products/Maps/'
+    fitsfile = 'jup-x_lr_spw2~17_rTb.fits' 
+    bandwidth = 2.0
+    
+    display_deprojected(path_map+fitsfile,bandwidth)
+
+    References
+    ------------
+
+    Notes
+    -------
+    4/11/2019, CM, Initial Commit
+    ''' 
+
+
+    # Calculate the flux based on pure black body curve 
+    T_cmb = 2.725 
+
+    F_cmb = (2*cst.h.value*nu**3/cst.c.value**2
+        /(np.exp(cst.h.value*nu/(cst.k_B.value * T_cmb))-1)) 
+
+
+    # Convert to an equivalent temperature 
+    return cst.c.value**2/(2*cst.k_B.value*nu**2)*F_cmb 
+
+# Imaging definitions 
+
+def align_projections(proj, refimage=0, xalign = True ): 
+    '''Align projections when edge detection is not perfect
+
+    Parameters
+    -------
+    proj : [1] list
+        [str] Name of files that contain the image 
+
+    Returns
+    ----------
+    p : [1] 
+        [-] limb darkening coefficient 
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+
+    ToDo 
+    -------
+    Specify reference image 
+
+    References
+    ------------
+    Based on Josh Blom's data class 
+
+    Notes
+    -------
+    4/11/2019, CM, Initial Commit
+    '''
+
+
+    import scipy.signal as sig
+    from scipy.misc import imresize
+    from scipy.ndimage.interpolation import shift
+    import glob
+
+    # Read in all the data and store them in an array 
+
+    hdu = fits.open(proj[0],ignore_missing_end=True)
+    dimx, dimy = hdu[0].data.shape
+    dimz = len(proj)
+    im_l = []
+
+    # Rearrange to have required fits file as reference 
+    if refimage != 0: 
+        print('Not yet implemented')
+
+    for p in proj: 
+        hdu = fits.open(p,ignore_missing_end=True)
+        im_l.append(hdu[0].data)
+
+    offsets = []
+
+    # Reference image 
+    im_ref = im_l[0]
+    im_ref[np.isnan(im_ref)] = 0
+
+    # # Get reference point by autocorrelating reference image
+    convol_auto = sig.fftconvolve(im_ref[:,:],im_ref[::-1,::-1],mode='same')
+    x_c,y_c = np.where(convol_auto==np.max(convol_auto))
+
+
+    # Do convolution for each image and append offsets
+    for im in im_l[1:]: 
+        im[np.isnan(im)]=0
+        convol = sig.fftconvolve(im_ref[:,:],im[::-1,::-1],mode='same')
+        xp,yp = np.where(convol==np.max(convol))
+        if ~xalign: 
+            yp = y_c
+
+        offsets.append((np.float(xp-x_c),np.float(yp-y_c)))
+
+
+
+    cnter = 0 
+    for p in proj[1:]: 
+        hdu = fits.open(p,ignore_missing_end=True)
+        data = hdu[0].data
+        # Force NaN to be zero 
+        data[np.isnan(data)]=0
+        hdu[0].data = shift(data,offsets[cnter],mode='wrap')
+        hdu[0].writeto(p, overwrite=True)
+        print('Files aligned! File written to ', p)
+
+        cnter +=1
+
+    return  
+
+def normalize_dim_proj(proj): 
+    '''Normalizes all maps onto a uniform size 
+
+    Parameters
+    -------
+    proj : [1] list
+        [str] Name of files that contain the image 
+
+    Returns
+    ----------
+    p : [1] 
+        [-] limb darkening coefficient 
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+
+    References
+    ------------
+
+    Notes
+    -------
+    4/11/2019, CM, Initial Commit
+    '''
+
+    dimx = 1 
+    dimy = 1 
+    for p in proj: 
+        im = fits.open(p,ignore_missing_end=True)
+        if (im[0].data.shape[0]) > dimx: dimx = im[0].data.shape[0]
+        if (im[0].data.shape[1]) > dimy: dimy = im[0].data.shape[1]
+
+    print('All images will be interpolated onto the largest encountered dimension: [{:d},{:d}]'.format(dimx,dimy))
+    
+    for p in proj:
+        im = fits.open(p,ignore_missing_end=True)
+        im[0].data = np.resize(im[0].data,[dimx,dimy])
+        im[0].header['NAXIS1']=dimx 
+        im[0].header['NAXIS2']=dimy 
+        im.writeto(p, overwrite=True)
+        # 
+    print('Dimension normalized: File written to ', p)
+    return
+
+
+class Map:
+
+    def __init__(self,planet): 
+        self.name = planet 
+
+    # Read in a deprojected map and navigate appropriately 
+
+    def read_deprojected(self, fitsfile, bandwidth,fluxcal = 1): 
+        '''Read in deprojected map and navigate it
+
+        Parameters
+        -------
+        proj : [1] list
+            [str] Name of files that contain the image 
+
+        Returns
+        ----------
+        p : [1] 
+            [-] limb darkening coefficient 
+
+        Keywords
+        ----------
+
+
+        Example
+        -------
+
+        path_map = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2017/Jup_x_20170111/Products/Maps/'
+        fitsfile = 'jup-x_lr_spw2~17_rTb.fits' 
+        bandwidth = 2.0
+        
+        display_deprojected(path_map+fitsfile,bandwidth)
+
+        References
+        ------------
+
+        Notes
+        -------
+        4/11/2019, CM, Initial Commit
+        '''
+
+
+        # ----------------------------------------------------------------------
+
+        from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans 
+
+        # Import the Deprojected map 
+        hdul_map = fits.open(fitsfile)
+        theta = np.arange(hdul_map[0].header['NAXIS1']*hdul_map[0].header['CDELT1']/2,hdul_map[0].header['NAXIS1']*-hdul_map[0].header['CDELT1']/2,-hdul_map[0].header['CDELT1'])
+        phi = np.arange(-hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['CDELT2'])
+        kernel = Gaussian2DKernel(x_stddev=2)  
+
+        # Interpolate is needed for weird edge effects 
+        Tb = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],int( hdul_map[0].data[0,0,:,:].shape[1]/2)),kernel)),
+        
+        # data = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],0),kernel)),
+
+
+
+        # Store the relavent data in a dictionary 
+        
+        self.n_x        = hdul_map[0].header['NAXIS1']
+        self.n_y        = hdul_map[0].header['NAXIS2']
+        self.t_obs      = hdul_map[0].header['DATE-OBS']
+        self.target     = hdul_map[0].header['OBJECT']
+        self.Tb_r       = Tb[0]*fluxcal 
+        self.fluxcal    = fluxcal
+        self.unit       = hdul_map[0].header['BUNIT']
+        self.bandwidth  = bandwidth
+        self.d_th       = hdul_map[0].header['CDELT1'],  # theta = longitud
+        self.d_phi      = hdul_map[0].header['CDELT2'], # phi = latitud
+        self.theta      = np.array(theta).flatten()
+        self.phi        = phi.flatten(),
+        nu              = hdul_map[0].header['CRVAL3'],
+        self.nu         = np.array(nu).flatten()
+
+
+
+    def display_deprojected(self, roll=0, cmap = 'gray_r', clim=[0,0], path2save='', figsize=None): 
+
+        from matplotlib import rcParams
+
+
+        # Setting plotting routine 
+        rcParams.update({'figure.autolayout': True})
+        rcParams.update({'font.size':18})
+
+        if not hasattr(self,'Tb_r'):
+            sys.exit('Need to read in a Map first! Use read_deprojected')
+
+   
+        if roll != 0: 
+            # data = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],int( hdul_map[0].data[0,0,:,:].shape[1]/2)),kernel)),
+            print('Not implemented yet') 
+
+        if figsize == None: 
+            fig = plt.figure(figsize=(self.n_x/self.n_y*5,7)) 
+        else: 
+            fig = plt.figure(figsize=(figsize[0],figsize[1])) 
+            print('Yeha')
+        ax = fig.add_subplot(111)
+        plt.axes().set_aspect('equal')
+        cs = plt.contourf(self.theta ,self.phi[0] , self.Tb_r, 50 ,cmap = cmap, rasterized=True) #cmap = 'Grey'
+        plt.gca().invert_xaxis()
+        plt.xlim([-180,180]) 
+        plt.ylim([-60,60])
+        plt.ylabel('Latitude  [deg]')
+        plt.xlabel('Longitude  [deg]')
+        plt.title(r'Radio brightness residuals, $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
+        locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
+        labels=['150','120','90','60','30','0','330','300','270','240','210'] 
+        plt.xticks(locs, labels,)  
+        ax.set_rasterized(True)
+
+        cbaxes = fig.add_axes([0.5,0.05,0.4,0.03])
+        cbar = plt.colorbar(cs,cax = cbaxes,orientation = 'horizontal')
+        #cbar.ax.tick_params(axis='x',direction='in',labeltop='on')
+        if clim != [0,0]:
+            plt.clim(clim[0],clim[1])
+        plt.show()
+
+        if path2save != '':
+            fname = 'Residuals_resolved_{:2.1f}'.format(self.nu[0]*1e-9)
+            plt.savefig(path2save + fname + '.pdf' , format='pdf', transparent = True, dpi=1000)
+            print('File written to: ' + path2save)
+            plt.savefig(path2save + fname + '.png', format='png', transparent = True, dpi=1000)
+        
+        return 
+
+    def add_disk(self, T_peak=0, p=0.0, T_cmb = 0 ): 
+
+        self.Tb_peak      = T_peak + T_cmb 
+        self.T_cmb        = T_cmb 
+        self.Tb_ld_zonal  = self.Tb_peak*np.cos(np.radians(self.phi))**p
+        self.Tb_ld_disk   = np.ones_like(self.Tb_r)*self.Tb_ld_zonal.T
+        self.Tb           = self.Tb_r + self.Tb_ld_disk 
+
+    def zonal_average(self, ): 
+
+        self.Tb_zonal   = np.median(self.Tb,axis=1) 
+        self.Tb_r_zonal = np.median(self.Tb_r,axis=1) 
+
+
+    def save_deprojected(self,outname): 
+        import pickle 
+        try: 
+            data = { 
+                'n_x'       : self.n_x      ,
+                'n_y'       : self.n_y      ,
+                't_obs'     : self.t_obs    , 
+                'target'    : self.target   ,
+                'Tb_r'      : self.Tb_r     ,
+                'unit'      : self.unit     ,
+                'bandwidth' : self.bandwidth,
+                'd_th'      : self.d_th     ,
+                'd_phi'     : self.d_phi    ,
+                'theta'     : self.theta    ,
+                'phi'       : self.phi      ,
+                'nu'        : self.nu       , 
+                'fluxcal'   : self.fluxcal  ,
+                'Tb'        : self.Tb       ,
+                'Tb_peak'   : self.Tb_peak  ,
+                'Tb_cmb'    : self.T_cmb    , 
+                'Tb_ld_zonal':self.Tb_ld_zonal,
+                'Tb_ld_disk' :self.Tb_ld_disk,
+                'Tb_zonal'   :self.Tb_zonal ,
+                'Tb_r_zonal' :self.Tb_r_zonal,
+                }
+        except: 
+            print('Run read_deprojected, add_disk, and zonal_average ')
+
+
+        p = open(outname+ ".pickle","wb")
+        pickle.dump(data, p)
+        p.close() 
 
 
 # Class definitions 
@@ -2304,7 +2744,8 @@ class Planet:
         self.principalaxis[1:3] = (rotateprincipalaxis_3D(
                             self.radius, np.radians(self.ob_lat), 
                             np.radians(self.ob_lon), self.orange*cst.au.value))[0] 
-        
+        # Scale factor 
+        self.scalefactor = 1.0 
 
 
         # [sterradians] solid angle extended by the disc as seen by earth  
@@ -2312,20 +2753,41 @@ class Planet:
         self.sa = np.pi*(np.sqrt(self.principalaxis[1]*self.principalaxis[2]*1e6)/self.orange/cst.au.value)**2
 
 
-
     def initmodel(self,modelname):
-        try:
-            self.radius
+        if hasattr(self,'radius'):
             setattr(Planet,modelname,Model(self.name, planet = self))
             print('The model can be accessed under: '\
              '{:s}.{:s}.'.format(self.name,modelname))
-        except AttributeError:
+        else:
             print('First querry the Planet\'s properties with epemeris'\
                   ' or define the radius: <Planet>.radius = np.array([R,R,R])')
+
+    def shift_center(self, d_p_ra,d_p_dec):
+        # shift the right asencsion and declination for units in pixel 
+        self.ra = float(self.ra + d_p_ra*self.pixscale/3600)
+        self.dec = float(self.dec + d_p_dec*self.pixscale/3600)
+
+    def shift_header(self, d_p_ra,d_p_dec):
+        # shift the right asencsion and declination for units in hms and dms
+        self.ra = float(self.ra +hms2deg(d_p_ra))
+        self.dec = float(self.dec +dms2deg(d_p_dec))
+
+    def set_center(self, p_ra,p_dec):
+        # shift the right asencsion and declination for units in hms and dms
+        self.ra = float(hms2deg(p_ra))
+        self.dec = float(dms2deg(p_dec))
+
+    def scale_planet(self, scalefactor): 
+        self.scalefactor = scalefactor 
+        try: 
+            self.ang_diam *= scalefactor
+        except: 
+            print('Obtain ephemeris first') 
 
     def model(self):
         print('Accessing Model')
         self.Model(self.name)
+
 
 
     
@@ -2369,11 +2831,15 @@ class Model:
         else: 
             # For the model 
             self.ang_diam = planet.ang_diam 
+            self.scalefactor = planet.scalefactor
             self.radius = planet.radius
             self.ob_lat = planet.ob_lat
             self.ob_lon = planet.ob_lon
             self.orange = planet.orange
             self.np_ang = planet.np_ang 
+            self.sa     = planet.sa 
+            self.paxis  = planet.principalaxis 
+            self.flattening = planet.flattening
             # For the export 
             self.ra = planet.ra
             self.dec = planet.dec
@@ -2392,7 +2858,9 @@ class Model:
     def gen_casa(self, nu, T, p, beamsize = 0.7, psfsampling=5, 
                  Jansky = True, setimsize = False, conv = 0.01, 
                  T_res=np.zeros(100),
-                 th_res=np.arange(-np.pi/2,np.pi/2,np.pi/100), plotting=False ):
+                 th_res=np.arange(-np.pi/2,np.pi/2,np.pi/100), plotting=False, verbose = False ):
+
+
         """Generate a model for casa 
         
         Parameters
@@ -2467,12 +2935,19 @@ class Model:
         # Assign a model type for documentation 
         self.modeltype = 'pyPR-CASA'
         self.Jansky = Jansky 
+        self.beam = beamsize
         self.pixscale = beamsize/psfsampling 
 
         # Assign the parameter 
         self.obsfrequency = nu 
-        self.T_da = T 
+        self.nu           = nu
+        self.T_da         = T 
         self.limbdarkening = p
+        self.p             = p 
+
+
+
+        # Calculate the exptected flux 
 
 
         # Radius of the planet in pixel 
@@ -2498,9 +2973,10 @@ class Model:
             self.imsize = setimsize
         else: 
             self.imsize = calcimsize(self.ang_diam,self.pixscale) # (pixel)
-        print('Use/check the following parameters for your casa deconvolution:')
-        print('Imsize: ', self.imsize) 
-        print('Cell : ', self.pixscale)
+        if verbose: 
+            print('Use/check the following parameters for your casa deconvolution:')
+            print('Imsize: ', self.imsize) 
+            print('Cell : ', self.pixscale)
       
         rotangle = -(self.np_ang)
         # I can probably short cut this ToDo 
@@ -2513,8 +2989,8 @@ class Model:
          # self.ang_diam/self.pixscale is 
         rotangle = -(self.np_ang)
         (x,y,) = axisforcasamodel(self.imsize, self.planetsize/self.pixscale)
-        ld_model = (brightnessmap(self.principalaxis, self.r_pla, x, y, 
-                        self.T_da, self.limbdarkening, conv = 0.01))
+        ld_model, self.T_peak = (brightnessmap(self.principalaxis, self.r_pla, x, y, 
+                        self.T_da, self.p, conv = 0.01, verbose=verbose))
         self.Tdata = scipy.ndimage.rotate(ld_model,rotangle,order=0,reshape = False)
         self.Bdata = scipy.ndimage.rotate(tb2jy(ld_model, nu, self.pixscale),rotangle,order=0,reshape = False)
         # To agree with previous version 
@@ -2523,14 +2999,123 @@ class Model:
         if np.all(T_res != np.zeros(100)): 
             zonal_model = (zonal_residual_model(self.principalaxis, self.r_pla, 
                                              x, y, 
-                                             self.limbdarkening, 
-                                             np.radians(self.ob_lat), self.orange*cst.au.value, 
+                                             self.p, np.radians(self.ob_lat), 
+                                             self.orange*cst.au.value, self.flattening,
                                              T_res, th_res, 
                                              conv = 0.01, plotting = plotting))
+
+
             self.Tzonaldata = scipy.ndimage.rotate(zonal_model,rotangle,order=0,reshape = False)
             self.Bzonaldata = scipy.ndimage.rotate(tb2jy(zonal_model, nu, self.pixscale),rotangle,order=0,reshape = False)
-    
 
+
+        # Compute the expected flux from the image 
+        self.expected_flux() 
+
+        # Calculate corresponding CMB correction to be added to the data
+        self.cmb_correction() 
+
+
+
+
+
+
+    def gen_spectral(self, bandwidth=0): 
+        """ Generate a model that contains spectral information after the model was created  
+        
+        Parameters
+        ---------- 
+
+        nu : [1] float
+            [Hz] Frequency 
+        T : [1] float
+            [K] Target disk averaged temperature 
+        p : [1x2] float 
+            [EW,NS] Limb darkening coefficient 
+        ob_lat_d: [1] 
+            [rad] Sub observer latitude 
+        orange: [1] 
+            [m] Observer range 
+        
+        th_res : [1xN] float
+            [rad] Corresponding latitudes for the residual temperatures 
+        
+
+
+        Returns
+        ----------
+
+
+        Keywords
+        ----------
+        beamsize : [1] float 
+            [arcsecs] Beam size to be used 
+        psfsamplin : [1] float
+            [-] Number of pixels per beam
+
+        Jansky : [1] boolean
+            [-] Output in Jy/pixel instead of brightness temperature
+   
+        conv : [1] float
+            [-] Convergence criteria for iteration to match disk averaged temperature 
+                High conv will create disk with the center temperature 
+        T_res: [Nx1] float 
+            [K] Zonal temperature profile for creating a zonally average model 
+        th_res: [Nx1] float 
+            [rad] Corresponding planetographic latitude 
+
+
+
+        Example
+        -------
+
+
+        References
+        ------------
+
+        Notes
+        -------
+        04/01/2019, CM, Initial Commit
+        """
+        import copy
+        # Ipython.embed()
+
+        if not hasattr(self, 'Bdata'):
+            sys.exit('You first need to generate a model before you can indicate the spectrum') 
+            
+
+        # The normal spectral slope in Radio is 2, replace all values 
+        if bandwidth == 0:
+            self.spectralmap = self.Bdata 
+            self.spectralmap[self.spectralmap > 0 ] = 2 
+
+        else: 
+            # Create a test instance that will calculate the exact spectral slope 
+            TP = copy.deepcopy(self) # Create a copy of the current data 
+            nu_l = self.obsfrequency - bandwidth/2 
+            nu_u = self.obsfrequency + bandwidth/2 
+
+            # Create a limb darkened model at half the bandwidth away 
+            TP.gen_casa(nu_l,self.T_da,self.limbdarkening, beamsize = self.beam, setimsize=self.imsize, plotting = False) 
+            Bdata_l = TP.Bdata 
+            TP.gen_casa(nu_u,self.T_da,self.limbdarkening,beamsize = self.beam, setimsize=self.imsize, plotting = False) 
+            Bdata_u = TP.Bdata 
+
+            if hasattr(self, 'Bzonaldata') and self.name == 'Jupiter': 
+                T_res, th_res = zonalstructure('Data/VLA_ZonalScans_2014.fits', nu_l, residual=True)
+                TP.gen_casa(nu_l,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = th_res, setimsize=self.imsize, plotting = False)
+                Bdata_l += TP.Bzonaldata
+                T_res, th_res = zonalstructure('Data/VLA_ZonalScans_2014.fits', nu_u, residual=True)
+                TP.gen_casa(nu_u,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = th_res, setimsize=self.imsize, plotting = False)
+                Bdata_u += TP.Bzonaldata  
+
+
+        # Modify Bdata to avoid singularities 
+        Bdata_u[Bdata_u == 0] = np.nan
+        Bdata_l[Bdata_l == 0] = np.nan
+
+        self.spectralmap = np.log(Bdata_u/Bdata_l)/np.log(nu_u/nu_l)
+        
 
 
     def gen_gaussian_structure(self,n_a,sig_xi,sig_yi,scalefactor, spacingfactor = 1, inc_negative=True): 
@@ -2928,7 +3513,107 @@ class Model:
         # Store pixelscale correctly for brightness model in brightness temperature 
         self.pixscale = self.ang_diam/self.planetsize
 
+    def expected_flux(self,verbose=False): 
+        """Estimate the total flux based on the disk averaged temperature 
+        
+        Parameters
+        -------
+        beamsize: [1] float
+            [arcs] Used to estimate the size of the image and the pixel
+                   to arcsecond converstion
 
+        Returns
+        ----------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Keywords
+        ----------
+        psfsamplin : [1] float
+            [-] Number of pixels per beam
+        Jansky : [1] float
+            [K] Disk averaged brightness temperature
+        T : [1] float
+            [K] Disk averaged brightness temperature
+
+
+        Example
+        -------
+
+
+        References
+        ------------
+    
+        -------
+        04/12/2019, CM, Initial Commit
+        """ 
+        h = cst.h.value 
+        k = cst.k_B.value
+        c = cst.c.value 
+        nu = self.nu
+
+        # Multiply Blockbody radiation with the solid angle
+        self.F_da = 2*h*nu**3/c**2/(np.exp(h*nu/(k*self.T_da))-1)*self.sa
+
+        #  Convert to Jansky by multiplying with 1e26
+        if verbose: 
+            print('The expected flux for a planet with {:2.2f} K (disk_averaged, above T_cmb) is {:2.2f} Jy'.format(self.T_da,float(self.F_da*1e26)))
+
+
+    def cmb_correction(self,):  
+        """CMB correction 
+        
+        Parameters
+        -------
+        beamsize: [1] float
+            [arcs] Used to estimate the size of the image and the pixel
+                   to arcsecond converstion
+
+        Returns
+        ----------
+        deg : [1] float
+            [deg] Angle converted into degrees
+
+        Keywords
+        ----------
+        psfsamplin : [1] float
+            [-] Number of pixels per beam
+        Jansky : [1] float
+            [K] Disk averaged brightness temperature
+        T : [1] float
+            [K] Disk averaged brightness temperature
+
+
+        Example
+        -------
+
+
+        References
+        ------------
+        2014 - IdP - Neptune’s global circulation deduced from multi-wavelength
+        observations
+        Notes
+        -------
+        04/12/2019, CM, Initial Commit
+        """ 
+        T_cmb = 2.2725 # [K] CMB temperature at the peak 
+        h = cst.h.value 
+        k = cst.k_B.value
+        c = cst.c.value
+
+        # First term in the expression 
+        a = (np.exp(h*self.nu/(k*T_cmb))-1)**(-1) 
+        
+        # Second term in the expression 
+        if not hasattr(self,'F_da'): 
+            F_da = self.expected_flux() 
+        
+        b = self.F_da * c**2 /(2 * h*self.nu**3* self.sa)
+
+        self.T_cor  = (h*self.nu/k* np.log(1 + ( a+b )**(-1)) **(-1))
+        self.T_cmbc = self.T_cor - self.T_da
+            
+        
 
 
     def gen_general(self,nu,T,p,radius,imsize,planetsize,rotangle=0,):
@@ -2996,7 +3681,7 @@ class Model:
         self.ra  = ra
         self.dec = dec
 
-    def exportasfits(self,data, exportname = 'output', units = 'Jy/pixel',ephemeris = True, header = True): 
+    def exportasfits(self,data, exportname = 'output', bandwidth = 1e9, units = 'Jy/pixel',ephemeris = True, header = True): 
         """ Import header infromation from CASA data 
     
         Extended description of the function.
@@ -3114,25 +3799,26 @@ class Model:
                 hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
-          
-            hdulist[0].header['CTYPE4']  = 'FREQ    '                                                            
-            hdulist[0].header['CRVAL4']  =   self.obsfrequency                                                 
-            hdulist[0].header['CDELT4']  =   1.000000000000E+00   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
-            hdulist[0].header['CRPIX4']  =   1.000000000000E+00   
-            hdulist[0].header['CUNIT4']  = 'Hz '
-
+            
             hdulist[0].header['CTYPE3']  = 'STOKES  '                                                            
             hdulist[0].header['CRVAL3']  =   1.000000000000E+00                                                  
             hdulist[0].header['CDELT3']  =   1.000000000000E+00                                                  
             hdulist[0].header['CRPIX3']  =   1.000000000000E+00                                                  
             hdulist[0].header['CUNIT3']  = '        '  
+            hdulist[0].header['CTYPE4']  = 'FREQ    '                                                            
+            hdulist[0].header['CRVAL4']  =   self.obsfrequency                                                 
+            hdulist[0].header['CDELT4']  =   bandwidth   # self.obsfrequency/2.75 # Spectral sampling, should be 1?                                                   
+            hdulist[0].header['CRPIX4']  =   1.000000000000E+00   
+            hdulist[0].header['CUNIT4']  = 'Hz '
+
+
             # hdulist[0].header['CTYPE5']  = 'T-Daverage    '                                                            
             # hdulist[0].header['CRVAL5']  =  self.T_da
             # hdulist[0].header['CUNIT5']  = 'K     '
             
             # try: 
             #     if self.limbdarkening[0] != self.limbdarkening[1]:
-            #         hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW '                                                            
+            #         hdulist[0].header['CTYPE6']  = 'Limb darkening coefficient EW NS '                                                            
             #         hdulist[0].header['CRVAL6']  =  self.limbdarkening[0].tolist() 
             #         hdulist[0].header['CTYPE7']  = 'Limb darkening coefficient NS '                                                            
             #         hdulist[0].header['CRVAL7']  =  self.limbdarkening[1].tolist() 
@@ -3155,7 +3841,7 @@ class Model:
             hdulist[0].header['VELREF']  =                  257                  
             #1 LSR, 2 HEL, 3 OBS, +256 Radiocasacore non-standard usage: 4 LSD, 5 GEO, 6 SOU, 7 GAL                 
             if ephemeris: 
-                hdulist[0].header['TELESCOP']= 'Model  '                                                            
+                hdulist[0].header['TELESCOP']= 'Model'                                                            
                 hdulist[0].header['OBSERVER']= 'C. Moeckel'  
                 modeltime = datetime.strptime(self.time.strip(),'%Y-%b-%d %H:%M:%S.%f')                                      
                 hdulist[0].header['DATE-OBS']=  modeltime.strftime("%Y-%m-%dT%H:%M:%S.%f")                                         
@@ -3172,6 +3858,18 @@ class Model:
             
             hdulist[0].header['DATE']    = now.strftime("%Y-%m-%dT%H:%M:%S.%f") #Date FITS file was written              
             hdulist[0].header['ORIGIN']  = 'pyPR'
+
+            hdulist[0].header['HISTORY'] = 'The model was produced with the following parameters'
+            hdulist[0].header['HISTORY'] = 'Scaling factor {:2.2f}'.format(self.scalefactor)
+            hdulist[0].header['HISTORY'] = 'Brightness temperature, disk averaged {:2.2f}'.format(self.T_da)
+            hdulist[0].header['HISTORY'] = 'Peak nadir temperature, {:2.2f}'.format(self.T_peak)
+
+            if self.p.shape[0] == 2:
+                hdulist[0].header['HISTORY'] = 'Limb darkening parameter (E-W, N-S): {:2.2f}, {:2.2f}'.format(*self.p)
+            else: 
+                hdulist[0].header['HISTORY'] = 'Limb darkening parameter (global):  {:2.2f}'.format(self.p)
+
+
         try: 
             outfile = (pathdata+exportname+'.fits')
         except NameError: 
@@ -3199,7 +3897,7 @@ class Model:
         self.dec = float(self.dec + d_p_dec*self.pixscale/3600)
 
     def shift_header(self, d_p_ra,d_p_dec):
-        # shift the right asencsion and declination for units in hms and dms
+        # shift the right asencsion sand declination for units in hms and dms
         self.ra = float(self.ra +hms2deg(d_p_ra))
         self.dec = float(self.dec +dms2deg(d_p_dec))
 
@@ -3207,6 +3905,7 @@ class Model:
         # shift the right asencsion and declination for units in hms and dms
         self.ra = float(hms2deg(p_ra))
         self.dec = float(dms2deg(p_dec))
+
 
     # def maskforplanet(self,nu,T,p,beamsize,psfsampling=5,): 
     def maskforplanet(self,scalefactor=1.2,export = False,rotangle=0): 
@@ -3273,7 +3972,7 @@ class Model:
 
  
 
-    def plot(self,data,title=''):
+    def plot(self,data,title='',clim=None):
         fig,ax = plt.subplots()
         try: 
             x = (np.linspace(-self.imsize/2.,self.imsize/2,self.imsize)
@@ -3294,10 +3993,15 @@ class Model:
             sys.exit('No temperature defined. Initialize the model parameter')  
    
         cbar = plt.colorbar(C)
+
         if self.Jansky: 
             cbar.set_label('(Jy/beam)')
         else: 
             cbar.set_label('(K)')
+
+        if clim: 
+            plt.clim(clim[0],clim[1])
+
         ax.set_aspect('equal', 'datalim') 
         plt.ion()
         # Add a small reference system for RA and DEC
