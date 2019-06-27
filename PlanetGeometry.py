@@ -24,6 +24,8 @@ import time
 import warnings
 import IPython
 
+# Mapping 
+from nirc2_reduce import coordgrid 
 
 
 
@@ -1721,233 +1723,324 @@ def calcimsize(planet, pixscale):
 
     return np.int(imsize)
 
+def rotatebeam(a, b, th): 
+    """Convert the beam into a NS EW equivalent beam 
+    
+    Parameters
+    -------
+    self : [1] str
+        [] 'hh mm ss.ss' 
+
+    Returns
+    ----------
+    deg : [1] float
+        [deg] Angle converted into degrees
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> ra = ra.hms2deg()
+
+    References
+    ------------
+
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
+    """
+    th -= 90 
+    if th > 180: 
+        th -= 180 
+    if th < -180:  
+        th +=180 
+
+    if th < 0: 
+        tha = 90 + np.abs(th) 
+        thb = 90 - np.abs(th)  
+    else: 
+        tha = th 
+        thb = tha + 90 
+
+
+    ra = a*b/np.sqrt(a**2*np.sin(np.radians(tha))**2 + b**2*np.cos(np.radians(tha))**2 )
+    rb = a*b/np.sqrt(a**2*np.sin(np.radians(thb))**2 + b**2*np.cos(np.radians(thb))**2 )
+
+    return [ra, rb]  
+
 def hms2deg(hms): 
-        """Convert hh:mm:ss.ss to deg 
-        
-        Parameters
-        -------
-        self : [1] str
-            [] 'hh mm ss.ss' 
+    """Convert hh:mm:ss.ss to deg 
+    
+    Parameters
+    -------
+    self : [1] str
+        [] 'hh mm ss.ss' 
 
-        Returns
-        ----------
-        deg : [1] float
-            [deg] Angle converted into degrees
+    Returns
+    ----------
+    deg : [1] float
+        [deg] Angle converted into degrees
 
-        Keywords
-        ----------
-
-
-        Example
-        -------
-        >>> ra = ra.hms2deg()
-
-        References
-        ------------
-
-        Notes
-        -------
-        11/18/2017, CM, Initial Commit
-        """
-        
-
-        if len((hms.rsplit(' '))) > 1:
-            split = (hms.rsplit(' '))
-        elif len((hms.rsplit(':'))) > 1:
-            split = (hms.rsplit(':'))
-        elif len((hms.rsplit('.'))) > 1:
-            split = (hms.rsplit('.'))
-        else : 
-            print('Did not recognize format')
+    Keywords
+    ----------
 
 
-        angle = ((float(split[0]) + 
-                float(split[1])/60 + 
-                float(split[2])/3600)*360/24)
+    Example
+    -------
+    >>> ra = ra.hms2deg()
 
-        return angle
+    References
+    ------------
+
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
+    """
+    
+
+    if len((hms.rsplit(' '))) > 1:
+        split = (hms.rsplit(' '))
+    elif len((hms.rsplit(':'))) > 1:
+        split = (hms.rsplit(':'))
+    elif len((hms.rsplit('.'))) > 1:
+        split = (hms.rsplit('.'))
+    else : 
+        print('Did not recognize format')
+
+
+    angle = ((float(split[0]) + 
+            float(split[1])/60 + 
+            float(split[2])/3600)*360/24)
+
+    return angle
 
 def dms2deg(dms): 
-        """Convert degree mm:ss.ss to deg 
-        
-        Parameters
-        -------
-        self : [1] str
-            [] 'hh mm ss.ss' 
+    """Convert degree mm:ss.ss to deg 
+    
+    Parameters
+    -------
+    self : [1] str
+        [] 'hh mm ss.ss' 
 
-        Returns
-        ----------
-        deg : [1] float
-            [deg] Angle converted into degrees
+    Returns
+    ----------
+    deg : [1] float
+        [deg] Angle converted into degrees
 
-        Keywords
-        ----------
+    Keywords
+    ----------
 
 
-        Example
-        -------
-        >>> ra = ra.dms2deg()
+    Example
+    -------
+    >>> ra = ra.dms2deg()
 
-        References
-        ------------
+    References
+    ------------
 
-        Notes
-        -------
-        11/18/2017, CM, Initial Commit
-        """
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
+    """
 
-        if len((dms.rsplit(' '))) > 1:
-            split = (dms.rsplit(' '))
-        elif len((dms.rsplit(':'))) > 1:
-            split = (dms.rsplit(':'))
-        elif len((dms.rsplit('.'))) > 1:
-            split = (dms.rsplit('.'))
-        else : 
-            print('Did not recognize format')
-        
-       
-        if (np.sign(float(split[0]))) == 0: 
-            if split[0][0] == '-': 
-                sign = -1.
-            else: sign = +1. 
-        else: sign =  np.sign(float(split[0])) 
+    if len((dms.rsplit(' '))) > 1:
+        split = (dms.rsplit(' '))
+    elif len((dms.rsplit(':'))) > 1:
+        split = (dms.rsplit(':'))
+    elif len((dms.rsplit('.'))) > 1:
+        split = (dms.rsplit('.'))
+    else : 
+        print('Did not recognize format')
+    
+   
+    if (np.sign(float(split[0]))) == 0: 
+        if split[0][0] == '-': 
+            sign = -1.
+        else: sign = +1. 
+    else: sign =  np.sign(float(split[0])) 
 
-        if len(split) == 4 : 
-            angle = (sign*
-                (np.abs(float(split[0])) 
-                 + float(split[1])/60 
-                 + (float(split[2])+float(split[3])*10**(-(len(split[3]))))/3600))  
-        else: 
-            angle = (sign*
-                (np.abs(float(split[0])) 
-                 + float(split[1])/60 
-                 + (float(split[2]))/3600))  
+    if len(split) == 4 : 
+        angle = (sign*
+            (np.abs(float(split[0])) 
+             + float(split[1])/60 
+             + (float(split[2])+float(split[3])*10**(-(len(split[3]))))/3600))  
+    else: 
+        angle = (sign*
+            (np.abs(float(split[0])) 
+             + float(split[1])/60 
+             + (float(split[2]))/3600))  
 
-        return angle
+    return angle
 
 def deg2hms(angle): 
-        """Convert angel in deg to hour format  
-        Used for right ascension 
-        
-        Parameters
-        -------
-        deg : [1] float
-            [deg] Angle converted into degrees
+    """Convert angel in deg to hour format  
+    Used for right ascension 
+    
+    Parameters
+    -------
+    deg : [1] float
+        [deg] Angle converted into degrees
 
-        Returns
-        ----------
-        self : [1] str
-            [] 'hh mm ss.ss' 
+    Returns
+    ----------
+    self : [1] str
+        [] 'hh mm ss.ss' 
 
-        Keywords
-        ----------
+    Keywords
+    ----------
 
 
-        Example
-        -------
-        >>> ra = ra.h2deg()
+    Example
+    -------
+    >>> ra = ra.h2deg()
 
-        References
-        ------------
+    References
+    ------------
 
-        Notes
-        -------
-        11/18/2017, CM, Initial Commit
-        """
-        h = np.fix(angle/360*24.) 
-        m = np.fix((angle/360*24. - h )*60)
-        s = np.fix((((angle/360*24. - h )*60) - m)*60)
-        f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
+    """
+    h = np.fix(angle/360*24.) 
+    m = np.fix((angle/360*24. - h )*60)
+    s = np.fix((((angle/360*24. - h )*60) - m)*60)
+    f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
 
-        string = '{:n}h {:n}m {:n}.{:n}s'.format(h,m,s,f) 
+    string = '{:n}h {:n}m {:n}.{:n}s'.format(h,m,s,f) 
 
-        return string
+    return string
 
 def deg2dms(angle): 
-        '''Convert angel in deg to hour format . Used for right ascension
-        
-        Parameters
-        -------
-        deg : [1] float
-            [deg] Angle converted into degrees
-
-        Returns
-        ----------
-        self : [1] str
-            [] 'hh mm ss.ss' 
-
-        Keywords
-        ----------
-
-
-        Example
-        -------
-        >>> ra = ra.h2deg()
-
-        References
-        ------------
-
-        Notes
-        -------
-        11/18/2017, CM, Initial Commit
-        '''
-
-        sign = np.sign(angle)
-        angle = np.abs(angle) 
-        d = np.fix(angle)
-        dd = (angle - d)
-        m = np.fix(dd*60)
-        dm = dd*60 - m
-        s = np.fix(dm*60)
-        ds = dm*60 - s 
-        f = round((ds*100000))
-
-
-        string = '{:n}d {:n}m {:n}.{:n}s'.format(sign*d,m,s,f) 
-
-        return string
-
-def c_to_g(lat,R_e,R_p): 
-    '''Convert planetocentric latitud eto planetographic latitude 
+    '''Convert angel in deg to hour format . Used for right ascension
     
-            Parameters
-            -------
-            lat : [1] float
-                [rad] latitude 
+    Parameters
+    -------
+    deg : [1] float
+        [deg] Angle converted into degrees
 
-            f : [1] float
-                [-] (a-b)/a
+    Returns
+    ----------
+    self : [1] str
+        [] 'hh mm ss.ss' 
 
-            Returns
-            ----------
-            self : [1] str
-                [] 'hh mm ss.ss' 
-
-            Keywords
-            ----------
+    Keywords
+    ----------
 
 
-            Example
-            -------
-            >>> 
+    Example
+    -------
+    >>> ra = ra.h2deg()
 
-            References
-            ------------
-            2016 - Implications of MAVEN’s planetographic coordinate
-            system for comparisons to other recent Mars orbital
-            missions
+    References
+    ------------
 
-            Notes
-            -------
-            11/18/2017, CM, Initial Commit
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
+    '''
+
+    sign = np.sign(angle)
+    angle = np.abs(angle) 
+    d = np.fix(angle)
+    dd = (angle - d)
+    m = np.fix(dd*60)
+    dm = dd*60 - m
+    s = np.fix(dm*60)
+    ds = dm*60 - s 
+    f = round((ds*100000))
+
+
+    string = '{:n}d {:n}m {:n}.{:n}s'.format(sign*d,m,s,f) 
+
+    return string
+
+def lat_centric2graphic(lat_c,R_e,R_p): 
+    '''Convert planetocentric latitude to planetographic latitude 
+    
+    Parameters
+    -------
+    lat_c : [1] float
+        [rad] latitude, planetocentric
+
+    f : [1] float
+        [-] (a-b)/a
+
+    Returns
+    ----------
+    lat_g : [1] float
+        [rad] latitude, planetrographic
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> 
+
+    References
+    ------------
+    2016 - Implications of MAVEN’s planetographic coordinate
+    system for comparisons to other recent Mars orbital
+    missions
+
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
     '''
 
 
-    threshold = np.radians(89)
-    lat[np.where(np.abs(lat)>=threshold)] = np.nan
+    threshold = np.radians(89.9)
+    lat_c[np.where((lat_c)>=threshold)] = threshold
+    lat_c[np.where((-lat_c)>=threshold)] = -threshold
     f = (R_e - R_p)/R_e
-    return np.arctan(np.tan(lat)*(1-f)**2)
+    return np.arctan(np.tan(lat_c)/((1-f)**2))
+
+
+def lat_graphic2centric(lat_g,R_e,R_p): 
+    '''Convert planetographic  latitude to  planetocentriclatitude 
     
+    Parameters
+    -------
+    lat_g : [1] float
+        [rad] latitude, planetrographic
+
+    f : [1] float
+        [-] (a-b)/a
+
+    Returns
+    ----------
+    lat_c : [1] float
+        [rad] latitude, planetocentric
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> 
+
+    References
+    ------------
+    2016 - Implications of MAVEN’s planetographic coordinate
+    system for comparisons to other recent Mars orbital
+    missions
+
+    Notes
+    -------
+    11/18/2017, CM, Initial Commit
+    '''
+
+
+    threshold = np.radians(89.9)
+    lat_g[np.where((lat_g)>=threshold)] = threshold
+    lat_g[np.where((-lat_g)>=threshold)] = -threshold
+    f = (R_e - R_p)/R_e
+    return np.arctan(np.tan(lat_g)*(1-f)**2)
+   
 def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = False ):
     '''Read out the zonal structure. 
 
@@ -2288,8 +2381,15 @@ def cmb_correction_estimate(nu,):
 
 # Imaging definitions 
 
-def align_projections(proj, refimage=0, xalign = True ): 
-    '''Align projections when edge detection is not perfect
+def align_projections(proj, normalize = False, refimage=0, xalign = True, scope = None, verbose = True, overwrite = False): 
+    '''Align projections when edge detection is not perfect. 
+
+    This function uses cross correlation to find the maximum overlap 
+    between the first image and all the following images. For objects 
+    with zones and belts the yalign works really well, xalignment depends 
+    on the time between measurements.  
+
+    Note: It will overwrite the original files  
 
     Parameters
     -------
@@ -2298,15 +2398,21 @@ def align_projections(proj, refimage=0, xalign = True ):
 
     Returns
     ----------
-    p : [1] 
-        [-] limb darkening coefficient 
+    proj : [list] 
+        [-] Overwritten input files, aligned on the first image 
 
     Keywords
     ----------
+    xalign: [-] Boolean 
+        [-] Enable the alginment also in the x direction 
 
 
     Example
     -------
+    pathIRTF = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2016/Jup_x_20161019/IRTF/'    
+    Fitsfiles = [pathIRTF + '2micron/IRTF_proj0.fits',
+    pathIRTF + '2micron/IRTF_proj1.fits',]
+    align_projections(Fitsfiles,xalign=True)
 
     ToDo 
     -------
@@ -2327,20 +2433,34 @@ def align_projections(proj, refimage=0, xalign = True ):
     from scipy.ndimage.interpolation import shift
     import glob
 
+
+    if not overwrite:
+        proj_out = []
+        for f in proj: 
+            fold = f 
+            fnew = f[:-5] + '_mod.fits'
+            proj_out.append(fnew)
+            os.system('cp ' + fold + ' ' + fnew)
+    else: 
+        proj_out = proj 
+
+
     # Read in all the data and store them in an array 
 
-    hdu = fits.open(proj[0],ignore_missing_end=True)
-    dimx, dimy = hdu[0].data.shape
-    dimz = len(proj)
+    hdu = fits.open(proj_out[0],ignore_missing_end=True)
+    if scope == 'vla': dimx, dimy = hdu[0].data[0,0,:,:].shape
+    else: dimx, dimy = hdu[0].data.shape
+    dimz = len(proj_out)
     im_l = []
 
     # Rearrange to have required fits file as reference 
     if refimage != 0: 
         print('Not yet implemented')
 
-    for p in proj: 
+    for p in proj_out: 
         hdu = fits.open(p,ignore_missing_end=True)
-        im_l.append(hdu[0].data)
+        if scope == 'vla': im_l.append(hdu[0].data[0,0,:,:])
+        else: im_l.append(hdu[0].data)
 
     offsets = []
 
@@ -2356,31 +2476,76 @@ def align_projections(proj, refimage=0, xalign = True ):
     # Do convolution for each image and append offsets
     for im in im_l[1:]: 
         im[np.isnan(im)]=0
-        convol = sig.fftconvolve(im_ref[:,:],im[::-1,::-1],mode='same')
+        if normalize: 
+            convol = sig.fftconvolve(im_ref[:,:]/np.abs(np.nanmax(im_ref[:,:])),im[::-1,::-1]//np.abs(np.nanmax(im[:,:])),mode='same')
+        else: 
+            convol = sig.fftconvolve(im_ref[:,:],im[::-1,::-1],mode='same')
+
         xp,yp = np.where(convol==np.max(convol))
-        if ~xalign: 
-            yp = y_c
+        if xalign: print('xalign has been turned on')
+        else: xp = x_c
+            
 
         offsets.append((np.float(xp-x_c),np.float(yp-y_c)))
 
 
 
     cnter = 0 
-    for p in proj[1:]: 
+    for p in proj_out[1:]: 
         hdu = fits.open(p,ignore_missing_end=True)
-        data = hdu[0].data
-        # Force NaN to be zero 
+        if scope == 'vla': data = hdu[0].data[0,0,:,:]
+        else: data = hdu[0].data
+        
+        # Force NaN to be zero
+        if verbose:  
+            print('File {:s} shifted by {:2.2f}, {:2.2f}'.format(p,*offsets[cnter]))
+
         data[np.isnan(data)]=0
-        hdu[0].data = shift(data,offsets[cnter],mode='wrap')
+        if scope == 'vla': hdu[0].data[0,0,:,:] = shift(data,offsets[cnter],mode='wrap')
+        else: hdu[0].data = shift(data,offsets[cnter],mode='wrap')
+        
         hdu[0].writeto(p, overwrite=True)
         print('Files aligned! File written to ', p)
 
         cnter +=1
 
-    return  
+    return proj_out
 
-def normalize_dim_proj(proj): 
-    '''Normalizes all maps onto a uniform size 
+def remove_trailing_dimension(proj, overwrite = False): 
+
+
+    if not overwrite: 
+        fold = proj 
+        fnew = proj[:-5] + '_mod.fits'
+        proj_out = fnew
+        os.system('cp ' + fold + ' ' + fnew)
+    else: 
+        proj_out = proj 
+
+
+    im = fits.open(proj_out,ignore_missing_end=True)
+    im[0].data = np.squeeze(im[0].data)
+    im.writeto(proj_out, overwrite=True)
+
+    return proj_out
+
+
+
+def resize_proj(p,dimx, dimy):
+
+    im = fits.open(p,ignore_missing_end=True)
+    im[0].data = np.resize(im[0].data,[dimx,dimy])
+    im[0].header['NAXIS1']=dimx 
+    im[0].header['NAXIS2']=dimy 
+    im.writeto(p, overwrite=True)
+        # 
+    print('Dimension normalized: File written to ', p)
+    
+
+def normalize_dim_proj(proj, reference = 0, overwrite = False): 
+    '''Normalize projections to the same dimension 
+
+    Note: It will overwrite the original files  
 
     Parameters
     -------
@@ -2389,34 +2554,58 @@ def normalize_dim_proj(proj):
 
     Returns
     ----------
-    p : [1] 
-        [-] limb darkening coefficient 
+    proj : [list] 
+        [-] Overwritten input files, normalized in dimensions  
 
     Keywords
     ----------
-
+ 
 
     Example
     -------
+    pathIRTF = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2016/Jup_x_20161019/IRTF/'    
+    Fitsfiles = [pathIRTF + '2micron/IRTF_proj0.fits',
+                 pathIRTF + '2micron/IRTF_proj1.fits',]
+    normalize_dim_proj(Fitsfiles)
+
+    ToDo 
+    -------
+    Specify reference image 
 
     References
     ------------
+ 
 
     Notes
     -------
     4/11/2019, CM, Initial Commit
     '''
 
+    if not overwrite:
+        proj_out = []
+        for f in proj: 
+            fold = f 
+            fnew = f[:-5] + '_mod.fits'
+            proj_out.append(fnew)
+            os.system('cp ' + fold + ' ' + fnew)
+    else: 
+        proj_out = proj 
+
+    
+
+    # Find the dimensions 
     dimx = 1 
     dimy = 1 
-    for p in proj: 
+    for p in proj_out: 
         im = fits.open(p,ignore_missing_end=True)
+        print(p)
+        print(im[0].data.shape)        
         if (im[0].data.shape[0]) > dimx: dimx = im[0].data.shape[0]
         if (im[0].data.shape[1]) > dimy: dimy = im[0].data.shape[1]
 
     print('All images will be interpolated onto the largest encountered dimension: [{:d},{:d}]'.format(dimx,dimy))
     
-    for p in proj:
+    for p in proj_out:
         im = fits.open(p,ignore_missing_end=True)
         im[0].data = np.resize(im[0].data,[dimx,dimy])
         im[0].header['NAXIS1']=dimx 
@@ -2424,7 +2613,223 @@ def normalize_dim_proj(proj):
         im.writeto(p, overwrite=True)
         # 
     print('Dimension normalized: File written to ', p)
-    return
+    
+    return proj_out 
+
+def combine_projections(proj,method='median', title='', Plotting = False, outputname = None ): 
+    '''Combine projections to buiild a map 
+
+    Note: It will overwrite the original files  
+
+    Parameters
+    -------
+    proj : [1] list
+        [str] Name of files that contain the image 
+
+    Returns
+    ----------
+    im : [NxN] np.array
+        [-] combined image 
+    ims : [nxNxN] np.array
+        [-] stacked image where each layer consist of one map 
+
+
+
+    Keywords
+    ----------
+    method: [-] string 
+        [-]  Method to be used for combining the maps 
+        mean - Take the mean for a specified region 
+        median - Take the median 
+        sum - Sum all maps together 
+        normalized* - Normalize the maps by dividing by the maximum pixel in the image 
+
+    Example
+    -------
+    pathIRTF = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2016/Jup_x_20161019/IRTF/'    
+    Fitsfiles = [pathIRTF + '2micron/IRTF_proj0.fits',
+                 pathIRTF + '2micron/IRTF_proj1.fits',]
+    normalize_dim_proj(Fitsfiles)
+
+    ToDo 
+    -------
+    Include the emission angle and noise to weigh individual images 
+
+    References
+    ------------
+ 
+
+    Notes
+    -------
+    4/11/2019, CM, Initial Commit
+    '''
+
+    # Append all the maps 
+    ims = [] 
+
+    for p in proj:
+        hdu = fits.open(p,ignore_missing_end=True)
+        ims.append(hdu[0].data)
+    
+    dobs = hdu[0].header['DATE_OBS']
+
+    ims = np.array(ims)
+
+
+    if method == 'median': 
+        im =  np.nanmedian(ims,axis=0) 
+
+    elif method == 'normalizedmedian': 
+        for i in range(ims.shape[0]): 
+            ims[i,:,:] = ims[i,:,:]/np.nanmax(np.abs(ims[i,:,:]))
+        im = np.nanmedian(ims,axis=0) 
+
+    elif method == 'normalizedmean': 
+        for i in range(ims.shape[0]): 
+            ims[i,:,:] = ims[i,:,:]/np.nanmax(np.abs(ims[i,:,:]))
+        im = np.nanmean(ims,axis=0) 
+
+    elif method == 'sum': 
+        im = np.nansum(ims,axis=0) 
+
+    elif method == 'normalizedsum': 
+        for i in range(ims.shape[0]): 
+            ims[i,:,:] = ims[i,:,:]/np.nanmax(np.abs(ims[i,:,:]))
+        im = np.nansum(ims,axis=0)  
+
+    elif method == 'mean': 
+        im = np.nanmean(ims,axis=0) 
+
+    else: 
+        sys.exit('Method not recognized! Use from the following list: median, mean, sum, normalizedmedian, normalizedmean, normalizedsum ')
+
+    hdu = fits.open(proj[0],ignore_missing_end=True)
+    header = hdu[0].header  
+
+    if outputname: 
+        hdu = fits.PrimaryHDU(im)
+        hdulist = fits.HDUList([hdu])
+        hdulist[0].header = header 
+        hdulist[0].header['HISTORY'] = 'Projections were deprojected with E. Molter coordgrid.py'
+        hdulist[0].header['HISTORY'] = 'Projections modified using pyPR\'s align_projections'
+        hdulist[0].header['HISTORY'] = 'Method used for combine_projections: ' + method 
+        hdu.writeto(outputname, overwrite=True)
+        print('Combined projection written to ', outputname)
+
+
+    if Plotting: 
+        plt.figure(figsize=(12,7))
+        plt.imshow(np.fliplr(im),origin = 'lower left', cmap = 'gray')
+        plt.title(title  + ' ' + dobs )
+        plt.show() 
+
+    return im, ims
+
+
+
+
+def spherical_projection(data, lat, lon, ob_lat, ob_lon, clevels = 100, clim = [0,0], title='Radio', cmap = 'gray_r', dpi = 1000, outputname=None ): 
+    '''Project a map onto the sphere for a given sub observer longitude/latitude 
+
+    
+
+    Parameters
+    -------
+    map : [NxM] float
+        [-] Array that contains the brightness maps 
+    lat: [N] 
+        [deg] Corresponding latitudes 
+    lon: [M] Mx1 
+        [deg] Corresponding longitudes  
+    lat_so: [1] float 
+        [deg] Subobserver latitude 
+    lon_so: [1] float 
+        [deg] Subobserver longitude 
+
+    Returns
+    ----------
+
+
+
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    pathIRTF = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/VLA2016/Jup_x_20161019/IRTF/'    
+    Fitsfiles = [pathIRTF + '2micron/IRTF_proj0.fits',
+                 pathIRTF + '2micron/IRTF_proj1.fits',]
+    normalize_dim_proj(Fitsfiles)
+
+    ToDo 
+    -------
+    Include the emission angle and noise to weigh individual images 
+
+    References
+    ------------
+ 
+
+    Notes
+    -------
+    4/11/2019, CM, Initial Commit
+    '''
+    from mpl_toolkits.basemap import Basemap, addcyclic
+
+    # Bug in Basemaps
+
+    data, lon = addcyclic(data, lon)
+
+    # create Basemap instance for Robinson projection.
+    m = Basemap(projection='ortho',lat_0=ob_lat
+                ,lon_0=ob_lon)
+
+
+    x, y = m(*np.meshgrid(lon,lat))
+    lonpt, latpt = m(x,y,inverse=True)
+
+    # make filled contour plot.
+    plt.figure()
+    if clim != [0,0]:
+        cs = m.contourf(x,y,np.clip(data,clim[0],clim[1]),clevels,cmap=cmap)
+    else: 
+        cs = m.contourf(x,y,data,clevels,cmap=cmap)
+    if clim != [0,0]:
+        cbar = plt.colorbar(cs, ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]],)
+        #plt.clim(clim[0],clim[1])
+        #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.0f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
+        cbar.set_label('[K]')
+    m.drawmapboundary() # draw a line around the map region
+    m.drawparallels(np.arange(-90.,120.,30.),labels=[1,0,0,0]) # draw parallels
+    m.drawmeridians(np.arange(0.,420.,60.),labels=[0,0,0,1]) # draw meridians
+    plt.title(title) # add a title
+    plt.text(1.5,1.5,r'$\lambda$={:d}$^\circ$'.format(ob_lon))
+    if outputname: 
+        print('File written to: ' + outputname + '.png')
+        plt.savefig(outputname+ '.png', format='png', transparent = True, dpi=dpi)
+
+
+    return 
+
+def animate_projections(path2im,path2gif,framerate = 2, width=2): 
+    '''
+
+
+    path2data = path2save + 'Animations/'
+    imname = 'Jupiter_CMLi' 
+    gifname=  'Jupiter'
+
+    path2im = path2data + imname
+    path2gif = path2data + gifname
+    
+    framerate = 2 
+    width = 2 
+    # https://trac.ffmpeg.org/wiki/Slideshow 
+    '''
+
+    os.system('ffmpeg -f image2  -framerate {:d}  -i {:s}%0{:d}d.png {:s}.mp4'.format(framerate, path2im,width,path2gif))
+    os.system('ffmpeg -i {:s}.mp4 -pix_fmt rgb8 {:s}.gif'.format(path2gif,path2gif))
 
 
 class Map:
@@ -2433,8 +2838,162 @@ class Map:
         self.name = planet 
 
     # Read in a deprojected map and navigate appropriately 
+    def read_smeared(self, fitsfile, radius, pixscale=None, scope = 'vla', np_ang = 0, bandwidth= 0, fluxcal = 1, Plotting = False,): 
+        '''Read in longitude smeared maps 
 
-    def read_deprojected(self, fitsfile, bandwidth,fluxcal = 1): 
+        Parameters
+        -------
+        fitsfile : [1] str
+            [-] Name of files that contain the image  
+        R_e : [1] float
+            [km] Equatorial radius  
+        R_p : [1] float
+            [km] Polar radius        
+        pixscale : [1] float
+            [arcsec] Pixelscale in arcsec 
+
+        Returns
+        ----------
+        p : [1] 
+            [-] limb darkening coefficient 
+
+        Keywords
+        ----------
+        scope : [1] str
+            [-] Name of the telescope 
+        np_ang : [1] float
+            [-] North polar angle, can be useful when MIRIAD has already rotated the planet 
+        bandwith : [1] float
+            [-] Bandwidth of the observations 
+        fluxcal : [1] float
+            [-] Flux calibration 
+        zoom : [1] boolean
+            [-] Create zoomed images 
+        Plotting : [1] boolean
+            [-] Allow for plotting 
+
+        Example
+        -------
+
+        path  = '/Users/chris/GDrive-UCB/Berkeley/Research/VLA/' 
+        pathO = 'VLA2016/Jup_x_20161019/' 
+        lsO = path + pathO + 'Products/Zonal/Jup_201610_x_SC_r_spw2~17_i1_v0_Tb.fits'
+        
+        JSJ = Map('Jupiter')
+        display_deprojected(path_map+fitsfile,bandwidth)
+
+        References
+        ------------
+
+        Notes
+        -------
+        4/11/2019, CM, Initial Commit
+        '''
+        
+
+        if not pixscale: 
+            im = fits.open(fitsfile, ignore_missing_end=True)
+            self.pixscale  = np.degrees(im[0].header['BMIN']*3600)  
+
+        else: 
+            self.pixscale = pixscale
+
+        R_e = radius[0]
+        R_p = radius[2]
+        # Project the data 
+        coords = coordgrid.CoordGrid(fitsfile, scope=scope, req = R_e, rpol = R_p, pixscale=self.pixscale, np_ang = np_ang ) 
+        coords.centered = coords.data
+        coords.project(outstem = '', outtail = '',savefits=False )
+        #coords.plot_projected('', cbarlabel = 'K',savefig=False)    
+
+
+
+        self.n_y, self.n_x = coords.centered.shape
+        self.n_y_proj, self.n_x_proj = coords.gridlat.shape
+        self.t_obs      = coords.date_time
+        self.target     = coords.target
+        self.Tb_s_r     = coords.centered
+        self.theta      = coords.lon_w 
+        self.phi_c      = coords.lat_c
+        self.phi        = coords.lat_g
+        self.Tb_s_r_proj= coords.projected*fluxcal 
+        self.mu_s_proj  = coords.mu_projected
+        self.fluxcal    = fluxcal 
+        self.unit       = coords.unit
+        self.bandwidth  = bandwidth
+        self.theta_proj = coords.gridlon[int(self.n_y_proj/2),:]
+        self.phi_proj   = coords.gridlat[:,int(self.n_x_proj/2)]
+        self.ob_lon     = coords.ob_lon
+        self.ob_lat     = coords.ob_lat      
+        self.nu         = coords.nu
+        self.radius     = radius
+        self.orange     = coords.dist*1000  # [m] observer distance 
+
+        if Plotting: 
+            plt.figure()
+            plt.imshow(self.Tb_s_r,origin = 'lower left', cmap = 'gray')
+            plt.axes().set_aspect('equal')
+            plt.title(self.t_obs)
+            plt.show() 
+
+
+            plt.figure()
+            plt.contourf(self.theta_proj,self.phi_proj, self.Tb_s_r_proj, 100, cmap = 'gray')
+            plt.axes().set_aspect('equal')
+            plt.title(self.t_obs)
+            plt.show() 
+
+    def zonal_average_smeared(self, dlon=15, shift = 0 , error_cal = 0, Plotting = False): 
+
+        self.indl = np.where(self.theta_proj > self.ob_lon-int(dlon/2))[0][0]
+        self.indu = np.where(self.theta_proj < self.ob_lon+int(dlon/2))[0][-1]-1
+        self.indc = np.argmin(np.abs(self.theta_proj - self.ob_lon)) 
+
+        self.Tb_r_zonal    = np.nanmean(self.Tb_s_r_proj[:,self.indl:self.indu],axis=1) 
+        self.TB_r_zonal_std = np.nanstd(self.Tb_s_r_proj[:,self.indl:self.indu],axis=1) 
+
+        # Calculate the error, by taking the stand deviation in four seperate region 
+        eA = np.nanstd(self.Tb_s_r[int(  self.n_y/6):int(2*self.n_y/6),int(  self.n_x/6):int(2*self.n_x/6) ])
+        eB = np.nanstd(self.Tb_s_r[int(4*self.n_y/6):int(5*self.n_y/6),int(4*self.n_x/6):int(5*self.n_x/6) ])
+        eC = np.nanstd(self.Tb_s_r[int(4*self.n_y/6):int(5*self.n_y/6),int(  self.n_x/6):int(2*self.n_x/6) ])
+        eD = np.nanstd(self.Tb_s_r[int(  self.n_y/6):int(2*self.n_y/6),int(4*self.n_x/6):int(5*self.n_x/6) ])
+
+        self.rms_sky = np.mean([eA,eB,eC,eD])
+
+        # Find the number of beams that is averaged over 
+        self.beamsperlatitude = np.zeros_like(self.phi_proj)
+
+        for i in range(len(self.phi_proj)): 
+            lr = local_radius(self.radius,self.phi_proj[i])*1000 # [m] local radius  
+            lc = 2*lr*np.cos(np.radians(self.phi_proj[i]))*np.sin(np.radians(dlon)) # [m] Length of projected arc 
+            asc = np.degrees(lc/self.orange)*3600
+            if asc < self.pixscale: 
+                asc = 1 
+
+            self.beamsperlatitude[i] = asc/self.pixscale 
+
+        # Error due to noise in the beam 
+        self.error_per_latitude = np.ones_like(self.phi_proj)*self.rms_sky
+        self.error_per_latitude /= np.sqrt(self.beamsperlatitude)
+        self.error_cal   = error_cal 
+        self.error_total = np.sqrt(self.error_per_latitude**2 + self.TB_r_zonal_std**2 + self.error_cal**2 ) 
+
+        if Plotting: 
+            plt.figure(figsize=(9,12))
+            plt.plot(self.Tb_r_zonal, self.phi_proj + shift, '.', label='Smeared')
+            plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, xerr = self.error_total)
+            plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, fmt='o', ecolor='g', capthick=2, xerr = self.TB_r_zonal_std)
+            #plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, xerr = self.error_per_latitude)
+            plt.xlabel('Temperature [K]')
+            plt.ylim([-80,80])
+            plt.title('Radio brightness residual ' + self.t_obs)
+            plt.ylabel('Latitude [deg]') 
+            plt.legend()
+            plt.show() 
+       
+
+
+    def read_deprojected(self, fitsfile, bandwidth = 0,fluxcal = 1): 
         '''Read in deprojected map and navigate it
 
         Parameters
@@ -2477,7 +3036,9 @@ class Map:
         hdul_map = fits.open(fitsfile)
         theta = np.arange(hdul_map[0].header['NAXIS1']*hdul_map[0].header['CDELT1']/2,hdul_map[0].header['NAXIS1']*-hdul_map[0].header['CDELT1']/2,-hdul_map[0].header['CDELT1'])
         phi = np.arange(-hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['CDELT2'])
-        kernel = Gaussian2DKernel(x_stddev=2)  
+        kernel = Gaussian2DKernel(x_stddev=1)
+
+        #print('Changed kernel to from 2 to 1. Check if it still works')  
 
         # Interpolate is needed for weird edge effects 
         Tb = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],int( hdul_map[0].data[0,0,:,:].shape[1]/2)),kernel)),
@@ -2492,6 +3053,7 @@ class Map:
         self.n_y        = hdul_map[0].header['NAXIS2']
         self.t_obs      = hdul_map[0].header['DATE-OBS']
         self.target     = hdul_map[0].header['OBJECT']
+        self.data       = Tb[0]
         self.Tb_r       = Tb[0]*fluxcal 
         self.fluxcal    = fluxcal
         self.unit       = hdul_map[0].header['BUNIT']
@@ -2505,7 +3067,7 @@ class Map:
 
 
 
-    def display_deprojected(self, roll=0, cmap = 'gray_r', clim=[0,0], path2save='', figsize=None): 
+    def display_deprojected(self, roll=0, cmap = 'gray_r', clim=[0,0], path2save='', tailstr='', title = 'Radio brightness residuals', figsize=None, xlim=None, ylim=None): 
 
         from matplotlib import rcParams
 
@@ -2526,32 +3088,52 @@ class Map:
             fig = plt.figure(figsize=(self.n_x/self.n_y*5,7)) 
         else: 
             fig = plt.figure(figsize=(figsize[0],figsize[1])) 
-            print('Yeha')
+   
         ax = fig.add_subplot(111)
         plt.axes().set_aspect('equal')
-        cs = plt.contourf(self.theta ,self.phi[0] , self.Tb_r, 50 ,cmap = cmap, rasterized=True) #cmap = 'Grey'
+        if clim != [0,0]:
+            cs = plt.contourf(self.theta ,self.phi[0] , np.clip(self.Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
         plt.gca().invert_xaxis()
-        plt.xlim([-180,180]) 
-        plt.ylim([-60,60])
+        if xlim: 
+            plt.xlim([xlim[0],xlim[1]])
+        else: 
+            plt.xlim([-180,180]) 
+
+        if ylim:  
+            plt.ylim([ylim[0],ylim[1]])
+        else: 
+            plt.ylim([-60,60])
+
         plt.ylabel('Latitude  [deg]')
         plt.xlabel('Longitude  [deg]')
-        plt.title(r'Radio brightness residuals, $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
-        locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
-        labels=['150','120','90','60','30','0','330','300','270','240','210'] 
+        plt.title(title + r', $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
+        if xlim: 
+            locs = np.linspace(xlim[0],xlim[-1],5)
+            labels = []  
+            for i in range(len(locs)): 
+                if locs[i]<=0: 
+                    labels.append(str(np.abs(locs[i]))) 
+                else: 
+                    labels.append(str(360 - locs[i])) 
+
+        else:         
+            locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
+            labels=['150','120','90','60','30','0','330','300','270','240','210'] 
         plt.xticks(locs, labels,)  
         ax.set_rasterized(True)
 
-        cbaxes = fig.add_axes([0.5,0.05,0.4,0.03])
-        cbar = plt.colorbar(cs,cax = cbaxes,orientation = 'horizontal')
-        #cbar.ax.tick_params(axis='x',direction='in',labeltop='on')
+        cbaxes = fig.add_axes([0.15,0.1,0.25,0.03])
         if clim != [0,0]:
-            plt.clim(clim[0],clim[1])
+            cbar = plt.colorbar(cs,ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]], cax = cbaxes,orientation = 'horizontal')
+            #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.1f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
+            cbar.set_label('[K]')
+
         plt.show()
 
         if path2save != '':
-            fname = 'Residuals_resolved_{:2.1f}'.format(self.nu[0]*1e-9)
+            fname = 'Residuals_resolved_{:2.1f}'.format(self.nu[0]*1e-9) + tailstr 
             plt.savefig(path2save + fname + '.pdf' , format='pdf', transparent = True, dpi=1000)
-            print('File written to: ' + path2save)
+            print('File written to: ' + path2save +fname)
             plt.savefig(path2save + fname + '.png', format='png', transparent = True, dpi=1000)
         
         return 
@@ -2603,6 +3185,69 @@ class Map:
         pickle.dump(data, p)
         p.close() 
 
+
+    def read_IRTF(self, fitsfile, ): 
+
+        hdu = fits.open(fitsfile, ignore_missing_end=True)
+        self.data = hdu[0].data 
+        self.n_x = hdu[0].header['NAXIS1'] # Longitude  
+        self.n_y = hdu[0].header['NAXIS2'] 
+
+        # Create Latitude and Longitude axis 
+        self.tobs = hdu[0].header['DATE_OBS'] + ' ' + hdu[0].header['TIME_OBS']
+        self.theta= np.linspace(0,360,self.n_x,endpoint=True)
+        self.phi  = np.linspace(-90,90,self.n_y,endpoint=True)
+
+    def display_IRTF(self, title='', roll = 0,  cmap = 'gray_r', figsize=None, path2save='',tailstr = '', xlim=None, ylim=None ): 
+
+        # plt.figure()
+        # plt.imshow(self.lat, self.lon, np.fliplr(self.data), origin = 'lower left', cmap = 'gray')
+        # plt.title(title)
+        # plt.show() 
+        from matplotlib import rcParams
+        from scipy.ndimage.interpolation import shift
+        
+
+        rcParams.update({'figure.autolayout': True})
+        rcParams.update({'font.size':18})
+   
+        if figsize == None: 
+            fig = plt.figure(figsize=(self.n_x/self.n_y*5,7)) 
+        else: 
+            fig = plt.figure(figsize=(figsize[0],figsize[1])) 
+
+        ax = fig.add_subplot(111)
+        plt.axes().set_aspect('equal')
+        cs = plt.contourf(self.theta ,self.phi , (shift(self.data,roll/360*self.n_x,mode='wrap')), 1000 ,cmap = cmap, rasterized=True) #cmap = 'Grey'
+
+        plt.gca().invert_xaxis()
+
+        if xlim: 
+            plt.xlim([xlim[0],xlim[1]])
+        if ylim:  
+            plt.ylim([ylim[0],ylim[1]])
+        plt.ylabel('Latitude  [deg]')
+        plt.xlabel('Longitude  [deg]')
+        plt.title(title)
+        locs = [330,300,270,240,210,180,150, 120, 90 , 60, 30,] 
+        if roll == 180: 
+            labels=['150','120','90','60','30','0','330','300','270','240','210'] 
+            plt.xticks(locs, labels,)  
+        ax.set_rasterized(True)
+
+        # cbaxes = fig.add_axes([0.5,0.05,0.4,0.03])
+        # cbar = plt.colorbar(cs,cax = cbaxes,orientation = 'horizontal')
+        # #cbar.ax.tick_params(axis='x',direction='in',labeltop='on')
+        # if clim != [0,0]:
+        #     plt.clim(clim[0],clim[1])
+        plt.show()
+
+        if path2save != '':
+            fname = 'IRTF_deprojected_' + self.tobs[0:10] + tailstr
+            plt.savefig(path2save + fname + '.pdf' , format='pdf', transparent = True, dpi=500)
+            print('File written to: ' + path2save)
+            plt.savefig(path2save + fname + '.png', format='png', transparent = True, dpi=500)
+        
 
 # Class definitions 
 
@@ -2746,7 +3391,6 @@ class Planet:
         #                    np.radians(self.ob_lon), self.orange*cst.au.value))[0] 
 
         self.principalaxis[1:3] = rotateprincipalaxis(self.radius,self.ob_lat)
-        print(self.principalaxis)
         # Scale factor 
         self.scalefactor = 1.0 
 
