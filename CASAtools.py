@@ -5,7 +5,7 @@ Notes
 7/8/18,CM, Initial Commit
 """
 
-import sys, os
+import sys, os, warnings
 
 import numpy as np
 
@@ -99,7 +99,7 @@ def locate2template(loggers,output,analytics=False):
                 info = line.split() 
                 # Find locate information 
                 if info[3] == 'PlotMS::locate+': 
-
+    
                     for i in range(4,len(info)): 
                         subline = info[i]
                         subinfo = subline.split('=', 1)
@@ -110,16 +110,20 @@ def locate2template(loggers,output,analytics=False):
                                 #scan = int(re.search(r'\d+',info[4],re.I)[0])
                                 scan = subinfo[1]
                             except: 
-                                sys.warnings('Failed to identify scan in line %d'.format(cnt))
+                                warnings.warn('Failed to identify scan in line %d'.format(cnt))
                         
                         # Field 
                         elif subinfo[0] == 'Field':
                             try:
+                                if '[' in info[i+1]: 
+                                    field = subinfo[1]
+                                    fieldid = re.search(r'\[(.*)\]', info[i+1]).group(1) 
                                 # field = int(re.search(r'\[\d\]',info[5],re.I)[0][1:-1])
-                                field = subinfo[1].split('[',1)[0]
-                                fieldid = re.search(r'\[(.*)\]', subinfo[1]).group(1)
+                                else:  
+                                    field = subinfo[1].split('[',1)[0]
+                                    fieldid = re.search(r'\[(.*)\]', subinfo[1]).group(1)
                             except: 
-                                sys.warnings('Failed to identify field in line %d'.format(cnt))
+                                warnings.warn('Failed to identify field in line %d'.format(cnt))
                         
                         # Time 
                         elif subinfo[0] == 'Time':

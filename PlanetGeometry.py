@@ -25,7 +25,10 @@ import warnings
 import IPython
 
 # Mapping 
-from nirc2_reduce import coordgrid 
+try:
+    from nirc2_reduce import coordgrid 
+except: 
+    print('nirc2_reduce could not be imported correctly. ')
 
 
 
@@ -700,7 +703,6 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     T = f(lats) - np.mean(f(lats)) # Residual structure after and levelled to zero 
 
 
-
     # Detrend the residuals from emission angle by diving by cos(theta)**p
     f = scipy.interpolate.interp1d(np.degrees(lat_emission), alpha, bounds_error=False, fill_value=([alpha[0]],[alpha[-1]]))
     T_db = T/np.cos(f(lats))**p[0] 
@@ -709,7 +711,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     # Create a map due zonally averaged values 
     T_map = np.transpose(np.tile(T_db,(180,1)))
 
-    # Bug in Basemaps
+    # Bug in Basemaps (https://github.com/matplotlib/basemap/issues/440)
     try: 
         T_map, lons = addcyclic(T_map, lons)
     except: 
@@ -780,11 +782,11 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
 
     # plotting the residuals 
     if plotting: 
-        fig, axs = fig, faxs = plt.subplots(1, 1)
+        fig, faxs = plt.subplots(1, 1)
         cs = plt.contourf(xv.T, yv.T, T_resmap,50,cmap=plt.cm.jet)
         plt.title('Zonal residual NOT limb darkened')
         plt.colorbar(cs)
-        axs.set_aspect('equal', 'box')
+        faxs.set_aspect('equal', 'box')
         plt.show()
 
     # Element wise multiplication of theta with T_resmap to limb-darken the residuals 
@@ -810,7 +812,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     #T_res_ld -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.01])) 
     
     if plotting: 
-        fig, axs = fig, axs = plt.subplots(1, 1)
+        fig, axs = plt.subplots(1, 1)
         cs = plt.contourf(xv.T, yv.T,T_res_ld,50,cmap=plt.cm.jet)
         plt.title('Zonal residual limb darkened')
         axs.set_aspect('equal', 'box')
@@ -1271,7 +1273,7 @@ def geo2eci(r,lon,lat,):
                        ])
     return r_eci
 
-def geoc2geod( r, lat_c, f ): 
+def geoc2geod( lat_c, r=714921e3 , f=1-66854/71492): 
     """Conversion from geocentric to geodetic. '
     
     
@@ -1331,6 +1333,7 @@ def geoc2geod( r, lat_c, f ):
     Notes
     -------
     12/11/18, CM, Initial commit, Geocentric only
+    10/28/19, CM, Changed order of variables, and made Jupiter the go to planet 
     """
     # 
     # Find the coordinates of the surface intersection point  
@@ -1365,6 +1368,9 @@ def geoc2geod( r, lat_c, f ):
     # Calculate the geodetic latitude 
     lat_d = lat_s - dlat
 
+    # There will be a nan for zero
+    lat_d[np.isnan(lat_d)] = 0 
+    
     return lat_d, h
 
 def geod2geoc( lat_d, h, r_e,  f ): 
@@ -1751,7 +1757,7 @@ def rotatebeam(a, b, th):
     -------
     11/18/2017, CM, Initial Commit
     """
-    th -= 90 
+    th += 90 
     if th > 180: 
         th -= 180 
     if th < -180:  
@@ -2894,6 +2900,9 @@ class Map:
         if not pixscale: 
             im = fits.open(fitsfile, ignore_missing_end=True)
             self.pixscale  = np.degrees(im[0].header['BMIN']*3600)  
+            self.BMAJ = im[0].header['BMAJ']
+            self.BMIN = im[0].header['BMIN']
+
 
         else: 
             self.pixscale = pixscale
@@ -2950,7 +2959,7 @@ class Map:
         self.indc = np.argmin(np.abs(self.theta_proj - self.ob_lon)) 
 
         self.Tb_r_zonal    = np.nanmean(self.Tb_s_r_proj[:,self.indl:self.indu],axis=1) 
-        self.TB_r_zonal_std = np.nanstd(self.Tb_s_r_proj[:,self.indl:self.indu],axis=1) 
+        self.Tb_r_zonal_std = np.nanstd(self.Tb_s_r_proj[:,self.indl:self.indu],axis=1) 
 
         # Calculate the error, by taking the stand deviation in four seperate region 
         eA = np.nanstd(self.Tb_s_r[int(  self.n_y/6):int(2*self.n_y/6),int(  self.n_x/6):int(2*self.n_x/6) ])
@@ -2976,13 +2985,13 @@ class Map:
         self.error_per_latitude = np.ones_like(self.phi_proj)*self.rms_sky
         self.error_per_latitude /= np.sqrt(self.beamsperlatitude)
         self.error_cal   = error_cal 
-        self.error_total = np.sqrt(self.error_per_latitude**2 + self.TB_r_zonal_std**2 + self.error_cal**2 ) 
+        self.error_total = np.sqrt(self.error_per_latitude**2 + self.Tb_r_zonal_std**2 + self.error_cal**2 ) 
 
         if Plotting: 
             plt.figure(figsize=(9,12))
             plt.plot(self.Tb_r_zonal, self.phi_proj + shift, '.', label='Smeared')
             plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, xerr = self.error_total)
-            plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, fmt='o', ecolor='g', capthick=2, xerr = self.TB_r_zonal_std)
+            plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, fmt='o', ecolor='g', capthick=2, xerr = self.Tb_r_zonal_std)
             #plt.errorbar(self.Tb_r_zonal, self.phi_proj + shift, xerr = self.error_per_latitude)
             plt.xlabel('Temperature [K]')
             plt.ylim([-80,80])
@@ -3041,8 +3050,11 @@ class Map:
         #print('Changed kernel to from 2 to 1. Check if it still works')  
 
         # Interpolate is needed for weird edge effects 
-        Tb = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],int( hdul_map[0].data[0,0,:,:].shape[1]/2)),kernel)),
-        
+        if hdul_map[0].data.ndim == 4: 
+            Tb = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],int( hdul_map[0].data[0,0,:,:].shape[1]/2)),kernel)),
+        elif hdul_map[0].data.ndim == 2: 
+            Tb = (interpolate_replace_nans(np.roll(hdul_map[0].data,int( hdul_map[0].data.shape[1]/2)),kernel)),
+
         # data = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],0),kernel)),
 
 
@@ -3055,19 +3067,21 @@ class Map:
         self.target     = hdul_map[0].header['OBJECT']
         self.data       = Tb[0]
         self.Tb_r       = Tb[0]*fluxcal 
+        self.Tb_r_zonal = np.nanmean(self.Tb_r,axis=1) 
+
         self.fluxcal    = fluxcal
         self.unit       = hdul_map[0].header['BUNIT']
         self.bandwidth  = bandwidth
-        self.d_th       = hdul_map[0].header['CDELT1'],  # theta = longitud
-        self.d_phi      = hdul_map[0].header['CDELT2'], # phi = latitud
-        self.theta      = np.array(theta).flatten()
-        self.phi        = phi.flatten(),
-        nu              = hdul_map[0].header['CRVAL3'],
+        self.d_th       = hdul_map[0].header['CDELT1']  # theta = longitud
+        self.d_phi      = hdul_map[0].header['CDELT2']  # phi = latitud
+        self.theta      = theta
+        self.phi        = phi
+        nu              = hdul_map[0].header['CRVAL3']
         self.nu         = np.array(nu).flatten()
 
 
 
-    def display_deprojected(self, roll=0, cmap = 'gray_r', clim=[0,0], path2save='', tailstr='', title = 'Radio brightness residuals', figsize=None, xlim=None, ylim=None): 
+    def display_deprojected(self, roll=0, cmap = 'gray', clim=[0,0], path2save='', tailstr='', title = 'Radio brightness residuals', figsize=None, xlim=None, ylim=None): 
 
         from matplotlib import rcParams
 
@@ -3092,8 +3106,12 @@ class Map:
         ax = fig.add_subplot(111)
         plt.axes().set_aspect('equal')
         if clim != [0,0]:
-            cs = plt.contourf(self.theta ,self.phi[0] , np.clip(self.Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
+            cs = plt.contourf(self.theta ,self.phi , np.clip(self.Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
+        else: 
+            cs = plt.contourf(self.theta ,self.phi ,self.Tb_r , 50 ,cmap = cmap) #cmap = 'Grey'
+        
         plt.gca().invert_xaxis()
+
         if xlim: 
             plt.xlim([xlim[0],xlim[1]])
         else: 
@@ -3106,7 +3124,8 @@ class Map:
 
         plt.ylabel('Latitude  [deg]')
         plt.xlabel('Longitude  [deg]')
-        plt.title(title + r', $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
+        if title:
+            plt.title(title + r', $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
         if xlim: 
             locs = np.linspace(xlim[0],xlim[-1],5)
             labels = []  
@@ -3130,13 +3149,14 @@ class Map:
 
         plt.show()
 
+
         if path2save != '':
             fname = 'Residuals_resolved_{:2.1f}'.format(self.nu[0]*1e-9) + tailstr 
             plt.savefig(path2save + fname + '.pdf' , format='pdf', transparent = True, dpi=1000)
             print('File written to: ' + path2save +fname)
             plt.savefig(path2save + fname + '.png', format='png', transparent = True, dpi=1000)
         
-        return 
+        return ax
 
     def add_disk(self, T_peak=0, p=0.0, T_cmb = 0 ): 
 
@@ -3147,9 +3167,11 @@ class Map:
         self.Tb           = self.Tb_r + self.Tb_ld_disk 
 
     def zonal_average(self, ): 
-
-        self.Tb_zonal   = np.median(self.Tb,axis=1) 
-        self.Tb_r_zonal = np.median(self.Tb_r,axis=1) 
+        try: 
+            self.Tb_zonal   = np.nanmean(self.Tb,axis=1) 
+        except: 
+            print('Could not find information on background disk')
+        self.Tb_r_zonal = np.nanmean(self.Tb_r,axis=1) 
 
 
     def save_deprojected(self,outname): 
@@ -3301,13 +3323,13 @@ class Planet:
         self.ephem, self.observatory_coords, self.radius = (
             get_ephemerides(naif_lookup(self.target),
             tstart,tend,str(nstep),self.obs_code))
-        self.ellipticity = np.sqrt((self.radius[0]**2-self.radius[1]**2)/self.radius[0]**2)
+        self.ellipticity = np.sqrt((self.radius[0]**2-self.radius[2]**2)/self.radius[0]**2)
         self.flattening = 1. - np.sqrt(1. - self.ellipticity**2)
         self.time = self.ephem[intv,0] # UTdate UTtime
         self.sun = [s.strip() for s in self.ephem[intv,1]]
         self.moon = [s.strip() for s in self.ephem[intv,2]]
-        self.ra = hms2deg(self.ephem[intv,3][0]) # RA (J2000) (hh:mm:ss.ff) converted to degree
-        self.dec = dms2deg(self.ephem[intv,4][0]) # DEC (J2000) (hh:mm:ss.ff) converted to degree
+        self.ra = hms2deg(self.ephem[intv,3][0].strip()) # RA (J2000) (hh:mm:ss.ff) converted to degree
+        self.dec = dms2deg(self.ephem[intv,4][0].strip()) # DEC (J2000) (hh:mm:ss.ff) converted to degree
         # (arcsec^2/h) (cosine of the declination) arcsec hr-1 
         self.dra = np.asarray([float(s) for s in self.ephem[intv,5]]) 
         #  d(DEC)/dt 
@@ -3360,7 +3382,7 @@ class Planet:
         # (arcsec) Sub-Sun distance 
         self.ssun_ang = read_ephem_line(self.ephem[intv,21]) 
         # (degrees) North pole position angle 
-        self.np_ang = read_ephem_line(self.ephem[intv,22])  
+        self.np_ang = read_ephem_line(self.ephem[intv,22])[0]  
         # (arcsec) North pole distance(arcsec) Distance from the sub 
         # observer point to the north pole 
         self.np_dis = read_ephem_line(self.ephem[intv,23]) 
@@ -3827,7 +3849,7 @@ class Model:
         # Remove the tilt of the planet, and project the planet on the 
         # sky with y axis pointing up
         rotangle = (self.np_ang)
-        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False)
+        self.Bdata = scipy.ndimage.rotate(self.Bdata,rotangle,order=0,reshape = False)
 
         # Find the planet in pixels 
         r_pix = self.planetsize/2 # Radius in pixel 
@@ -3878,14 +3900,14 @@ class Model:
                 else: 
                     sign = 1
 
-                self.data[x_ilb:x_ilb+x_m.shape[0],y_ilb:y_ilb+x_m.shape[1]] +=  \
+                self.Bdata[x_ilb:x_ilb+x_m.shape[0],y_ilb:y_ilb+x_m.shape[1]] +=  \
                 var.pdf(pos)/np.max(var.pdf(pos))*scalefactor*sign  
 
 
 
         # Add the tilt of the planet, and project the planet on the sky with y axis pointing up
         rotangle = -(self.np_ang)
-        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+        self.Bdata = scipy.ndimage.rotate(self.Bdata,rotangle,order=0,reshape = False) 
 
 
     def gen_banded_structure(self,scalefactor,width = 1, spacingfactor = 1,inc_negative=True): 
@@ -3930,7 +3952,7 @@ class Model:
         Jupiter.initmodel('Model') 
         nu = 22e9; T = 132.7; p = np.array([0.08,0.08]); 
         Jupiter.Model.gen_casa(nu,T,p,beamsize = beam,)
-        scalefactor = 0.1*np.max(Jupiter.Model.data)
+        scalefactor = 0.1*np.max(Jupiter.Model.Bdata)
         (J.M.gen_banded_structure(width = width, 
         scalefactor = scalefactor,spacingfactor = spacingfactor))
 
@@ -3945,7 +3967,7 @@ class Model:
         # Remove the tilt of the planet, and project the planet on the 
         # sky with y axis pointing up
         rotangle = (self.np_ang)
-        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False)
+        self.Bdata = scipy.ndimage.rotate(self.Bdata,rotangle,order=0,reshape = False)
 
         # Find the planet in pixels 
         r_pix = self.planetsize/2 # Radius in pixel 
@@ -3955,7 +3977,7 @@ class Model:
 
 
         # Minimum flux in the picture 
-        f_min = np.min(self.data[np.where(self.data>0)])
+        f_min = np.min(self.Bdata[np.where(self.Bdata>0)])
 
         while i < int(self.imsize/2) + int(r_pix): 
 
@@ -3966,11 +3988,11 @@ class Model:
 
             i_range = int(width**(5/3))
             print(i_range)
-            c_pix = self.data[i+i_range,int(self.imsize/2)]
+            c_pix = self.Bdata[i+i_range,int(self.imsize/2)]
 
             if c_pix > f_min: 
                 for j in range(i,i+i_range):
-                    self.data[j,np.where(self.data[j,:] > 
+                    self.Bdata[j,np.where(self.Bdata[j,:] > 
                         f_min)] += scalefactor*sign
 
             i += spacingfactor*i_range
@@ -3978,7 +4000,7 @@ class Model:
 
         # Add the tilt of the planet, and project the planet on the sky with y axis pointing up
         rotangle = -(self.np_ang)
-        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+        self.Bdata = scipy.ndimage.rotate(self.Bdata,rotangle,order=0,reshape = False) 
 
     def combine_structure(self, background, bands, gaussians, bands_regions=[0,0,1,1], gaussians_regions=[1,0,0,0] ): 
         """Combine banded and gaussian structure on Jupiter 
@@ -4060,9 +4082,9 @@ class Model:
         # model[:,int(imsize/2):-1] += bands[:,int(imsize/2):-1] 
 
 
-        self.data = model 
+        self.Bdata = model 
         rotangle = -(self.np_ang)
-        self.data = scipy.ndimage.rotate(self.data,rotangle,order=0,reshape = False) 
+        self.Bdata = scipy.ndimage.rotate(self.Bdata,rotangle,order=0,reshape = False) 
 
 
 
@@ -4157,7 +4179,7 @@ class Model:
  
         # First iteration rotation. Needs automization 
         rotangle = -(self.np_ang)
-        self.data = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
+        self.Bdata = scipy.ndimage.rotate(model,rotangle,order=0,reshape = False)
 
         # Store pixelscale correctly for brightness model in brightness temperature 
         self.pixscale = self.ang_diam/self.planetsize
