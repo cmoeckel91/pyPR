@@ -28,7 +28,8 @@ import IPython
 try:
     from nirc2_reduce import coordgrid 
 except: 
-    print('nirc2_reduce could not be imported correctly. ')
+    print('nirc2_reduce could not be imported correctly. Cannot use smeared projections')
+
 
 
 
@@ -623,6 +624,102 @@ def emissionangle(lat_c, lat_d, ob_lat_d, orange, R):
 
     return alpha, lat
 
+def EmissionAngle(obs, lon, lat, R): 
+    '''
+    For a given observer  calculate the corresponding 
+    emission angles on a planet 
+
+    Parameters
+    ----------
+    obs : 3x1 float 
+        [m,rad,rad] Obsevation position (r,lon,lat)
+
+    lon : Nx1 float 
+        [deg] Longitude range to cover 
+    lat : Nx1 
+        [deg] Latitude range to cover 
+    R   : 3x1
+        [m,m,m] Principal axis 
+
+    Keyword Arguments
+    ----------
+    
+    import pyPR.JunoTools as jt
+    dist = 75601.17
+    obs = [dist,np.radians(-5.79556788),  np.radians(4.43404659)]
+    lat = np.radians(np.arange(-1,5,0.5) ) 
+    lon = np.radians(np.arange(-9,-5,0.5)) 
+    
+    obs = np.array([79075.245, 0.00012249427993173018, 0.009174527763385208]) 
+
+
+    ea,lo,la = jt.EmissionAngle(obs,lon,lat) 
+
+
+  
+    '''
+
+    from numpy.linalg import norm 
+
+    # Compute the surface normal centered around the observer longitude 
+    ob_lon, ob_lat = obs[1],obs[2]
+
+    # Construct a grid for all surface points centered around the spacecraft location and compute their normals 
+    lo, la = np.meshgrid(lon,lat)
+    surf_n = surface_normal_ellipsoid(lo, la, R)
+
+    # Compute the relevant vectors (Ray, Spacecraft, Local, Ray) 
+    r_s = local_radius(lo, la, R,)
+
+    # Spacecraft in cartesian coordinates
+    s = polar2cart(obs[0],obs[1],obs[2])
+
+    # Adjust dimensions to match L
+    S = np.array([np.ones_like(r_s)*s[0],np.ones_like(r_s)*s[1],np.ones_like(r_s)*s[2]])
+
+    # Beam intercept
+    L = polar2cart(r_s,lo,la)
+
+    # Ray From spacecraft to local intercept point 
+    R = S - L 
+
+    # Emission angle (dot protuct between local normal and the Ray 
+    ea = np.arccos((np.sum([R[0]*surf_n[0] ,R[1]*surf_n[1] ,R[2]*surf_n[2] ],axis=0))/(norm(surf_n,axis=0)*norm(R,axis=0)))
+ 
+    
+    return np.ndarray.flatten(ea), np.ndarray.flatten(lo), np.ndarray.flatten(la) 
+
+def local_position_ellipsoid(lon,lat,R):
+    '''
+    Calculate the local position on the ellipsoid for a given latitude and longitude 
+    '''
+
+    x   =   R[0]*np.cos(lon)*np.sin(np.pi/2-lat)   
+    y   =   R[1]*np.sin(lon)*np.sin(np.pi/2-lat)   
+    z   =   R[2]*np.cos(np.pi/2-lat)
+
+    return np.array([x,y,z])
+
+def surface_normal_ellipsoid(lon,lat,R): 
+    '''
+    Calculate surface normal for an ellipsoid of dimension R at loaction r 
+    '''
+    r = local_position_ellipsoid(lon,lat,R)
+
+    return np.array([r[0,:,:]/R[0]**2,r[1,:,:]/R[1]**2,r[2,:,:]/R[2]**2])
+
+def local_radius(lon,lat,R,):
+    
+    r_s = local_position_ellipsoid(lon,lat,R)
+
+    return np.sqrt(r_s[0,:,:]**2 + r_s[1,:,:]**2 + r_s[2,:,:]**2)
+
+def polar2cart(r, theta, phi):
+    return np.array([
+         r * np.sin(np.pi/2-phi) * np.cos(theta),
+         r * np.sin(np.pi/2-phi) * np.sin(theta),
+         r * np.cos(np.pi/2-phi)
+    ])
 
 def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening, T_res, th_res, conv = 0.01, plotting = False ): 
     """Create a brightness map with structure of Jupiter 
@@ -688,8 +785,13 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     lat_c =(np.arange(-np.pi/2,np.pi/2,np.pi/179))
     flat = 1 - R[2]/R[0] 
     lat_d = geoc2geod( orange + R[2]+(R[0]-R[2])*np.cos(ob_lat_d), lat_c, flat )[0]  
+    # Update emission angle function 
     alpha, lat_emission = emissionangle(lat_c, lat_d, (ob_lat_d), orange, R)
+    obs = [orange, 0., ob_lat_d]
+    alpha, _ ,lat_emission = EmissionAngle(obs, np.array([0]),np.radians(np.arange(-89,90,1)),np.array(R)*1e3) 
 
+
+    
     # Convert input goedetic latitudes to geocentric 
     th_res_c = geod2geoc( th_res, orange-R[2]+(R[0]-R[2])*np.cos(ob_lat_d), R[0],  flattening)
     
@@ -697,16 +799,18 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     # Pad residual with 0 to 
     f = scipy.interpolate.interp1d(np.degrees(th_res_c), T_res, bounds_error=False,fill_value=(T_res[0],T_res[-1]))
   
-
+    # Remove the mean value and get a residual centered around zero 
     lats = np.arange(-89,90,2)
     lons =  np.arange(0,360,2)
     T = f(lats) - np.mean(f(lats)) # Residual structure after and levelled to zero 
 
 
     # Detrend the residuals from emission angle by diving by cos(theta)**p
-    f = scipy.interpolate.interp1d(np.degrees(lat_emission), alpha, bounds_error=False, fill_value=([alpha[0]],[alpha[-1]]))
-    T_db = T/np.cos(f(lats))**p[0] 
+    f = scipy.interpolate.interp1d(np.degrees(np.ndarray.flatten(lat_emission)), np.ndarray.flatten(alpha), bounds_error=False, fill_value=([alpha[0]],[alpha[-1]]))
+    T_db = T/(np.cos(f(lats))**p[0]) 
 
+    # Due to orbital tilt, some emission angles are negative, hence we ignore those 
+    T_db[np.isnan(T_db)] = 0 
 
     # Create a map due zonally averaged values 
     T_map = np.transpose(np.tile(T_db,(180,1)))
@@ -847,11 +951,11 @@ def rc2rp(R_f,R):
     # find corresponding latitude 
     lat = np.arcsin(R_f) 
     # Find local radius for corresponding latitude 
-    R_l = local_radius(R,lat) 
+    R_l = local_radius_old(R,lat) 
 
     return R_l*np.sin(lat), lat
 
-def local_radius(R,lat_c): 
+def local_radius_old(R,lat_c): 
     """ Compute local radius given a geocentric latitude """ 
 
     return np.sqrt((R[0]*np.cos(lat_c))**2+(R[2]*np.sin(lat_c))**2)
@@ -1880,6 +1984,42 @@ def dms2deg(dms):
 
     return angle
 
+
+def beam2km(B,d): 
+    """Compute the resolution of the beam on the planet's equator 
+
+    
+    Parameters
+    -------
+    B : [1] float
+        [deg] Beam size as given in fits header
+    d : [1] float
+        [AU] Distance during the observation 
+    Returns
+    ----------
+    self : [1] float
+        [m] Size of the beam in kilometer  
+
+    Keywords
+    ----------
+
+
+    Example
+    -------
+    >>> bmaj = 7.00708267989E-05 
+
+    beam2km()
+
+    References
+    ------------
+
+    Notes
+    -------
+    09/18/2020, CM, Initial Commit
+    """
+
+    return np.radians(B)*d*cst.au.value 
+
 def deg2hms(angle): 
     """Convert angel in deg to hour format  
     Used for right ascension 
@@ -1912,9 +2052,9 @@ def deg2hms(angle):
     h = np.fix(angle/360*24.) 
     m = np.fix((angle/360*24. - h )*60)
     s = np.fix((((angle/360*24. - h )*60) - m)*60)
-    f = (((((angle/360*24. - h )*60) - m)*60) - s)*100
+    f = (((((angle/360*24. - h )*60) - m)*60) - s)*1e6 # increase this factor for better precession 
 
-    string = '{:n}h {:n}m {:n}.{:n}s'.format(h,m,s,f) 
+    string = '{:n}h {:n}m {:n}.{:n}s'.format(h,m,s,int(f)) 
 
     return string
 
@@ -2734,7 +2874,7 @@ def combine_projections(proj,method='median', title='', Plotting = False, output
 
 
 
-def spherical_projection(data, lat, lon, ob_lat, ob_lon, clevels = 100, clim = [0,0], title='Radio', cmap = 'gray_r', dpi = 1000, outputname=None ): 
+def spherical_projection(data, lat, lon, ob_lat, ob_lon, clevels = 100, clim = [0,0], title='Radio', cmap = 'gray', dpi = 1000, removenan=False, outputname=None ): 
     '''Project a map onto the sphere for a given sub observer longitude/latitude 
 
     
@@ -2781,11 +2921,18 @@ def spherical_projection(data, lat, lon, ob_lat, ob_lon, clevels = 100, clim = [
     -------
     4/11/2019, CM, Initial Commit
     '''
+    
+    print('Update to cartopy when you can')
+
     from mpl_toolkits.basemap import Basemap, addcyclic
 
-    # Bug in Basemaps
+    # # Bug in Basemaps
+    # XKCD
+    # data, lon = addcyclic(data, lon)
 
-    data, lon = addcyclic(data, lon)
+    # Remove NaNs 
+    if removenan: 
+        data[~np.isfinite(data)] = 0
 
     # create Basemap instance for Robinson projection.
     m = Basemap(projection='ortho',lat_0=ob_lat
@@ -2798,43 +2945,44 @@ def spherical_projection(data, lat, lon, ob_lat, ob_lon, clevels = 100, clim = [
     # make filled contour plot.
     plt.figure()
     if clim != [0,0]:
-        cs = m.contourf(x,y,np.clip(data,clim[0],clim[1]),clevels,cmap=cmap)
+        levels = np.linspace(clim[0], clim[1], clevels)
+        cs = m.contourf(x,y,np.clip(data,clim[0],clim[1]),levels=levels,cmap=cmap)
     else: 
         cs = m.contourf(x,y,data,clevels,cmap=cmap)
     if clim != [0,0]:
-        cbar = plt.colorbar(cs, ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]],)
+        cbar = plt.colorbar(cs, ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]])
         #plt.clim(clim[0],clim[1])
         #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.0f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
-        cbar.set_label('[K]')
+        cbar.set_label('[K]',fontsize=16)
+        cbar.ax.tick_params(labelsize=16)
     m.drawmapboundary() # draw a line around the map region
     m.drawparallels(np.arange(-90.,120.,30.),labels=[1,0,0,0]) # draw parallels
     m.drawmeridians(np.arange(0.,420.,60.),labels=[0,0,0,1]) # draw meridians
-    plt.title(title) # add a title
-    plt.text(1.5,1.5,r'$\lambda$={:d}$^\circ$'.format(ob_lon))
+    plt.title(title,fontsize=18) # add a title
+    #plt.text(1.5,1.5,r'$\lambda$={:d}$^\circ$'.format(int(ob_lon)))
+ 
     if outputname: 
         print('File written to: ' + outputname + '.png')
         plt.savefig(outputname+ '.png', format='png', transparent = True, dpi=dpi)
+        plt.close()
 
 
     return 
 
-def animate_projections(path2im,path2gif,framerate = 2, width=2): 
+def animate_projections(path2im,path2gif,framerate = 2, width=2,padednamewidth=2): 
     '''
 
 
     path2data = path2save + 'Animations/'
     imname = 'Jupiter_CMLi' 
     gifname=  'Jupiter'
-
-    path2im = path2data + imname
-    path2gif = path2data + gifname
     
     framerate = 2 
-    width = 2 
+    padednamewidth = 2 # 04 vs 004
     # https://trac.ffmpeg.org/wiki/Slideshow 
     '''
 
-    os.system('ffmpeg -f image2  -framerate {:d}  -i {:s}%0{:d}d.png {:s}.mp4'.format(framerate, path2im,width,path2gif))
+    os.system('ffmpeg -f image2  -framerate {:d}  -i {:s}%0{:d}d.png {:s}.mp4'.format(framerate, path2im, padednamewidth, path2gif))
     os.system('ffmpeg -i {:s}.mp4 -pix_fmt rgb8 {:s}.gif'.format(path2gif,path2gif))
 
 
@@ -2973,7 +3121,7 @@ class Map:
         self.beamsperlatitude = np.zeros_like(self.phi_proj)
 
         for i in range(len(self.phi_proj)): 
-            lr = local_radius(self.radius,self.phi_proj[i])*1000 # [m] local radius  
+            lr = local_radius_old(self.radius,self.phi_proj[i])*1000 # [m] local radius  
             lc = 2*lr*np.cos(np.radians(self.phi_proj[i]))*np.sin(np.radians(dlon)) # [m] Length of projected arc 
             asc = np.degrees(lc/self.orange)*3600
             if asc < self.pixscale: 
@@ -3079,11 +3227,27 @@ class Map:
         nu              = hdul_map[0].header['CRVAL3']
         self.nu         = np.array(nu).flatten()
 
+        # Store beam information 
+        self.bmaj = (hdul_map[0].header['BMAJ']) # degrees 
+        self.bmin = (hdul_map[0].header['BMIN']) # degrees
+        self.bpa = (hdul_map[0].header['BPA']) # Degree
+  
 
 
-    def display_deprojected(self, roll=0, cmap = 'gray', clim=[0,0], path2save='', tailstr='', title = 'Radio brightness residuals', figsize=None, xlim=None, ylim=None): 
+
+
+        if self.Tb_r.shape[0] != self.phi.shape[0]:
+            print('Map file and axis are not the same length, trimming phi')
+            self.phi = self.phi[:-1]
+
+        if self.Tb_r.shape[1] != self.theta.shape[0]:
+            print('Map file and axis are not the same length, trimming phi')
+            self.theta = self.theta[:-1]
+
+    def display_deprojected(self, roll=0, cmap = 'gray', clim=[0,0], path2save='', tailstr='', title = 'Radio brightness residuals', figsize=None, xlim=None, ylim=None, filtering=None): 
 
         from matplotlib import rcParams
+        from scipy import ndimage
 
 
         # Setting plotting routine 
@@ -3103,12 +3267,27 @@ class Map:
         else: 
             fig = plt.figure(figsize=(figsize[0],figsize[1])) 
    
+
+        if filtering is not None: 
+            Tb_r = self.Tb_r
+
+            # Replace all the nan with 0 
+            Tb_r[~np.isfinite(Tb_r)] = 0
+
+            # Apply filter to reduce large scale structure 
+            # (https://stackoverflow.com/questions/6094957/high-pass-filter-for-image-processing-in-python-by-using-scipy-numpy)
+            lowpass = ndimage.gaussian_filter(Tb_r, filtering)
+            Tb_r-= lowpass
+
+        else: 
+            Tb_r = self.Tb_r
+
         ax = fig.add_subplot(111)
         plt.axes().set_aspect('equal')
         if clim != [0,0]:
-            cs = plt.contourf(self.theta ,self.phi , np.clip(self.Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
+            cs = plt.contourf(self.theta ,self.phi , np.clip(Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
         else: 
-            cs = plt.contourf(self.theta ,self.phi ,self.Tb_r , 50 ,cmap = cmap) #cmap = 'Grey'
+            cs = plt.contourf(self.theta ,self.phi ,Tb_r , 50 ,cmap = cmap) #cmap = 'Grey'
         
         plt.gca().invert_xaxis()
 
@@ -3431,18 +3610,20 @@ class Planet:
             print('First querry the Planet\'s properties with epemeris'\
                   ' or define the radius: <Planet>.radius = np.array([R,R,R])')
 
-    def shift_center(self, d_p_ra,d_p_dec):
+    def shift_center_pixel(self, d_p_ra,d_p_dec):
         # shift the right asencsion and declination for units in pixel 
         self.ra = float(self.ra + d_p_ra*self.pixscale/3600)
         self.dec = float(self.dec + d_p_dec*self.pixscale/3600)
 
-    def shift_header(self, d_p_ra,d_p_dec):
+    def shift_center(self, d_p_ra,d_p_dec):
         # shift the right asencsion and declination for units in hms and dms
-        self.ra = float(self.ra +hms2deg(d_p_ra))
-        self.dec = float(self.dec +dms2deg(d_p_dec))
+        if len(d_p_ra) > 1: 
+            self.ra = float(self.ra +hms2deg(d_p_ra))
+        if len(d_p_dec) > 1: 
+            self.dec = float(self.dec +dms2deg(d_p_dec))
 
     def set_center(self, p_ra,p_dec):
-        # shift the right asencsion and declination for units in hms and dms
+        # set the right asencsion and declination for a provided ra (hms) and deg (dms)
         self.ra = float(hms2deg(p_ra))
         self.dec = float(dms2deg(p_dec))
 
@@ -3795,7 +3976,7 @@ class Model:
         This function will place Gaussian structure on Jupiter, where 
         the sigma parameters determine the shape the Gaussian structure
         and the scale factor determines the magnitude of the signal. The 
-        spaceing factor determines how tightly spaced the individual 
+        spacing factor determines how tightly spaced the individual 
         signals are. For tight spacing you get an overlap of signals. 
 
         
@@ -3844,6 +4025,7 @@ class Model:
         6/6/2018, CM, Added negative residuals 
         7/6/2018, CM, Added negative residuals 
         """
+        
         from scipy.stats import multivariate_normal
         from scipy.interpolate import interp2d
         # Remove the tilt of the planet, and project the planet on the 
@@ -4336,9 +4518,9 @@ class Model:
         hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
         hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
         hdu_out[0].header['CRPIX1'] =hdu_out[0].data.shape[0]/2
-        hdu_out[0].header['CDELT1']  =  -1*np.sign(hdu_out[0].header['CRVAL1'])*self.pixscale/360  
+        hdu_out[0].header['CDELT1']  =  -1*self.pixscale/360  
         hdu_out[0].header['CRPIX2'] =hdu_out[0].data.shape[1]/2
-        hdu_out[0].header['CDELT2']  =  -1*np.sign(hdu_out[0].header['CRVAL2'])*self.pixscale/3600  
+        hdu_out[0].header['CDELT2']  =  self.pixscale/3600  
 
 
         hdu_out[0].writeto(outfile, overwrite=True)
@@ -4461,13 +4643,17 @@ class Model:
             if ephemeris: 
                 hdulist[0].header['CTYPE1']  = 'RA---SIN'                                                            
                 hdulist[0].header['CRVAL1']  =   self.ra #'{:02E}'.format(self.ra)                                                
-                hdulist[0].header['CDELT1']  =  -1*np.sign(self.ra)*self.pixscale/3600                                                 
+                # RA step is always negative, increasing towards the left 
+                hdulist[0].header['CDELT1']  =  -1*self.pixscale/3600                                                 
                 hdulist[0].header['CRPIX1']  =  np.ceil(self.imsize/2) # Reference pixel                                                
                 hdulist[0].header['CUNIT1']  = 'deg     '   
 
                 hdulist[0].header['CTYPE2']  = 'DEC--SIN'                                                            
-                hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)                                              
-                hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale/3600                                                   
+                hdulist[0].header['CRVAL2']  =  self.dec #'{:02E}'.format(self.dec)
+
+                #hdulist[0].header['CDELT2']  =  -1*np.sign(self.dec)*self.pixscale/3600                                                   
+                # Looks like the Declination step should be positive                  
+                hdulist[0].header['CDELT2']  =  self.pixscale/3600                                                   
                 hdulist[0].header['CRPIX2']  =   np.ceil(self.imsize/2)                                                  
                 hdulist[0].header['CUNIT2']  = 'deg     '
             
@@ -4535,7 +4721,7 @@ class Model:
             hdulist[0].header['HISTORY'] = 'Brightness temperature, disk averaged {:2.2f}'.format(self.T_da)
             hdulist[0].header['HISTORY'] = 'Peak nadir temperature, {:2.2f}'.format(self.T_peak)
 
-            if self.p.shape[0] == 2:
+            if np.array(self.p).shape[0] == 2:
                 hdulist[0].header['HISTORY'] = 'Limb darkening parameter (E-W, N-S): {:2.2f}, {:2.2f}'.format(*self.p)
             else: 
                 hdulist[0].header['HISTORY'] = 'Limb darkening parameter (global):  {:2.2f}'.format(self.p)

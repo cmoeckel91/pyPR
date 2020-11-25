@@ -96,6 +96,10 @@ def locate2template(loggers,output,analytics=False):
             cnt = 1
             corrupteddatacnt = 0
             while line:
+                if line =='\n':
+                    line = fp.readline()
+                    continue 
+
                 info = line.split() 
                 # Find locate information 
                 if info[3] == 'PlotMS::locate+': 
@@ -274,7 +278,6 @@ def locate2template(loggers,output,analytics=False):
 
 
 
-
 def flagstatistics(flags, spwrange = np.arange(0,99), minfreq=10, targetfieldID=1 , plotting=True ): 
 
 
@@ -319,6 +322,19 @@ def flagstatistics(flags, spwrange = np.arange(0,99), minfreq=10, targetfieldID=
 
         bl = [(item[4]+item[5]) for item in tlist]
 
+        # # Find the most common antennas 
+        # if ispw == -1: 
+        #     antc = Counter(ant1 + ant2)
+        #     labels_a, heights_a = zip(*sorted(((k, v) for k, v in antc.items()), key=itemgetter(1), reverse=True)) 
+
+        #     left = np.arange(len(heights_a))
+        #     fig, ax = plt.subplots(1, 1)
+        #     ax.bar(left, heights_a, 1)
+        #     ax.set_xticks(left)
+        #     ax.set_xticklabels(labels_a,rotation=45,  fontsize='small')
+        #     plt.title('Flagged antenna for observations')
+        #     plt.show()  
+
         # Find the most common baselines 
         # https://stackoverflow.com/questions/20950650/how-to-sort-counter-by-value-python
         blc = Counter(bl) 
@@ -349,14 +365,15 @@ def flagstatistics(flags, spwrange = np.arange(0,99), minfreq=10, targetfieldID=
             
 
         # Show the antenna histogram 
-        # labels, values = zip(*Counter(ant1+ant2).items())
-        # indexes = np.arange(len(labels))
-        # width = 1
-        # plt.figure()
-        # plt.bar(indexes, values, width)
-        # plt.xticks(indexes + width * 0.5, labels)
-        # plt.title('Flagged antennas for spw{:d}'.format(ispw))
-        # plt.show()
+        if ispw == -1: 
+            labels, values = zip(*Counter(ant1+ant2).items())
+            indexes = np.arange(len(labels))
+            width = 1
+            plt.figure()
+            plt.bar(indexes, values, width)
+            plt.xticks(indexes + width * 0.5, labels,rotation=45,fontsize='small')
+            plt.title('Flagged antennas for spw{:d}'.format(ispw))
+            plt.show()
 
 
         # Baseline histogram 
@@ -705,7 +722,8 @@ def miriad_processing(uv, niter, robust=0.5, ):
 
 
     This assumes that uvsubtraction has been done in CASA already
-    
+
+
     Parameters
     -------
     uv : [-] str
@@ -797,7 +815,10 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     of Bob's Deprojection technique in MIRIAD 
 
     You need to be within the folder where the uv file sits normally. 
-    The script will generate temporary directories and distribute them 
+    The script will generate temporary directories and distribute them
+
+    Run /Volumes/scratch/CopyHD/usr/local/miriad/bin/darwin/maphelper.pl 
+    to obtain the recommended values for deprojecting 
 
     Returns
     ----------
@@ -840,7 +861,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     from select import select
     import numpy as np 
 
-    # Establish if averaging is happening or not 
+    # Establish if averaging is happening or not (Not miriad.csh already does the compressing) 
     if spwn != 1: 
         uvfitsc = uvfits + '.comp' 
     else: 
@@ -851,11 +872,21 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
 
 
-
+    # Old code 
     # Calculate the corresponding latitude ranges 
     dlat = latrange/np.ceil(latrange/latint)
+    
     # Number of latitude circles 
-    nlat = latrange/dlat 
+    nlat = (latrange/dlat) 
+
+    # New code 
+      # Old code 
+    # Calculate the corresponding latitude ranges 
+    dlat = latint
+    
+    # Number of latitude circles 
+    nlat = np.ceil(latrange/dlat)   
+
 
     # Find optimum number of cores (Assures that they will finish around the same time) 
     cond = True
@@ -913,6 +944,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         lat_upper = lat_lower + (nband-1)*dlat 
         if lat_upper > latrange/2: 
             lat_upper = latrange/2
+        print(lat_lower, lat_upper)
 
 
         filepath = temp_name+'/params' + '.pl' 
@@ -980,7 +1012,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
         bashcmd = bashcmd +('&\nmail -s "Facetting done" chris.moeckel@berkeley.edu <<< " " ')
         
         fo.write(bashcmd)
-        fo.write('&&\nperl /usr/local/miriad/bin/darwin/stitch.pl')
+        #fo.write('&&\nperl /usr/local/miriad/bin/darwin/stitch.pl')
 
 
     # Change permisson   
