@@ -650,7 +650,7 @@ def EmissionAngle(obs, lon, lat, R):
     lat = np.radians(np.arange(-1,5,0.5) ) 
     lon = np.radians(np.arange(-9,-5,0.5)) 
     
-    obs = np.array([79075.245, 0.00012249427993173018, 0.009174527763385208]) 
+    #obs = np.array([79075.245, 0.00012249427993173018, 0.009174527763385208]) 
 
 
     ea,lo,la = jt.EmissionAngle(obs,lon,lat) 
@@ -683,10 +683,12 @@ def EmissionAngle(obs, lon, lat, R):
     # Ray From spacecraft to local intercept point 
     R = S - L 
 
-    # Emission angle (dot protuct between local normal and the Ray 
+    # Test if normalzing R does anything 
+
+    # Emission angle (dot protuct between local normal and the Ray) divived by the cross product 
     ea = np.arccos((np.sum([R[0]*surf_n[0] ,R[1]*surf_n[1] ,R[2]*surf_n[2] ],axis=0))/(norm(surf_n,axis=0)*norm(R,axis=0)))
  
-    
+    XKCD
     return np.ndarray.flatten(ea), np.ndarray.flatten(lo), np.ndarray.flatten(la) 
 
 def local_position_ellipsoid(lon,lat,R):
@@ -1377,7 +1379,7 @@ def geo2eci(r,lon,lat,):
                        ])
     return r_eci
 
-def geoc2geod( lat_c, r=714921e3 , f=1-66854/71492): 
+def geoc2geod( lat_c, r=714921e3 , f=1-66854./71492): 
     """Conversion from geocentric to geodetic. '
     
     
@@ -2224,7 +2226,7 @@ def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = Fals
 
     References
     ------------
-    2018, Imke de Pater, Jupiter’s ammonia distribution derived from VLA maps at 3–37 GHz
+    2019, Imke de Pater, Jupiter’s ammonia distribution derived from VLA maps at 3–37 GHz
 
     Notes
     -------
@@ -3150,7 +3152,7 @@ class Map:
        
 
 
-    def read_deprojected(self, fitsfile, bandwidth = 0,fluxcal = 1): 
+    def read_deprojected(self, fitsfile, bandwidth = 0,fluxcal = 1, filtering=50): 
         '''Read in deprojected map and navigate it
 
         Parameters
@@ -3188,6 +3190,7 @@ class Map:
         # ----------------------------------------------------------------------
 
         from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans 
+        from scipy import ndimage
 
         # Import the Deprojected map 
         hdul_map = fits.open(fitsfile)
@@ -3216,6 +3219,7 @@ class Map:
         self.data       = Tb[0]
         self.Tb_r       = Tb[0]*fluxcal 
         self.Tb_r_zonal = np.nanmean(self.Tb_r,axis=1) 
+        self.Tb_r_std   = np.nanstd(self.Tb_r,axis=1) 
 
         self.fluxcal    = fluxcal
         self.unit       = hdul_map[0].header['BUNIT']
@@ -3224,6 +3228,9 @@ class Map:
         self.d_phi      = hdul_map[0].header['CDELT2']  # phi = latitud
         self.theta      = theta
         self.phi        = phi
+
+        # Convert to centric 
+
         nu              = hdul_map[0].header['CRVAL3']
         self.nu         = np.array(nu).flatten()
 
@@ -3233,7 +3240,16 @@ class Map:
         self.bpa = (hdul_map[0].header['BPA']) # Degree
   
 
+        # Replace all the nan with 0 
+        self.Tb_r[~np.isfinite(self.Tb_r)] = 0
 
+        # Apply filter to reduce large scale structure 
+        # (https://stackoverflow.com/questions/6094957/high-pass-filter-for-image-processing-in-python-by-using-scipy-numpy)
+        lowpass = ndimage.gaussian_filter(self.Tb_r, filtering)
+        self.Tb_r_f = self.Tb_r - lowpass
+        self.lowpass = lowpass 
+        self.Tb_r_zonal_f = np.nanmean(self.Tb_r_f,axis=1) 
+        self.Tb_r_std_f     = np.nanstd(self.Tb_r_f,axis=1) 
 
 
         if self.Tb_r.shape[0] != self.phi.shape[0]:
@@ -3244,11 +3260,9 @@ class Map:
             print('Map file and axis are not the same length, trimming phi')
             self.theta = self.theta[:-1]
 
-    def display_deprojected(self, roll=0, cmap = 'gray', clim=[0,0], path2save='', tailstr='', title = 'Radio brightness residuals', figsize=None, xlim=None, ylim=None, filtering=None): 
+    def display_deprojected(self, roll=0, cmap = 'gray', clim=[0,0], path2save='', tailstr='', title =  'Radio brightness residuals', figsize=None, xlim=None, ylim=None,  filtered=False, displaycolorbar=True): 
 
         from matplotlib import rcParams
-        from scipy import ndimage
-
 
         # Setting plotting routine 
         rcParams.update({'figure.autolayout': True})
@@ -3257,30 +3271,20 @@ class Map:
         if not hasattr(self,'Tb_r'):
             sys.exit('Need to read in a Map first! Use read_deprojected')
 
-   
+        if filtered: 
+            Tb_r = self.Tb_r_f
+        else: 
+            Tb_r = self.Tb_r
+        
         if roll != 0: 
-            # data = (interpolate_replace_nans(np.roll(hdul_map[0].data[0,0,:,:],int( hdul_map[0].data[0,0,:,:].shape[1]/2)),kernel)),
-            print('Not implemented yet') 
+            Tb_r = np.roll(Tb_r,int(roll/self.d_th))
 
         if figsize == None: 
+
             fig = plt.figure(figsize=(self.n_x/self.n_y*5,7)) 
         else: 
             fig = plt.figure(figsize=(figsize[0],figsize[1])) 
-   
 
-        if filtering is not None: 
-            Tb_r = self.Tb_r
-
-            # Replace all the nan with 0 
-            Tb_r[~np.isfinite(Tb_r)] = 0
-
-            # Apply filter to reduce large scale structure 
-            # (https://stackoverflow.com/questions/6094957/high-pass-filter-for-image-processing-in-python-by-using-scipy-numpy)
-            lowpass = ndimage.gaussian_filter(Tb_r, filtering)
-            Tb_r-= lowpass
-
-        else: 
-            Tb_r = self.Tb_r
 
         ax = fig.add_subplot(111)
         plt.axes().set_aspect('equal')
@@ -3303,8 +3307,9 @@ class Map:
 
         plt.ylabel('Latitude  [deg]')
         plt.xlabel('Longitude  [deg]')
-        if title:
+        if title is not None:
             plt.title(title + r', $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
+
         if xlim: 
             locs = np.linspace(xlim[0],xlim[-1],5)
             labels = []  
@@ -3317,15 +3322,26 @@ class Map:
         else:         
             locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
             labels=['150','120','90','60','30','0','330','300','270','240','210'] 
+
+            if roll == 180: 
+                locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
+                labels=['330','300','270','240','180','150','210','120','90','60','30',] 
+
+
         plt.xticks(locs, labels,)  
         ax.set_rasterized(True)
 
-        cbaxes = fig.add_axes([0.15,0.1,0.25,0.03])
-        if clim != [0,0]:
-            cbar = plt.colorbar(cs,ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]], cax = cbaxes,orientation = 'horizontal')
-            #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.1f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
-            cbar.set_label('[K]')
-
+        if displaycolorbar: 
+            cbaxes = fig.add_axes([0.15,0.1,0.25,0.03])
+            if clim != [0,0]:
+                cbar = plt.colorbar(cs,ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]], cax = cbaxes,orientation = 'horizontal')
+                #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.1f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
+                cbar.set_label('[K]')
+            else: 
+                cbar = plt.colorbar(cs, cax = cbaxes,orientation = 'horizontal')
+                #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.1f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
+            
+            cbar.set_label('[K]') 
         plt.show()
 
 
@@ -3335,15 +3351,17 @@ class Map:
             print('File written to: ' + path2save +fname)
             plt.savefig(path2save + fname + '.png', format='png', transparent = True, dpi=1000)
         
+
         return ax
 
     def add_disk(self, T_peak=0, p=0.0, T_cmb = 0 ): 
 
-        self.Tb_peak      = T_peak + T_cmb 
         self.T_cmb        = T_cmb 
+        self.Tb_peak      = T_peak + T_cmb 
         self.Tb_ld_zonal  = self.Tb_peak*np.cos(np.radians(self.phi))**p
-        self.Tb_ld_disk   = np.ones_like(self.Tb_r)*self.Tb_ld_zonal.T
+        self.Tb_ld_disk   = (np.ones_like(self.Tb_r).T*self.Tb_ld_zonal).T
         self.Tb           = self.Tb_r + self.Tb_ld_disk 
+        self.Tb_f         = self.Tb_r_f + self.Tb_ld_disk 
 
     def zonal_average(self, ): 
         try: 
@@ -3351,6 +3369,13 @@ class Map:
         except: 
             print('Could not find information on background disk')
         self.Tb_r_zonal = np.nanmean(self.Tb_r,axis=1) 
+
+
+    def export_deprojected(self,outname): 
+        '''
+        '''
+        print('Implement exporting as fits')
+        return None
 
 
     def save_deprojected(self,outname): 
