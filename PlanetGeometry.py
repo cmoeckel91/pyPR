@@ -2234,7 +2234,7 @@ def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = Fals
     ''' 
 
 
-    hdul = fits.open('pyPR/'+fitsfile)     
+    hdul = fits.open(os.getcwd() + 'pyPR/'+fitsfile)     
   
   
     # [deg] Emission angle  
