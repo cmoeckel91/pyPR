@@ -2233,8 +2233,11 @@ def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = Fals
     12/23/2018, CM, Initial Commit
     ''' 
 
-
-    hdul = fits.open(os.getcwd() + 'pyPR/'+fitsfile)     
+    print('Define local path somewhere')
+    try: 
+        hdul = fits.open(fitsfile)     
+    except: 
+        hdul = fits.open('pyPR/'+fitsfile)     
   
   
     # [deg] Emission angle  
