@@ -1551,6 +1551,146 @@ def geod2geoc( lat_d, h, r_e,  f ):
     return lat_c
 
 
+def geod2geoc3( lat_d,r_e,r_p ): 
+    """Conversion from geodetic to geocentric. '
+    
+
+    
+    Planetocentric: Defined with respect to a sphere 
+        Longitude: Positive eastwards 
+        Latitude: Positive northward 
+    Planetodetic: Defined with respect to the local tangent plane
+        Longitude: Positive eastwards   
+        Latitude: Positive northward 
+    Planetographic: Defined with respect to the local tangent plane, 
+    and longitude is increasing with time for the observer 
+        Longitude: Positive WESTwards   
+        Latitude: Positive northward 
+    
+    Source: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/Tutorials
+    /pdf/individual_docs/17_frames_and_coordinate_systems.pdf (slide 23-25)
+
+
+    Parameters
+    ----------
+    h : float
+        [m] height of the observer 
+    r_e : float
+        [m] equatorial radius of the planet 
+    lat_d : float
+        [rad] Geodetic Latitude
+    flat: float 
+        [-] Flattening parameter (1-R_p/R_e) or (R_e-R_p)/R_e
+
+
+    Keyword Arguments
+    ----------
+
+
+    Returns
+    -------
+    lat_c : float
+        [rad] Geocentric Latitude
+
+    Warnings
+    -------
+    Assuming spherical Earth rather than WGS Spheroid. To Be Added
+
+    Example
+    -------
+    import pyPR.PlanetGeometry as PG 
+    # Earth WGS - 84, Paris 
+    f = 1/298.257223563; lat_d = np.radians(48.8567); r_e = 6378.137e3; h = 400
+    np.degrees(PG.geod2geoc(h, r_e, lat_d, f)) # 48.665943820540754
+
+
+
+    References
+    ------------
+    https://www.mathworks.com/help/aeroblks/geodetictogeocentriclatitude.html
+
+    Notes
+    -------
+    12/11/18, CM, Initial commit, Geocentric only
+    """
+
+    # Calculate the geocentric latitude at the surface intercept 
+
+    return np.arctan((1-(r_e-r_p)/r_e)**2*np.tan(lat_d))
+
+def geod2geoc2( lat_d, h, r_e,  r_p ): 
+    """Conversion from geodetic to geocentric. '
+    
+
+    
+    Planetocentric: Defined with respect to a sphere 
+        Longitude: Positive eastwards 
+        Latitude: Positive northward 
+    Planetodetic: Defined with respect to the local tangent plane
+        Longitude: Positive eastwards   
+        Latitude: Positive northward 
+    Planetographic: Defined with respect to the local tangent plane, 
+    and longitude is increasing with time for the observer 
+        Longitude: Positive WESTwards   
+        Latitude: Positive northward 
+    
+    Source: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/Tutorials
+    /pdf/individual_docs/17_frames_and_coordinate_systems.pdf (slide 23-25)
+
+
+    Parameters
+    ----------
+    h : float
+        [m] height of the observer 
+    r_e : float
+        [m] equatorial radius of the planet 
+    lat_d : float
+        [rad] Geodetic Latitude
+    flat: float 
+        [-] Flattening parameter (1-R_p/R_e) or (R_e-R_p)/R_e
+
+
+    Keyword Arguments
+    ----------
+
+
+    Returns
+    -------
+    lat_c : float
+        [rad] Geocentric Latitude
+
+    Warnings
+    -------
+    Assuming spherical Earth rather than WGS Spheroid. To Be Added
+
+    Example
+    -------
+    import pyPR.PlanetGeometry as PG 
+    # Earth WGS - 84, Paris 
+    f = 1/298.257223563; lat_d = np.radians(48.8567); r_e = 6378.137e3; h = 400
+    np.degrees(PG.geod2geoc(h, r_e, lat_d, f)) # 48.665943820540754
+
+
+
+    References
+    ------------
+    https://www.mathworks.com/help/aeroblks/geodetictogeocentriclatitude.html
+
+    Notes
+    -------
+    12/11/18, CM, Initial commit, Geocentric only
+    """
+
+    # Calculate the geocentric latitude at the surface intercept 
+    f = (r_e-r_p)/r_e
+    e = np.sqrt(f/(2-f)) 
+    N = r_e/np.sqrt(1-e**2*np.sin(lat_d)**2)
+    rho = (N+h)*np.sin(lat_d) 
+    z = (N*(1-e**2)+h)*np.sin(lat_d)
+    lat_c = np.arctan(z/rho)
+
+    return lat_c
+
 def rotateprincipalaxis(R, ob_lat): 
     """Obtain the principal axis of an ellopsoid seen at an angle. 
 
@@ -2200,7 +2340,7 @@ def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = Fals
     fitsfile : [1] string
         [] Name of the input fits file 
     f_interp : [1] float 
-        [Hz] Required frequency  
+        [Hz] Required frequency  (Does not accept arrays, yet) 
 
     Returns
     ----------
@@ -2236,7 +2376,7 @@ def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = Fals
     print('Define local path somewhere')
     try: 
         hdul = fits.open(fitsfile)     
-    except: 
+    except FileNotFoundError: 
         hdul = fits.open('pyPR/'+fitsfile)     
   
   
