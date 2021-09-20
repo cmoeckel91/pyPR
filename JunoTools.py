@@ -221,6 +221,14 @@ def PJ2DOY(number):
     "doy" : 149, 
     "time": 8.13, 
     "data": False,
+    }
+
+    PJ29 = {
+    "PJ": 29,
+    "year": 2020, 
+    "doy" : 260, 
+    "time": 2.16, 
+    "data": True,
     } 
 
     PJ = { 
@@ -244,15 +252,22 @@ def PJ2DOY(number):
     'PJ18' : PJ18,
     'PJ19' : PJ19,
     'PJ20' : PJ20,
+    'PJ29' : PJ29,
         } 
 
     return PJ[f'PJ{number}']
 
-def DownloadPDSdata(pathJ,PJnumber, dataversion): 
+def DownloadPDSdata(pathJ,PJnumber, dataversion, bracket=[-1,2]): 
     '''
     Download the PDS products 
     https://stackoverflow.com/questions/4589241/downloading-files-from-an-http-server-in-python
     https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/IRDR/2016/2016240/
+    
+    import pyPR.JunoTools as jt
+    PJnumber = 29; dataversion = 3
+
+    jt.DownloadPDSdata(jt.pathJ, PJnumber, dataversion,bracket[-1,3])
+
     '''
     import requests
     import re 
@@ -299,15 +314,15 @@ def DownloadPDSdata(pathJ,PJnumber, dataversion):
     if not glob.glob(f'mkdir {pathJ}PJ{PJnumber}' ): os.system(f'mkdir {pathJ}PJ{PJnumber}') 
     if not glob.glob(f'mkdir {pathJ}PJ{PJnumber}/PDS' ): os.system(f'mkdir {pathJ}PJ{PJnumber}/PDS') 
 
-    for fI,fG in zip(fnI[indx-1:indx+2],fnG[indx-1:indx+2]): 
+    for fI,fG in zip(fnI[indx+bracket[0]:indx+bracket[1]],fnG[indx+bracket[0]:indx+bracket[1]]): 
         if not glob.glob(pathJ + f'PJ{PJnumber}/PDS/' + fI):
             wget.download(urli + fI, pathJ + f'PJ{PJnumber}/PDS/' + fI )
         if not glob.glob(pathJ + f'PJ{PJnumber}/PDS/' + fG):
             wget.download(urlg + fG, pathJ + f'PJ{PJnumber}/PDS/' + fG) 
 
-    return fnI[indx-1:indx+2],fnG[indx-1:indx+2]
+    return fnI[indx+bracket[0]:indx+bracket[1]],fnG[indx+bracket[0]:indx+bracket[1]]
 
-def PJFileLocation(path, PJnumber, dataversion=2): 
+def PJFileLocation(path, PJnumber, dataversion=3): 
 
     file_I = sorted(glob.glob(path + 'PJ{:d}/PDS/MWR{:02d}RI*_V{:02d}.CSV'.format(PJnumber,PJnumber,dataversion)))
     file_G = sorted(glob.glob(path + 'PJ{:d}/PDS/MWR{:02d}RG*_V{:02d}.CSV'.format(PJnumber,PJnumber,dataversion)))
@@ -2605,16 +2620,16 @@ class PJ:
 
         fig, axs = plt.subplots(1, 1)
         rot = np.arange(int(np.floor(self.rotation[0])),int(np.ceil(self.rotation[-1]))) 
-        axs.plot(fppr[0,:],ob_lat,label='C1') 
-        axs.plot(fppr[1,:],ob_lat,label='C2') 
-        axs.plot(fppr[2,:],ob_lat,label='C3') 
-        axs.plot(fppr[3,:],ob_lat,label='C4') 
-        axs.plot(fppr[4,:],ob_lat,label='C5') 
-        axs.plot(fppr[5,:],ob_lat,label='C6') 
+        axs.plot(fppr[0,:],ob_lat,label='C1',color=cc1) 
+        axs.plot(fppr[1,:],ob_lat,label='C2',color=cc2) 
+        axs.plot(fppr[2,:],ob_lat,label='C3',color=cc3) 
+        axs.plot(fppr[3,:],ob_lat,label='C4',color=cc4) 
+        axs.plot(fppr[4,:],ob_lat,label='C5',color=cc5) 
+        axs.plot(fppr[5,:],ob_lat,label='C6',color=cc6) 
         axs.legend()
         axs.set_title('Footprints per rotation')
-        axs.set_xlabel('Rotation index')
-        axs.set_ylabel('Footprints on the planet')
+        axs.set_xlabel('Footprint density (1/deg)')
+        axs.set_ylabel('Latitude (deg)')
 
         return 
 

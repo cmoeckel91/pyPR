@@ -393,7 +393,7 @@ def flagstatistics(flags, spwrange = np.arange(0,99), minfreq=10, targetfieldID=
                 left = np.arange(len(heights_f))
                 fig, ax = plt.subplots(1, 1)
                 ax.bar(left, heights_f, 1)
-                ax.set_xticks(left)
+                #ax.set_xticks(left)
                 ax.set_xticklabels(labels,rotation=45,  fontsize='small')
                 plt.title('Flagged baseline for spw{:d}'.format(ispw))
                 plt.show()              

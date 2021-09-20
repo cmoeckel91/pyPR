@@ -688,7 +688,6 @@ def EmissionAngle(obs, lon, lat, R):
     # Emission angle (dot protuct between local normal and the Ray) divived by the cross product 
     ea = np.arccos((np.sum([R[0]*surf_n[0] ,R[1]*surf_n[1] ,R[2]*surf_n[2] ],axis=0))/(norm(surf_n,axis=0)*norm(R,axis=0)))
  
-    XKCD
     return np.ndarray.flatten(ea), np.ndarray.flatten(lo), np.ndarray.flatten(la) 
 
 def local_position_ellipsoid(lon,lat,R):
