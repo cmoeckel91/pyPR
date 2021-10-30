@@ -1993,7 +1993,7 @@ class PJ:
 
 
             # Read in the Juno beam  
-            path_beam = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
+            path_beam = path_J + 'Beam/'
             beam = 'antenna1.txt' 
             path = path_beam+beam
             G,t,p, hpbw =jt.readJunoBeam(path,plotting=False) 
@@ -2131,9 +2131,9 @@ class PJ:
 
 
             # Read in the Juno beam  
-            path_J = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
+            path_beam = path_J + 'Beam/'            
             beam = 'antenna1.txt' 
-            path = path_J+beam
+            path = path_beam+beam
             G,t,p, hpbw =jt.readJunoBeam(path,plotting=False) 
 
 
@@ -5724,7 +5724,8 @@ def BeamConvolvedEmission(beam,obs,dist,channel,radialextent,normalized=False,gr
     import matplotlib as mpl
     from scipy import interpolate
 
-    path_B = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
+
+    path_B = path_J + 'Beam/'
     G,p,t, hpbw   = jt.readJunoBeam(path_B,channel,normalized=normalized) 
 
 
@@ -5844,7 +5845,8 @@ def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False,
     import matplotlib as mpl
     from scipy import interpolate
 
-    path_B = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
+    #path_B = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
+    path_B = path_J + 'Beam/'
     G,p,t, hpbw   = jt.readJunoBeam(path_B,channel,normalized=normalized) 
 
 
