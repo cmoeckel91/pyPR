@@ -1173,7 +1173,7 @@ class PJ:
 
         # Save the zonal average if emission angle correction has been applied 
         if not quicklook: 
-            self.savezonalaverage(pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}')        
+            self.savezonalaverage(pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}',dataversion = dataversion)        
             # Save the whole structure as a pickle 
             fname = f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj'
             filehandler = open( pathJ + fname,'wb' )
@@ -2750,14 +2750,18 @@ class PJ:
             # Find indices where condition is not true (synchrotron filter)
             ind_sf = np.where(~((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
             ind_nsf = np.where(((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+            # Find the indices_planet entries that also function with ind_sf 
+            indsc = np.intersect1d(indpl, ind_sf ,return_indices=True)[1]
         else: 
-            ind_sf = indpl
+            indsc = np.arange(0,indpl.shape[0],1)
 
-        exec(f'self.C{channel}.indices_science = self.C{channel}.indices_planet[ind_sf]')
+        # save the filter 
+        exec(f'self.C{channel}.indices_science = self.indices[indpl[indsc]]')
 
-        lat_f = lat_f[ind_sf]
-        T_f = T_f[ind_sf]
-        mu_f = mu_f[ind_sf]  
+
+        lat_f = lat_f[indsc]
+        T_f = T_f[indsc]
+        mu_f = mu_f[indsc]  
 
     
         # Sort the profile according to latitude and discard nan 
@@ -3745,7 +3749,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
     import pyPR.JunoTools as jt 
     path_GD='/Users/chris/GDrive-UCB/'
     path =  path_GD + 'Berkeley/Research/Juno/'
-    jt.ProcessZonalAverage(path, pjmin=21, pjmax=31,pjexc=[26],reprocess=False)
+    jt.ProcessZonalAverage(path, pjmin=21, pjmax=32,pjexc=[26],reprocess=False,dataversion=2)
 
     '''
 
@@ -6133,7 +6137,7 @@ def fit_Tn_ld2(a,mu,lat,window=1,resolution=0.1, weights=1,):
         
 
         # Skip all bins with less than 10 measurements, really not worth it 
-        if (np.sum(idx)) < 10: 
+        if (np.sum(idx)) < 6: 
             Tn[i] = np.nan 
             ld[i] = np.nan  
             sig[:,i] = [np.nan ,np.nan ]
