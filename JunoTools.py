@@ -441,18 +441,25 @@ def DownloadPDSdata(pathJ, PJnumber, dataversion=3, bracket=[-1,1]):
     fnG = [t[1:] for t in tempg] 
 
 
-
     # # Select the files around the Perijove time 
     tpj = PJdict["time"]
     indx = int(tpj) 
 
+
     if tpj == 0: 
         print('Wraps around the day') 
 
+    if indx+bracket[0] < 0: 
+        print('Data bracket goes into previous day. Only downloading current day. Future Chris should fix this') 
+
+    while indx + bracket[0] < 0: 
+        bracket[0] += 1  
+
+
 
     # Download data 
-    if not glob.glob(f'mkdir {pathJ}PJ{PJnumber}' ): os.system(f'mkdir {pathJ}PJ{PJnumber}') 
-    if not glob.glob(f'mkdir {pathJ}PJ{PJnumber}/PDS' ): os.system(f'mkdir {pathJ}PJ{PJnumber}/PDS') 
+    if not glob.glob(f'{pathJ}PJ{PJnumber}' ): os.system(f'mkdir {pathJ}PJ{PJnumber}') 
+    if not glob.glob(f'{pathJ}PJ{PJnumber}/PDS' ): os.system(f'mkdir {pathJ}PJ{PJnumber}/PDS') 
 
     for fI,fG in zip(fnI[indx+bracket[0]:indx+bracket[1]],fnG[indx+bracket[0]:indx+bracket[1]]): 
         if not glob.glob(pathJ + f'PJ{PJnumber}/PDS/' + fI):
