@@ -139,7 +139,7 @@ def PJ2DOY(number):
     "year": 2017, 
     "doy" : 350, 
     "time": 17.93, 
-    "data": False,
+    "data": True,
     } 
 
     PJ11 = {
@@ -147,7 +147,7 @@ def PJ2DOY(number):
     "year": 2018, 
     "doy" : 38, 
     "time": 13.85, 
-    "data": False,
+    "data": True,
     } 
 
     PJ12 = {
@@ -163,7 +163,7 @@ def PJ2DOY(number):
     "year": 2018, 
     "doy" : 144, 
     "time": 5.65, 
-    "data": False,
+    "data": True,
     } 
 
     PJ14 = {
@@ -171,7 +171,7 @@ def PJ2DOY(number):
     "year": 2018, 
     "doy" : 197, 
     "time": 5.28, 
-    "data": False,
+    "data": True,
     } 
 
     PJ15 = {
@@ -179,7 +179,7 @@ def PJ2DOY(number):
     "year": 2018, 
     "doy" : 250, 
     "time": 1.18, 
-    "data": False,
+    "data": True,
     } 
 
 
@@ -196,7 +196,7 @@ def PJ2DOY(number):
     "year": 2018, 
     "doy" : 355, 
     "time": 17.0, 
-    "data": False,
+    "data": True,
     }
 
     PJ18 = {
@@ -638,7 +638,7 @@ class PJ:
         # Boolean array with perojove pass information 
         self.pj_ids = np.array(pj_ids, dtype=bool)  
 
-        print(f'Perijove pass at {self.time[self.pj_idx]} lasted from {self.time[np.where(self.pj_ids)[0][0] ]} to {self.time[np.where(self.pj_ids)[0][-1]]}')
+        print(f'Perijove {self.PJnumber} at {self.time[self.pj_idx]} lasted from {self.time[np.where(self.pj_ids)[0][0] ]} to {self.time[np.where(self.pj_ids)[0][-1]]}')
 
         #Set beam convolution resolution 
         self.beamsampling = 10 
@@ -759,7 +759,7 @@ class PJ:
         self.C2.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C2.skyandplanet    = (self.C2.sky  == False) & (self.C2.planet == False) 
         self.C2.indices_sandp   = self.indices[np.where(self.C2.skyandplanet==True)].astype(int) 
-        self.C2.synchrotron_filter = [10,75]
+        self.C2.synchrotron_filter = [10,89]
 
         # Antenna temperatures 
         self.C2.T_a   = np.mean([pj['R2_1TA'].values, pj['R2_2TA'].values],axis=0) 
@@ -1177,7 +1177,7 @@ class PJ:
             # Save the whole structure as a pickle 
             fname = f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj'
             filehandler = open( pathJ + fname,'wb' )
-            print(f'Periojve data are saved to {fname}')
+            print(f'Perijove data are saved to {fname}')
             pickle.dump(self,filehandler)   
 
     def rot2ind(self,rotnumb):
@@ -2744,15 +2744,21 @@ class PJ:
         else: 
             ob_lat = eval(f'self.ob_lat_g')[indpl]
 
-        # Find indices where condition is not true (synchrotron filter)
-        ind_sf = np.where(~((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
-        ind_nsf = np.where(((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+
+
+        if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
+            # Find indices where condition is not true (synchrotron filter)
+            ind_sf = np.where(~((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+            ind_nsf = np.where(((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+        else: 
+            ind_sf = indpl
+
+        exec(f'self.C{channel}.indices_science = self.C{channel}.indices_planet[ind_sf]')
 
         lat_f = lat_f[ind_sf]
         T_f = T_f[ind_sf]
         mu_f = mu_f[ind_sf]  
 
-        exec(f'self.C{channel}.indices_science = self.C{channel}.indices_planet[ind_sf]')
     
         # Sort the profile according to latitude and discard nan 
         inds    = np.argsort(lat_f) 
