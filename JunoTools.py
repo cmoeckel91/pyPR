@@ -220,8 +220,73 @@ def PJ2DOY(number):
     "year": 2019, 
     "doy" : 149, 
     "time": 8.13, 
-    "data": False,
+    "data": True,
     }
+
+    PJ21 = {
+    "PJ": 21,
+    "year": 2019, 
+    "doy" : 202, 
+    "time": 4.02, 
+    "data": True,
+    } 
+
+    PJ22 = {
+    "PJ": 22,
+    "year": 2019, 
+    "doy" : 255, 
+    "time": 3.75, 
+    "data": True,
+    } 
+
+    PJ23 = {
+    "PJ": 213,
+    "year": 2019, 
+    "doy" : 307, 
+    "time": 22.3, 
+    "data": True,
+    } 
+
+    PJ24 = {
+    "PJ": 24,
+    "year": 2019, 
+    "doy" : 360, 
+    "time": 17.5, 
+    "data": True,
+    } 
+    
+    PJ25 = {
+    "PJ": 25,
+    "year": 2020, 
+    "doy" : 48, 
+    "time": 17.8, 
+    "data": True,
+    } 
+    
+
+    PJ26 = {
+    "PJ": 26,
+    "year": 2020, 
+    "doy" : 101, 
+    "time": 13.78, 
+    "data": True,
+    } 
+    
+    PJ27 = {
+    "PJ": 27,
+    "year": 2020, 
+    "doy" : 154, 
+    "time": 10.3, 
+    "data": True,
+    } 
+
+    PJ28 = {
+    "PJ": 28,
+    "year": 2020, 
+    "doy" : 207, 
+    "time": 6.25, 
+    "data": True,
+    } 
 
     PJ29 = {
     "PJ": 29,
@@ -230,6 +295,31 @@ def PJ2DOY(number):
     "time": 2.16, 
     "data": True,
     } 
+
+    PJ30 = {
+    "PJ": 30,
+    "year": 2020, 
+    "doy" : 313, 
+    "time": 1.8, 
+    "data": True,
+    } 
+
+    PJ31 = {
+    "PJ": 31,
+    "year": 2020, 
+    "doy" : 365, 
+    "time": 21.75, 
+    "data": True,
+    } 
+
+    PJ32 = {
+    "PJ": 32,
+    "year": 2021, 
+    "doy" : 52, 
+    "time": 17.6, 
+    "data": True,
+    } 
+
 
     PJ = { 
     'PJ1' :  PJ1,    
@@ -252,21 +342,69 @@ def PJ2DOY(number):
     'PJ18' : PJ18,
     'PJ19' : PJ19,
     'PJ20' : PJ20,
+    'PJ21' : PJ21,
+    'PJ22' : PJ22,
+    'PJ23' : PJ23,
+    'PJ24' : PJ24,
+    'PJ25' : PJ25,
+    'PJ26' : PJ26,
+    'PJ27' : PJ27,
+    'PJ28' : PJ28,
     'PJ29' : PJ29,
+    'PJ30' : PJ30,
+    'PJ31' : PJ31,
+    'PJ32' : PJ32,
         } 
 
     return PJ[f'PJ{number}']
 
-def DownloadPDSdata(pathJ,PJnumber, dataversion, bracket=[-1,2]): 
-    '''
-    Download the PDS products 
+def DownloadPDSdata(pathJ, PJnumber, dataversion=3, bracket=[-1,1]): 
+    ''' Download Juno data from the PDS  
+    
+
+    Note: It will overwrite the original files  
+
+    Parameters
+    -------
+    proj : [1] list
+        [str] Name of files that contain the image 
+
+    Returns
+    ----------
+    pathJ : [str] 
+        [-] Path to where the data sit 
+    PJnumber: [1] integer
+        [-] PJ number to download 
+
+
+    Keywords
+    ----------
+    dataversion: [1] integer 
+        [-] Data product version on the PDS (check for latest values) 
+    bracket: [2x1] integer
+        [h] Bracket in hour to download the data around perijove passes (larger brackets -> longer processing time) 
+
+    Example
+    -------
+    import pyPR.JunoTools as jt
+    for PJnumber in range(20,21):
+        dataversion = 3
+        jt.DownloadPDSdata(jt.pathJ, PJnumber, dataversion,bracket=[-1,3])
+
+    ToDo 
+    -------
+    Include the emission angle and noise to weigh individual images 
+
+    References
+    ------------
     https://stackoverflow.com/questions/4589241/downloading-files-from-an-http-server-in-python
     https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/IRDR/2016/2016240/
-    
-    import pyPR.JunoTools as jt
-    PJnumber = 29; dataversion = 3
 
-    jt.DownloadPDSdata(jt.pathJ, PJnumber, dataversion,bracket[-1,3])
+    Notes
+    -------
+    4/11/2021, CM, Initial Commit
+
+
 
     '''
     import requests
@@ -275,7 +413,9 @@ def DownloadPDSdata(pathJ,PJnumber, dataversion, bracket=[-1,2]):
     import os 
     import glob 
 
-    print('Download the beam')
+    print('Warning: Download the beam separately')
+    print(f'Downloading {PJnumber}\n')
+
 
     PJdict = PJ2DOY(PJnumber) 
 
@@ -414,7 +554,7 @@ class PJ:
 
 
 
-    def readdata(self,pathJ, quicklook=True, load=False, synchrotron= False, Footprints=False, dataversion = 2):
+    def readdata(self,pathJ, quicklook=True, load=False, synchrotron= False, Footprints=False, dataversion = 3, windowbin = 1):
 
 
         if load: 
@@ -437,7 +577,7 @@ class PJ:
 
 
         self.pj = pj 
-       # pj['t_utc_doy'].apply(datetime.strptime, args=['%Y-%jT%H:%M:%S.%f'])
+        # pj['t_utc_doy'].apply(datetime.strptime, args=['%Y-%jT%H:%M:%S.%f'])
 
 
         print('Processing calibrated data')
@@ -472,6 +612,7 @@ class PJ:
 
         self.RJ         =   np.array([71492., 71492., 66854.])
 
+        self.windowbin = windowbin
 
         # Determine when the actual Perijove pass happens by seeing when the latitude starts wrapping around 
         signchange = np.where((np.diff(np.sign(np.gradient(self.ob_lat_c))) != 0)) 
@@ -510,7 +651,7 @@ class PJ:
         self.C1.hpbw_pds  = 20.6 # deg 
         self.C1.hpbw = readJunoBeam(pathJ+'Beam/',self.C1.channel,normalized=False)[3] 
         self.C1.f     = 0.6e9  # [Hz] Center frequency  
-        self.C1.ld    = 0.45
+        self.C1.ld    = 0.47 #  Mean from PJ1-12 
         # Boresight information
         self.C1.lat_c = pj['PC_lat_JsB1'].values
         self.C1.lat_g = pj['PG_lat_JsB1'].values
@@ -523,6 +664,8 @@ class PJ:
         self.C1.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C1.skyandplanet    = (self.C1.sky  == False) & (self.C1.planet == False) 
         self.C1.indices_sandp   = self.indices[np.where(self.C1.skyandplanet==True)].astype(int) 
+        self.C1.synchrotron_filter = [1,89]
+
         # Antenna temperatures 
         self.C1.T_a   = np.mean([pj['R1_1TA'].values, pj['R1_2TA'].values],axis=0) 
         self.C1.T_a_lg= pj['R1_1TA'].values 
@@ -531,19 +674,20 @@ class PJ:
         # Compute beam weighted emission angle 
         if not quicklook: 
             self.C1.eea = np.zeros_like(self.C1.eangle)*np.nan
+            self.C1.beamcutoff = self.beamoffset*1.2
             cnt = 0 
             for j in self.C1.indices_planet: 
                 if np.mod((cnt/len(self.C1.indices_planet)*100),10) == 0:
                     print(f'Progress: {cnt/len(self.C1.indices_planet)*100:2.0f}%') 
-                self.C1.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C1.lon[j],self.C1.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C1.hpbw*1.25,sampling=self.beamsampling ))
+                self.C1.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C1.lon[j],self.C1.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C1.hpbw*self.C1.beamcutoff,sampling=self.beamsampling ))
                 cnt += 1 
             self.C1.indices_planet = self.indices[np.where(np.isfinite(self.C1.eea))].astype(int)
 
         # Compute the uncleaned zonal average 
         if quicklook:
-            self.C1.T_n, self.C1.p, self.C1.lat_c_i, self.C1.w, self.C1.sig_T, self.C1.sig_p = self.zonalaverage2(chn,beamconv=False)
+            self.C1.T_n, self.C1.p, self.C1.lat_c_i, self.C1.w, self.C1.sig_T, self.C1.sig_p, self.C1.n_fit = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else: 
-            self.C1.T_n, self.C1.p, self.C1.lat_c_i, self.C1.w, self.C1.sig_T, self.C1.sig_p = self.zonalaverage2(chn,beamconv=True,weight=1,sigmafil=6,)
+            self.C1.T_n, self.C1.p, self.C1.lat_c_i, self.C1.w, self.C1.sig_T, self.C1.sig_p, self.C1.n_fit = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,weight=1,sigmafil=6,)
 
         self.C1.lat_g_i = np.degrees(geoc2geod(np.radians(self.C1.lat_c_i))[0])
 
@@ -602,7 +746,7 @@ class PJ:
         self.C2.hpbw_pds  = 20.6 # deg 
         self.C2.hpbw = readJunoBeam(pathJ+'Beam/',self.C2.channel,normalized=False)[3] 
         self.C2.f     = 1.248e9  # [Hz] Center frequency  
-        self.C2.ld    = 0.2
+        self.C2.ld    = 0.316 #  Mean from PJ1-12 
         # Boresight information
         self.C2.lat_c = pj['PC_lat_JsB2'].values
         self.C2.lat_g = pj['PG_lat_JsB2'].values
@@ -615,6 +759,8 @@ class PJ:
         self.C2.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C2.skyandplanet    = (self.C2.sky  == False) & (self.C2.planet == False) 
         self.C2.indices_sandp   = self.indices[np.where(self.C2.skyandplanet==True)].astype(int) 
+        self.C2.synchrotron_filter = [10,75]
+
         # Antenna temperatures 
         self.C2.T_a   = np.mean([pj['R2_1TA'].values, pj['R2_2TA'].values],axis=0) 
         self.C2.T_a_lg= pj['R2_1TA'].values 
@@ -623,15 +769,16 @@ class PJ:
         # Compute beam weighted emission angle 
         if not quicklook:  
             self.C2.eea = np.zeros_like(self.C2.eangle)*np.nan
+            self.C2.beamcutoff = self.beamoffset*1.2
             for j in self.C2.indices_planet: 
-                self.C2.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C2.lon[j],self.C2.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C2.hpbw*1.25,sampling=self.beamsampling ))
+                self.C2.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C2.lon[j],self.C2.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C2.hpbw*self.C1.beamcutoff,sampling=self.beamsampling ))
             self.C2.indices_planet = self.indices[np.where(np.isfinite(self.C2.eea))].astype(int)
 
         # Compute the uncleaned zonal average 
         if quicklook: 
-            self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p = self.zonalaverage2(chn,beamconv=False)
+            self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p, self.C2.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else:
-            self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p = self.zonalaverage2(chn,beamconv=True,sigmafil=10, weight=1)
+            self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p, self.C2.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,sigmafil=10, weight=1)
 
         self.C2.lat_g_i = np.degrees(geoc2geod(np.radians(self.C2.lat_c_i))[0])
 
@@ -688,8 +835,8 @@ class PJ:
         # Antenna information 
         self.C3.hpbw_pds  = 12.1 # deg 
         self.C3.hpbw = readJunoBeam(pathJ+'Beam/',self.C3.channel,normalized=False)[3]
-        self.C3.f     = 2.597e9  # [Hz] Center frequency  
-        self.C3.ld    = 0.16
+        self.C3.f    = 2.597e9  # [Hz] Center frequency  
+        self.C3.ld   = 0.21 #  Mean from PJ1-12 
 
         # Boresight information
         self.C3.lat_c = pj['PC_lat_JsB3'].values
@@ -703,20 +850,23 @@ class PJ:
         self.C3.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C3.skyandplanet    = (self.C3.sky  == False) & (self.C3.planet == False) 
         self.C3.indices_sandp   = self.indices[np.where(self.C3.skyandplanet==True)].astype(int) 
+        self.C3.synchrotron_filter = [10,75]
+
         # Antenna temperatures
         self.C3.T_a   = pj['R3TA'].values 
         self.C3.eangle= pj['emssn_angle_JsB3'].values 
         if not quicklook: 
             self.C3.eea = np.zeros_like(self.C3.eangle)*np.nan
+            self.C3.beamcutoff =  self.beamoffset*1.2
             for j in self.C3.indices_planet: 
-                self.C3.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C3.lon[j],self.C3.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C3.hpbw*1.25,sampling=self.beamsampling ))
+                self.C3.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C3.lon[j],self.C3.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C3.hpbw*self.C3.beamcutoff ,sampling=self.beamsampling ))
             self.C3.indices_planet = self.indices[np.where(np.isfinite(self.C3.eea))].astype(int)
 
         # Compute the uncleaned zonal average 
         if quicklook: 
-            self.C3.T_n, self.C3.p, self.C3.lat_c_i, self.C3.w, self.C3.sig_T, self.C3.sig_p = self.zonalaverage2(chn,beamconv=False)
+            self.C3.T_n, self.C3.p, self.C3.lat_c_i, self.C3.w, self.C3.sig_T, self.C3.sig_p, self.C3.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else: 
-            self.C3.T_n, self.C3.p, self.C3.lat_c_i, self.C3.w, self.C3.sig_T, self.C3.sig_p = self.zonalaverage2(chn,beamconv=True,sigmafil=5,weight=0.01)
+            self.C3.T_n, self.C3.p, self.C3.lat_c_i, self.C3.w, self.C3.sig_T, self.C3.sig_p, self.C3.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,sigmafil=5,weight=0.01)
            
         self.C3.lat_g_i = np.degrees(geoc2geod(np.radians(self.C3.lat_c_i))[0])
 
@@ -773,7 +923,7 @@ class PJ:
         self.C4.hpbw_pds  = 12.1 # deg 
         self.C4.hpbw = readJunoBeam(pathJ+'Beam/',self.C4.channel,normalized=False)[3]
         self.C4.f     = 5.215e9  # [Hz] Center frequency  
-        self.C4.ld    = 0.16
+        self.C4.ld    = 0.18 #  Mean from PJ1-12 
         # Boresight information
         self.C4.lat_c = pj['PC_lat_JsB4'].values
         self.C4.lat_g = pj['PG_lat_JsB4'].values
@@ -786,20 +936,23 @@ class PJ:
         self.C4.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C4.skyandplanet    = (self.C4.sky  == False) & (self.C4.planet == False) 
         self.C4.indices_sandp   = self.indices[np.where(self.C4.skyandplanet==True)].astype(int) 
+        self.C4.synchrotron_filter = [0,90]
+
         # Antenna temperatures
         self.C4.T_a   = pj['R4TA'].values 
         self.C4.eangle= pj['emssn_angle_JsB4'].values
         if not quicklook:  
             self.C4.eea = np.zeros_like(self.C4.eangle)*np.nan
+            self.C4.beamcutoff =  self.beamoffset
             for j in self.C4.indices_planet: 
-                self.C4.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C4.lon[j],self.C4.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C4.hpbw*1.25,sampling=self.beamsampling ))
+                self.C4.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C4.lon[j],self.C4.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C4.hpbw*self.C4.beamcutoff,sampling=self.beamsampling ))
             self.C4.indices_planet = self.indices[np.where(np.isfinite(self.C4.eea))].astype(int)
 
         # Compute the uncleaned zonal average
         if quicklook: 
-            self.C4.T_n, self.C4.p, self.C4.lat_c_i, self.C4.w, self.C4.sig_T, self.C4.sig_p = self.zonalaverage2(chn,beamconv=False)
+            self.C4.T_n, self.C4.p, self.C4.lat_c_i, self.C4.w, self.C4.sig_T, self.C4.sig_p, self.C4.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else: 
-            self.C4.T_n, self.C4.p, self.C4.lat_c_i, self.C4.w, self.C4.sig_T, self.C4.sig_p = self.zonalaverage2(chn,beamconv=True,weight=0.01)
+            self.C4.T_n, self.C4.p, self.C4.lat_c_i, self.C4.w, self.C4.sig_T, self.C4.sig_p, self.C4.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,weight=0.01)
 
         self.C4.lat_g_i = np.degrees(geoc2geod(np.radians(self.C4.lat_c_i))[0])
 
@@ -855,7 +1008,7 @@ class PJ:
         self.C5.hpbw_pds  = 12.0 # deg
         self.C5.hpbw = readJunoBeam(pathJ+'Beam/',self.C5.channel,normalized=False)[3]
         self.C5.f     = 10.004e9  # [Hz] Center frequency  
-        self.C5.ld    = 0.16
+        self.C5.ld    = 0.13 #  Mean from PJ1-12 
         # Boresight information
         self.C5.lat_c = pj['PC_lat_JsB5'].values
         self.C5.lat_g = pj['PG_lat_JsB5'].values
@@ -868,21 +1021,24 @@ class PJ:
         self.C5.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C5.skyandplanet    = (self.C5.sky  == False) & (self.C5.planet == False) 
         self.C5.indices_sandp   = self.indices[np.where(self.C5.skyandplanet==True)].astype(int) 
+        self.C5.synchrotron_filter = [0,90]
+
         # Antenna temperatures 
         self.C5.T_a   = pj['R5TA'].values 
         self.C5.eangle= pj['emssn_angle_JsB5'].values
         if not quicklook: 
             self.C5.eea = np.zeros_like(self.C5.eangle)*np.nan
+
             for j in self.C5.indices_planet: 
-                self.C5.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C5.lon[j],self.C5.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C5.hpbw*1.25,sampling=self.beamsampling ))
+                self.C5.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C5.lon[j],self.C5.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C5.hpbw*self.C5.beamcutoff,sampling=self.beamsampling ))
 
             self.C5.indices_planet = self.indices[np.where(np.isfinite(self.C5.eea))].astype(int) 
 
         # Compute the uncleaned zonal average 
         if quicklook: 
-            self.C5.T_n, self.C5.p, self.C5.lat_c_i, self.C5.w, self.C5.sig_T, self.C5.sig_p = self.zonalaverage2(chn,beamconv=False)
+            self.C5.T_n, self.C5.p, self.C5.lat_c_i, self.C5.w, self.C5.sig_T, self.C5.sig_p, self.C5.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else: 
-            self.C5.T_n, self.C5.p, self.C5.lat_c_i, self.C5.w, self.C5.sig_T, self.C5.sig_p = self.zonalaverage2(chn,beamconv=True,weight=0.01)
+            self.C5.T_n, self.C5.p, self.C5.lat_c_i, self.C5.w, self.C5.sig_T, self.C5.sig_p, self.C5.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,weight=0.01)
 
         self.C5.lat_g_i = np.degrees(geoc2geod(np.radians(self.C5.lat_c_i))[0])
 
@@ -939,7 +1095,7 @@ class PJ:
         self.C6.hpbw  = 10.8 # deg 
         self.C6.hpbw = readJunoBeam(pathJ+'Beam/',self.C6.channel,normalized=False)[3]
         self.C6.f     = 21.900e9  # [Hz] Center frequency  
-        self.C6.ld    = 0.08
+        self.C6.ld    = 0.04 #  Mean from PJ1-12 
         # Boresight information
         self.C6.lat_c = pj['PC_lat_JsB6'].values
         self.C6.lat_g = pj['PG_lat_JsB6'].values
@@ -952,21 +1108,23 @@ class PJ:
         self.C6.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C6.skyandplanet    = (self.C6.sky  == False) & (self.C6.planet == False) 
         self.C6.indices_sandp   = self.indices[np.where(self.C6.skyandplanet==True)].astype(int) 
+        self.C6.synchrotron_filter = [0,90]
+       
         # Antenna temperatures
         self.C6.T_a   = pj['R6TA'].values 
         self.C6.eangle= pj['emssn_angle_JsB6'].values
         if not quicklook: 
             self.C6.eea = np.zeros_like(self.C6.eangle)*np.nan
             for j in self.C6.indices_planet: 
-                self.C6.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C6.lon[j],self.C6.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C6.hpbw*1.25,sampling=self.beamsampling ))
+                self.C6.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C6.lon[j],self.C6.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C6.hpbw*self.C6.beamcutoff,sampling=self.beamsampling ))
 
             self.C6.indices_planet = self.indices[np.where(np.isfinite(self.C6.eea))].astype(int)
 
         # Compute the uncleaned zonal average 
         if quicklook: 
-            self.C6.T_n, self.C6.p, self.C6.lat_c_i, self.C6.w, self.C6.sig_T, self.C6.sig_p = self.zonalaverage2(chn,beamconv=False)
+            self.C6.T_n, self.C6.p, self.C6.lat_c_i, self.C6.w, self.C6.sig_T, self.C6.sig_p, self.C6.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else: 
-            self.C6.T_n, self.C6.p, self.C6.lat_c_i, self.C6.w, self.C6.sig_T, self.C6.sig_p = self.zonalaverage2(chn,beamconv=True,weight=0.01)
+            self.C6.T_n, self.C6.p, self.C6.lat_c_i, self.C6.w, self.C6.sig_T, self.C6.sig_p, self.C6.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,weight=0.01)
 
         self.C6.lat_g_i = np.degrees(geoc2geod(np.radians(self.C6.lat_c_i))[0])
 
@@ -1015,10 +1173,11 @@ class PJ:
 
         # Save the zonal average if emission angle correction has been applied 
         if not quicklook: 
-            self.savezonalaverage(pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}' )        
-
+            self.savezonalaverage(pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}')        
             # Save the whole structure as a pickle 
-            filehandler = open( pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj','wb' )
+            fname = f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj'
+            filehandler = open( pathJ + fname,'wb' )
+            print(f'Periojve data are saved to {fname}')
             pickle.dump(self,filehandler)   
 
     def rot2ind(self,rotnumb):
@@ -1250,6 +1409,131 @@ class PJ:
                         lonrange = FPlrange))
 
         return FPcenter,FPoutline
+
+
+    def PlotFootprintsForLat(self, lat, channel, latllim=0.5, polar=False, alpha=0.5, rlim = 45, color='channel'):
+
+        latlim = 0.5
+        lat_llim = lat - latlim
+        lat_ulim = lat + latlim
+
+
+        # Read in all data points 
+        idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
+
+        # Find all the indicies where the observations are on the planet 
+        idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
+
+        try: 
+            ind_sc = eval(f'self.C{channel:d}.indices_science') 
+            idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
+        except AttributeError:  
+            # Find indices where condition is not true (synchrotron filter)
+
+            if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
+                ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(eval(f'self.C{channel}.lat_c')) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
+                idxplf = np.intersect1d(ind_sf, idxpl )
+            else: 
+                idxplf = idxpl
+
+
+        # ind_sc = eval(f'self.C{channel:d}.indices_science') 
+        # idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
+        self.PlotFootprintsForIdx(idxplf,channels = [channel], step=1, polar=polar,alpha =alpha, color=color,rlim = rlim, title = f'PJ {self.PJnumber} - C {channel} - Latitude {lat} deg' )
+
+
+
+    def PlotFootprintsForIdx(self,idxs, channels=[2,6], step=10, mapfile=None, polar=False, rlim = 45, alpha = 0.1, color='channel',title=None ): 
+        '''
+        Plot Footprints for a number of indices 
+        '''
+
+
+        if polar: 
+            fig, axs = plt.subplots(figsize=(10,10),subplot_kw={'projection': 'polar'})
+            axs.set_rlim(bottom=90, top=rlim)
+        else: 
+            fig, axs = plt.subplots(figsize=(16,9))
+
+
+        for ch in channels: 
+            FP = [] 
+            Tn = []
+            for idx in idxs: 
+                # Compute the projected footprint for the given index 
+                beam = np.radians([eval('self.C{:d}.lon[idx]'.format(ch)),eval('self.C{:d}.lat_c[idx]'.format(ch))]) 
+                obs  = np.radians([self.ob_lon[idx],self.ob_lat_c[idx]]) 
+
+                r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
+
+                [lon_fp,lat_fp],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(ch)),self.range[idx]*1e3,r_s=r_s*1e3)  
+                FP.append(np.degrees([lon_fp,lat_fp]))
+                Tn.append(eval(f'self.C{ch:d}.T_a[idx]/np.cos(np.radians(self.C{ch:d}.eea[idx]))**self.C{ch:d}.ld')) 
+
+
+            # Plot the colorbar for the antenna 
+
+            if color == 'temperature': 
+                Z = [[0,0],[0,0]]
+                levels = range(int(np.floor(np.nanmin(Tn))),int(np.ceil(np.nanmax(Tn))),1)
+                CS3 = axs.contourf(Z, levels, cmap=cm.magma )
+                for coll in CS3.collections:
+                    coll.remove()
+
+            nfp = len(FP) 
+            for i in range(0,nfp,step): 
+                if color == 'channel': 
+                    clr = cmap((ch-1)/6)
+                elif color == 'temperature': 
+                    # Determine the beam brightness temperature 
+                    clr = cmap((np.nanmax(Tn) - Tn[i])/(np.nanmax(Tn) - np.nanmin(Tn)))
+                if polar: 
+                    axs.plot(np.radians(np.array(FP[i])[0]),np.array(FP[i])[1],color=clr,alpha=alpha)
+                    axs.set_xlabel('Latitude (deg)')
+                    #axs.set_xlabel('Longitude (deg)')
+                else: 
+                    axs.plot(np.array(FP[i])[0],np.array(FP[i])[1],color=clr,alpha=alpha)
+                    axs.set_ylabel('Latitude (deg)')
+                    axs.set_xlabel('Longitude (deg)')
+
+        if title is None: 
+            axs.set_title(f'PJ{self.PJnumber}')
+        else: 
+            axs.set_title(title)
+
+        if color == 'temperature': 
+            cb = plt.colorbar(CS3) # using the colorbar info I got from contourf
+            cb.set_label('T (K)', rotation=90)
+
+    def PlotNadirFootprintMap(self, channels=[2,6], step=10, mapfile=None, polar=False, rlim = 45, alpha = 0.1  ): 
+
+
+        # Find the ones where it jumps across -180 or 180, split into two pairs, truncate at -180 and 180 
+        if polar: 
+            fig, axs = plt.subplots(figsize=(10,10),subplot_kw={'projection': 'polar'})
+            axs.set_rlim(bottom=90, top=rlim)
+        else: 
+            fig,axs = plt.subplots(1,figsize=(16,4))
+            axs.set_ylim(0,90)
+            axs.set_xlim(-180,180)
+
+        for ch in channels: 
+            FP =  self.NadirFootprints(ch)
+            nfp = len(FP[0]) 
+            for i in range(0,nfp,step): 
+                if polar: 
+                    axs.plot(np.radians(np.array(FP[1][i])[0]),np.array(FP[1][i])[1],color=cmap((ch-1)/6),alpha=alpha)
+                    axs.set_xlabel('Latitude (deg)')
+                    #axs.set_xlabel('Longitude (deg)')
+                    
+                else: 
+                    axs.plot(np.array(FP[1][i])[0],np.array(FP[1][i])[1],color=cmap((ch-1)/6),alpha=alpha)
+                    axs.set_ylabel('Latitude (deg)')
+                    axs.set_xlabel('Longitude (deg)')
+
+        axs.set_title(f'PJ{self.PJnumber}')
+
+
 
     def PlotFootprintsForRotation( self, mapfile, rotnum, channel,  Crange = [0,0], outputname = False, keepTA = None, dpi = 200, TAlim = None): 
 
@@ -2316,7 +2600,7 @@ class PJ:
 
         return  T_n_i, p_i, lat_i, w_i, sig_T_i, sig_p_i
 
-    def zonalaverage2(self, channel, window=1, resolution=10, weight=1, sigmafil=10, smoothing=False, plotting=False, geocentric=True, rotlim = 15, beamconv=True): 
+    def zonalaverage2(self, channel, window=1, resolution=0.1, weight=1, sigmafil=10, smoothing=False, plotting=False, geocentric=True, rotlim = 15, beamconv=True): 
         """ Calculate the mean profile   
 
         Based on the emission angle, calculate the weighted mean profile by 
@@ -2455,54 +2739,21 @@ class PJ:
 
 
         # For the midlatitudes remove the Main Belt looking data 
-        if channel == 1:
-            # Remove data from NH that are looking southwards 
-            # Condition 1: beam nadir between 30 and 50 
-            
-            # Conidition 2: beam boresight south of ob_lat
-        
-            if geocentric:
-                ob_lat = eval(f'self.ob_lat_c')[indpl]
-            else: 
-                ob_lat = eval(f'self.ob_lat_g')[indpl]
-
-            # Find indices where condition is not true (synchrotron filter)
-            
-            ind_sf = np.where(~((np.abs(lat_f) > 1) & (np.abs(lat_f) < 89) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
-            ind_nsf = np.where(((np.abs(lat_f) > 1) & (np.abs(lat_f) < 89) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
-
-            lat_f = lat_f[ind_sf]
-            T_f = T_f[ind_sf]
-            mu_f = mu_f[ind_sf]  
-
-            exec(f'self.C{channel}.indices_science = self.C{channel}.indices_planet[ind_sf]')
-
-        elif channel == 2 or channel == 3: 
-            # Remove data from NH that are looking southwards 
-            # Condition 1: beam nadir between 30 and 50 
-            
-            # Conidition 2: beam boresight south of ob_lat
-        
-            if geocentric:
-                ob_lat = eval(f'self.ob_lat_c')[indpl]
-            else: 
-                ob_lat = eval(f'self.ob_lat_g')[indpl]
-
-            # Find indices where condition is not true (synchrotron filter)
-            
-            ind_sf = np.where(~((np.abs(lat_f) > 10) & (np.abs(lat_f) < 75) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
-            ind_nsf = np.where(((np.abs(lat_f) > 10) & (np.abs(lat_f) < 75) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
-
-            lat_f = lat_f[ind_sf]
-            T_f = T_f[ind_sf]
-            mu_f = mu_f[ind_sf]  
-
-            exec(f'self.C{channel}.indices_science = self.C{channel}.indices_planet[ind_sf]')
-        
+        if geocentric:
+            ob_lat = eval(f'self.ob_lat_c')[indpl]
         else: 
-            exec(f'self.C{channel}.indices_science =  self.C{channel}.indices_planet')
-           
+            ob_lat = eval(f'self.ob_lat_g')[indpl]
 
+        # Find indices where condition is not true (synchrotron filter)
+        ind_sf = np.where(~((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+        ind_nsf = np.where(((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+
+        lat_f = lat_f[ind_sf]
+        T_f = T_f[ind_sf]
+        mu_f = mu_f[ind_sf]  
+
+        exec(f'self.C{channel}.indices_science = self.C{channel}.indices_planet[ind_sf]')
+    
         # Sort the profile according to latitude and discard nan 
         inds    = np.argsort(lat_f) 
         lat_s   = lat_f[inds] 
@@ -2530,8 +2781,10 @@ class PJ:
         # Get the standard deviation from the 20 rotations closest to the planet 
         p_std = np.nanstd(p[ind_mean])
 
+
+
         # Fit the data using a prescribed p 
-        T_n_fp, sig_fp, lat_fit, n_fit =  fit_Tn2(T_s, mu_s, p_mean, lat_s, window=window, resolution=resolution, weights=weight,)
+        T_n_fp, sig_fp, lat_fit, n_fit_fp =  fit_Tn2(T_s, mu_s, p_mean, lat_s, window=window, resolution=resolution, weights=weight,)
         
         # Find regions where p exceeds (out of limit)
         ind_ol = np.where((p > p_mean + sigmafil*p_std) | (p < p_mean - sigmafil*p_std))
@@ -2543,6 +2796,7 @@ class PJ:
         p[ind_ol]   = p_mean[ind_ol] 
         sig[ind_ol,0] = sig_fp[ind_ol].T
         sig[ind_ol,1] = 0 # p was not fit here 
+        n_fit[ind_ol]   = n_fit_fp[ind_ol] 
 
         # Weigh the data according to their deviation from good data 
         weights = np.zeros_like(T_n)  
@@ -2562,11 +2816,11 @@ class PJ:
 
 
         # Average all data points over window size 
-        T_n = movingaverage(T_n,window=resolution)[0]
-        p = movingaverage(p,window=resolution)[0]
-        w = movingaverage(w,window=resolution)[0]
-        sig[:,0] = movingaverage(sig[:,0],window=resolution)[0]
-        sig[:,1] = movingaverage(sig[:,1],window=resolution)[0]
+        T_n = movingaverage(T_n,window=int(window/resolution))[0]
+        p = movingaverage(p,window=int(window/resolution))[0]
+        w = movingaverage(w,window=int(window/resolution))[0]
+        sig[:,0] = movingaverage(sig[:,0],window=int(window/resolution))[0]
+        sig[:,1] = movingaverage(sig[:,1],window=int(window/resolution))[0]
 
 
 
@@ -2589,7 +2843,7 @@ class PJ:
         #     w = w_lbpf
 
 
-        return  T_n, p, lat_fit, w, sig[:,0], sig[:,1]
+        return  T_n, p, lat_fit, w, sig[:,0], sig[:,1], n_fit
 
     def PlotZonalCoverage(self,): 
         '''
@@ -2870,7 +3124,7 @@ class PJ:
 
         # Version 02 - V02 PDS files 
         (np.savez(path2save + f'_v{version:02d}.npz',
-        lat=self.C1.lat_c_i, lat_g=self.C1.lat_g_i, lat_c=self.C1.lat_c_i, freqs=[self.C1.f,self.C2.f,self.C3.f,self.C4.f,self.C5.f,self.C6.f,], 
+        lat=self.C1.lat_c_i, lat_g=self.C1.lat_g_i, lat_c=self.C1.lat_c_i, freqs=[self.C1.f,self.C2.f,self.C3.f,self.C4.f,self.C5.f,self.C6.f,], window=self.windowbin,
         T = np.vstack([self.C1.T_n, self.C2.T_n, self.C3.T_n, self.C4.T_n, self.C5.T_n, self.C6.T_n]), 
         Tsig = np.vstack([self.C1.sig_T, self.C2.sig_T, self.C3.sig_T, self.C4.sig_T, self.C5.sig_T, self.C6.sig_T]), 
         p = np.vstack([self.C1.p, self.C2.p, self.C3.p, self.C4.p, self.C5.p, self.C6.p]), 
@@ -2881,7 +3135,7 @@ class PJ:
 
         # Version 1 
         (np.savez(path2save + '.npz',
-        lat=self.C1.lat_c_i, lat_g=self.C1.lat_g_i, lat_c=self.C1.lat_c_i,    
+        lat=self.C1.lat_c_i, lat_g=self.C1.lat_g_i, lat_c=self.C1.lat_c_i,    window=self.windowbin,
         T1 = self.C1.T_n, T2 = self.C2.T_n, T3 = self.C3.T_n, T4 = self.C4.T_n, T5 = self.C5.T_n, T6 = self.C6.T_n, freqs=[self.C1.f,self.C2.f,self.C3.f,self.C4.f,self.C5.f,self.C6.f,], 
         sig_T1 = self.C1.sig_T, sig_T2 = self.C2.sig_T, sig_T3 = self.C3.sig_T, sig_T4 = self.C4.sig_T, sig_T5 = self.C5.sig_T, sig_T6 = self.C6.sig_T, 
         sig_p1 = self.C1.sig_p, sig_p2 = self.C2.sig_p, sig_p3 = self.C3.sig_p, sig_p4 = self.C4.sig_p, sig_p5 = self.C5.sig_p, sig_p6 = self.C6.sig_p, 
@@ -3018,8 +3272,163 @@ class PJ:
         return ee, be
 
 
+    def PlotLimbDarkening(self, lat, filterraw = False, latlim = 0.5, size = 8, savefig = False ):
 
-    def PlotLimbDarkening(self, lat, filterraw = False, latlim = 0.5, savefig = False, beamcenter=False, n = 10, sigma = 1 ): 
+
+        # for PJ3 self.indices = self.indices[:-1]
+
+
+
+        ilat = lat
+        lat_llim = ilat - latlim
+        lat_ulim = ilat + latlim
+
+
+        fig,axs = plt.subplots(1,figsize=(9,9))
+        # First plot all the data points in grey 
+        nchan = 6
+        if ~filterraw:
+            for channel in range(1,nchan+1):
+                # Raw data points 
+                idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
+
+                # Plot the individual measurements 
+                #idxpl = idx #np.logical_and(idx,eval(f'PJdata.C{cn:d}.planet'))
+                TA_t  = eval(f'self.C{channel:d}.T_a[idx]')
+                mu_t =  eval(f'self.C{channel:d}.eangle[idx]')
+                mu_e = eval(f'self.C{channel:d}.eea[idx]')
+
+                # Plot all observations less than max mu_e 
+                axs.scatter(mu_e,TA_t,facecolors='none', edgecolors ='gray',alpha=0.7,s=size)
+
+                # Add not-beam convolved emission 
+                idx_mu = np.where(mu_t > np.nanmax(mu_e))
+                axs.scatter(mu_t[idx_mu],TA_t[idx_mu],facecolors='none', edgecolors ='gray',alpha=0.7,s=size)
+
+                # Plot all observations greater than mu_t 
+                if channel == 2:
+                    # Plot insert 
+                    axs2 = axs.inset_axes([0.08, 0.53, 0.6, 0.2])
+                    axs2.scatter(mu_e,TA_t,facecolors='none', edgecolors ='gray',alpha=0.7,s=size)
+        else: 
+            axs2 = axs.inset_axes([0.08, 0.53, 0.6, 0.2])
+
+        # Plot the science observations 
+        for channel in range(1,nchan+1):
+
+            # Read in all data points 
+            idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
+
+            # Find all the indicies where the observations are on the planet 
+            idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
+            
+            # Ideally load in indices_science but need to reun PJ1 
+            try: 
+                ind_sc = eval(f'self.C{channel:d}.indices_science') 
+                idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
+            except AttributeError:  
+                # Find indices where condition is not true (synchrotron filter)
+                if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
+                    ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(eval(f'self.C{channel}.lat_c')) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
+                    idxplf = np.intersect1d(ind_sf, idxpl )
+                else: 
+                    idxplf = idxpl
+
+
+            if ~np.any(idxplf): 
+                continue 
+
+            # Read in fitted quantities 
+            idx_i= np.where(np.logical_and(eval(f'self.C{channel:d}.lat_c_i')>lat_llim,eval(f'self.C{channel:d}.lat_c_i')<lat_ulim))
+            T_n = np.mean(eval(f'self.C{channel:d}.T_n[idx_i]'))
+            p   = np.mean(eval(f'self.C{channel:d}.p[idx_i]'))
+            T_sig = np.nanmean(eval(f'self.C{channel:d}.sig_T[idx_i]')) 
+            p_sig = np.nanmean(eval(f'self.C{channel:d}.sig_p[idx_i]')) 
+
+
+            # Plot the individual measurements 
+            #idxpl = idx #np.logical_and(idx,eval(f'PJdata.C{cn:d}.planet'))
+            TA_t  = eval(f'self.C{channel:d}.T_a[idxplf]')
+            mu_t =  eval(f'self.C{channel:d}.eangle[idxplf]')
+            mu_e = eval(f'self.C{channel:d}.eea[idxplf]')
+            axs.scatter(mu_e,TA_t,color=cmap2((channel-1)/nchan),s=size)
+
+
+            # Plot the fitted quanties 
+            axs.plot(np.linspace(0,np.max(mu_e)),T_n*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**p,color=cmap2((channel-1)/nchan),label=f'C{channel}')
+            for sigma in [1,3,10]:
+                axs.fill_between(np.linspace(0,np.max(mu_e)),(T_n+sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p-sigma*p_sig),(T_n-sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p+sigma*p_sig),alpha=1/sigma*0.5,color=cmap2((channel-1)/nchan) )
+            
+            if channel == 2:
+                # Plot observations 
+                axs2.scatter(mu_e,TA_t,color=cmap2((channel-1)/nchan),s=size)
+
+                # Plot the fitted quanties 
+                axs2.plot(np.linspace(0,np.max(mu_e)),T_n*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**p,color=cmap2((channel-1)/nchan))
+                for sigma in [1,3,10]:
+                    axs2.fill_between(np.linspace(0,np.max(mu_e)),(T_n+sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p-sigma*p_sig),(T_n-sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p+sigma*p_sig),alpha=1/sigma*0.5,color=cmap2((channel-1)/nchan) )
+                
+                xlim = [7,35]
+                sigmaplot = 7
+                ylim = [(T_n-sigmaplot*T_sig)*np.cos(np.radians(xlim[-1]))**(p+sigmaplot*p_sig),(T_n+sigmaplot*T_sig)*np.cos(np.radians(xlim[0]))**(p-sigmaplot*p_sig)  ]
+                if np.all(np.isfinite(ylim)): axs2.set_ylim(ylim) 
+                axs2.set_xlim(xlim)
+                
+
+                # axs2.set_xlim([7,30])
+                # axs2.set_ylim([435,460])
+
+                axs2.set_xticklabels('')
+                #axs2.set_yticklabels('')
+
+                axs.indicate_inset_zoom(axs2, edgecolor="black",label='')
+
+
+                # Here is the label and arrow code of interest
+                sigma = 10
+                axs2.annotate(rf'{sigma}$\sigma$', xy=(1.05, 0.08), xytext=(0.315, 0.15), xycoords='axes fraction', 
+                ha='center', va='bottom',
+                bbox=dict(boxstyle='round', fc=cmap2((channel-1)/nchan),alpha=1/sigma*0.5),
+                arrowprops=dict(arrowstyle='-', lw=0))
+
+                 # Here is the label and arrow code of interest
+                sigma = 3
+                axs2.annotate(rf'{sigma}$\sigma$', xy=(1.15, 0.2), xytext=(0.2, 0.15), xycoords='axes fraction', 
+                ha='center', va='bottom',
+                bbox=dict(boxstyle='round', fc=cmap2((channel-1)/nchan),alpha=1/sigma*0.5),
+                arrowprops=dict(arrowstyle='-', lw=0))
+
+
+                 # Here is the label and arrow code of interest
+                sigma = 1
+                axs2.annotate(rf'{sigma}$\sigma$', xy=(1.25, 0.22), xytext=(0.1, 0.15), xycoords='axes fraction', 
+                ha='center', va='bottom',
+                bbox=dict(boxstyle='round', fc=cmap2((channel-1)/nchan),alpha=1/sigma*0.5),
+                arrowprops=dict(arrowstyle='-', lw=0))
+
+        legend=axs.legend(loc='upper right',ncol=2)
+        ax = plt.gca().add_artist(legend)
+        line1, = plt.plot([],[],color='gray')
+        line2, = plt.plot([],[],marker="o", linestyle="None",color='gray')
+        line3 = plt.scatter([],[],facecolors='none', edgecolors ='gray')
+        plt.legend([line1,line2,line3],['Model fit','Obs. (used)','Obs. (discarded)'],loc='lower left',ncol=3)
+
+
+        axs.set_title(f'Observations at {ilat} deg')
+        axs.set_ylabel(r'T$_B$ [K]')
+        axs.set_xlabel('Emission angle [deg]')
+        axs.set_ylim(0,900)
+        #axs.legend(loc='upper right',ncol=2)  
+
+
+
+        if savefig: 
+            plt.savefig(path2save + f'Juno_{self.PJnumber}_lat{int(lat):d}_LD_fit.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save + f'Juno_{self.PJnumber}_lat{int(lat):d}_LD_fit.pdf', format='pdf', transparent = True, dpi=500)
+            plt.savefig(path2save + f'Juno_{self.PJnumber}_lat{int(lat):d}_LD_fit.eps', format='eps', transparent = True, dpi=500)
+  
+
+    def PlotLimbDarkening_old(self, lat, filterraw = False, latlim = 0.5, savefig = False, beamcenter=False, n = 10, sigma = 1 ): 
         '''
         # Plot all the data points for a given latitude as function of eangle and eea 
         
@@ -3047,59 +3456,34 @@ class PJ:
         nchan = 6
         for channel in range(1,nchan+1):
 
-            # Nadir brightness and limb darkening fit 
-            idx_i = np.argmin(np.abs(eval(f'self.C{channel:d}.lat_c_i') - ilat))
-
-            T_n = np.mean(eval(f'self.C{channel:d}.T_n[int(idx_i-n/2):int(idx_i+n/2)]'))
-            p   = np.mean(eval(f'self.C{channel:d}.p[int(idx_i-n/2):int(idx_i+n/2)]'))
-            # Combine the standard deviation and the fit uncertainty for the window 
-            # T_sig = (np.nanmean(eval(f'self.C{channel:d}.sig_T[int(idx_i-n/2):int(idx_i+n/2)]'))**2 + np.nanstd(eval(f'self.C{channel:d}.sig_T[int(idx_i-n/2):int(idx_i+n/2)]'))**2)**0.5
-            # p_sig = (np.nanmean(eval(f'self.C{channel:d}.sig_p[int(idx_i-n/2):int(idx_i+n/2)]'))**2 + np.nanstd(eval(f'self.C{channel:d}.sig_p[int(idx_i-n/2):int(idx_i+n/2)]'))**2)**0.5
-            # Use onl the fit uncertainty 
-            T_sig = np.nanmean(eval(f'self.C{channel:d}.sig_T[int(idx_i-n/2):int(idx_i+n/2)]'))*sigma 
-            p_sig = np.nanmean(eval(f'self.C{channel:d}.sig_p[int(idx_i-n/2):int(idx_i+n/2)]'))*sigma 
-
-
             # Raw data points 
             idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
+        # Ideally load in indices_science but need to reun PJ1 
+        try: 
+            idxplf = eval(f'PJ.C{channel:d}.indices_science') 
+        except AttributeError:        
+            ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(eval(f'self.C{channel}.lat_c')) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
+            idxplf = np.intersect1d(ind_sf, idxpl )
 
-            # When calculating the limb darkening, certain emission angles are removed because the beam is too large and extends beyond the planet
-            if filterraw:
-                # Find all the indicies where the observations are on the planet 
-                idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') )
-                # Remove indicies because of viewing geometry filter 
-
-                # For the midlatitudes remove the Main Belt looking data 
-                if channel == 1:
-                    # Remove data from NH that are looking southwards 
-                    # Condition 1: beam nadir between 30 and 50 
-                    # Conidition 2: beam boresight south of ob_lat                   
-                    ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > 1) & (np.abs(eval(f'self.C{channel}.lat_c')) < 89) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
-                    idxplf = np.intersect1d(ind_sf, idxpl )
-
-                elif channel == 2 or channel == 3: 
-                    ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > 10) & (np.abs(eval(f'self.C{channel}.lat_c')) < 75) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
-                    idxplf = np.intersect1d(ind_sf, idxpl )
-                else: 
-                    idxplf = idxpl
+        # Read in the fit
+        idx_i   = np.where(np.logical_and(eval(f'PJ.C{channel:d}.lat_c_i')>lat_llim,eval(f'PJ.C{channel:d}.lat_c_i')<lat_ulim))
+        T_n     = np.mean(eval(f'PJ.C{channel:d}.T_n[idx_i]'))
+        p       = np.mean(eval(f'PJ.C{channel:d}.p[idx_i]'))
+        T_sig   = np.nanmean(eval(f'PJ.C{channel:d}.sig_T[idx_i]'))*sigma 
+        p_sig   = np.nanmean(eval(f'PJ.C{channel:d}.sig_p[idx_i]'))*sigma 
 
 
-            else: 
-                idxplf = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') )
+        #idxpl = idx #np.logical_and(idx,eval(f'PJdata.C{cn:d}.planet'))
+        TA_t  = eval(f'self.C{channel:d}.T_a[idxplf]')
+        mu_t =  eval(f'self.C{channel:d}.eangle[idxplf]')
+        mu_e = eval(f'self.C{channel:d}.eea[idxplf]')
+        if beamcenter: 
+            axs.scatter(mu_t,TA_t,color=cmap3((channel-1)/nchan),marker='*')
 
-
-
-            #idxpl = idx #np.logical_and(idx,eval(f'PJdata.C{cn:d}.planet'))
-            TA_t  = eval(f'self.C{channel:d}.T_a[idxplf]')
-            mu_t =  eval(f'self.C{channel:d}.eangle[idxplf]')
-            mu_e = eval(f'self.C{channel:d}.eea[idxplf]')
-            if beamcenter: 
-                axs.scatter(mu_t,TA_t,color=cmap3((channel-1)/nchan),marker='*')
-
-            axs.scatter(mu_e,TA_t,color=cmap3((channel-1)/nchan),label=f'C{channel}')
-            axs.plot(np.linspace(0,60),T_n*np.cos(np.radians(np.linspace(0,60)))**p,color=cmap3((channel-1)/nchan))
-            axs.fill_between(np.linspace(0,60),(T_n+2*T_sig)*np.cos(np.radians(np.linspace(0,60)))**(p-2*p_sig),(T_n-2*T_sig)*np.cos(np.radians(np.linspace(0,60)))**(p+2*p_sig),alpha=0.3,color=cmap3((channel-1)/nchan) )
-            print(T_sig,p_sig) 
+        axs.scatter(mu_e,TA_t,color=cmap3((channel-1)/nchan),label=f'C{channel}')
+        axs.plot(np.linspace(0,60),T_n*np.cos(np.radians(np.linspace(0,60)))**p,color=cmap3((channel-1)/nchan))
+        axs.fill_between(np.linspace(0,60),(T_n+2*T_sig)*np.cos(np.radians(np.linspace(0,60)))**(p-2*p_sig),(T_n-2*T_sig)*np.cos(np.radians(np.linspace(0,60)))**(p+2*p_sig),alpha=0.3,color=cmap3((channel-1)/nchan) )
+        print(T_sig,p_sig) 
 
         legend=axs.legend(loc='upper right',ncol=2)
         if beamcenter: 
@@ -3290,7 +3674,7 @@ def plotJunoBeam(path,channel,normalized = False ):
 
 
 
-def ProcessPJ(path, dataversion = 2  ): 
+def ProcessPJ(path, dataversion = 3  ): 
     ''' 
     Clean up the individual PJs and replace regions with no uncertainty with the corresponding values 
     
@@ -3349,13 +3733,13 @@ def ProcessPJ(path, dataversion = 2  ):
 
 
 
-def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [None], reprocess=False, nlat = 901, LBfilter=True): 
+def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [None], reprocess=False, window=1, LBfilter=True): 
     '''
     
     import pyPR.JunoTools as jt 
     path_GD='/Users/chris/GDrive-UCB/'
     path =  path_GD + 'Berkeley/Research/Juno/'
-    jt.ProcessZonalAverage(path, pjmin=1, pjmax=12,reprocess=False)
+    jt.ProcessZonalAverage(path, pjmin=21, pjmax=31,pjexc=[26],reprocess=False)
 
     '''
 
@@ -3382,6 +3766,11 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
             try: PJi.readdata(path,quicklook=False,Footprints=True)
             except SystemExit: continue 
 
+
+    # Define nlat, the larger the window size 
+
+    nlat = 1791-(window-1)*10 
+
     # Pre allocate the arrays    
     T     = [];     T_sig = [];     p     = [];     p_sig = [];     w     = []; 
 
@@ -3396,6 +3785,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
             temp = np.load(path+f'PJ{pj}/PJ{pj}_v{dataversion:02d}.npz')
             # Nadir brightness temperature 
             T.append(temp['T'])
+
             # Limb darkening 
             p.append(temp['p'])
             # Uncertainty of temperature 
@@ -3404,9 +3794,12 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
             p_sig.append(temp['psig'])
             # Weights of the measurement 
             w.append(temp['w'])
+            tt = np.array(temp['w']) 
+            print(f'{pj}: {tt.shape}')
 
             data.append(True)
         else: 
+            print(f'Padding data for {pj}. Make sure {nlat} is consistent')
             T.append(np.ones((6,nlat))*np.nan)
             T_sig.append(np.ones((6,nlat))*np.nan)
             p.append(np.ones((6,nlat))*np.nan)
@@ -3419,6 +3812,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
     lat = temp['lat']
     lat_g = temp['lat_g']
     lat_c = temp['lat_c']
+
 
 
     # Convert everything into an array
@@ -3934,114 +4328,143 @@ def PlotZonalAverage(path, pjmin=1, pjmax = 12, latlim=[-75,75],savefig = False)
 
     return 
 
-def PlotPJ(PJnumber, xlim=[-40,40], mean = False): 
+def PlotPJ(PJnumber, xlim=[-40,40], mean = True, verification=False,dataversion=3): 
     '''
     Plot the most important graphics for a given PJ and compare them to the orbit mean 
         
     import pyPR.JunoTools as jt 
-    PJnumber = 9
-    PJ = jt.PlotPJ(PJnumber)
+    PJnumber = 22
+    PJ = jt.PlotPJ(PJnumber,xlim=[0,90],mean=False)
 
     '''
     # Compare PJ4 with new emission angle approach with old data
 
 
     # Version 2
-    temp = np.load(pathJ+f'PJ{PJnumber}/PJ{PJnumber}_v02.npz')
+    temp = np.load(pathJ+f'PJ{PJnumber}/PJ{PJnumber}_v0{dataversion}.npz')
     lat = temp['lat']
     T = temp['T']
     Tsig = temp['Tsig']
     p = temp['p']
     psig = temp['psig']
 
+    if mean: 
+        PJmean = '1-12'
+        temp = np.load(pathJ+f'PJ{PJmean}/PJ{PJmean}_v04.npz')
+        lat_avg = temp['lat']
+        Tmean = temp['Tmean']
+        Tsig_avg= temp['Tstd']
+        pmean = temp['pmean']
+        psig_avg = temp['psig']
 
     # Plot the difference in nadir brightness temperature 
     fig, axs = plt.subplots(1, 1,figsize=(16,9))
     for i in range(5,-1,-1):
-          line1, = axs.plot(lat,T[i,:], label=f'C{i+1}', color = jt.cmap(i/6),alpha=0.8)
-          axs.fill_between(lat,T[i,:]+Tsig[i,:],T[i,:]-Tsig[i,:],color=jt.cmap(i/6),alpha=0.3)
-
-
+        line1, = axs.plot(lat,T[i,:], label=f'C{i+1}', color = cmap(i/6),alpha=0.8)
+        axs.fill_between(lat,T[i,:]+Tsig[i,:],T[i,:]-Tsig[i,:],color=cmap(i/6),alpha=0.3)
+        if mean: 
+            line1, = axs.plot(lat_avg,Tmean[i,:], linestyle='--', color = cmap(i/6),alpha=0.8)
+            axs.fill_between(lat_avg,Tmean[i,:]+np.mean(Tsig_avg[i,:],axis=0),Tmean[i,:]-np.mean(Tsig_avg[i,:]),color=cmap(i/6),alpha=0.3)         
     axs.set_title(f'PJ{PJnumber}')
     axs.set_xlabel('Latitude [deg]')
     axs.set_ylabel('Nadir brightness temperature [K]')
     axs.invert_yaxis()
+    
+    legend = axs.legend()
+    # Add second legend 
+    ax = plt.gca().add_artist(legend)
+
+    line1, = plt.plot([],[],color='gray')
+    line2, = plt.plot([],[],color='gray',linestyle='--')
+   
+    plt.legend([line1,line2],[f'PJ{PJnumber}','PJ1-12'],loc='lower right')
 
 
 
 
     fig, axs = plt.subplots(1, 1,figsize=(16,9))
     for i in range(5,-1,-1):
-          axs.plot(lat,p[i,:], label=f'C{i+1}', color = jt.cmap(i/6),alpha=0.8)
-          axs.fill_between(lat,p[i,:]+psig2[i,:],p[i,:]-psig[i,:],color=jt.cmap(i/6),alpha=0.3)
+        axs.plot(lat,p[i,:], label=f'C{i+1}', color = cmap(i/6),alpha=0.8)
+        axs.fill_between(lat,p[i,:]+psig[i,:],p[i,:]-psig[i,:],color=cmap(i/6),alpha=0.3)
+        if mean: 
+            line1, = axs.plot(lat_avg,pmean[i,:], linestyle='--', color = cmap(i/6),alpha=0.8)
+            axs.fill_between(lat_avg,pmean[i,:]+np.mean(psig_avg[i,:],axis=0),pmean[i,:]-np.mean(psig_avg[i,:],axis=0),color=cmap(i/6),alpha=0.3)         
 
 
     axs.set_title(f'PJ{PJnumber}')
     axs.set_xlabel('Latitude [deg]')
     axs.set_ylabel('Limb darkening parameter')
     axs.invert_yaxis()
-
-
-    ## Verification 
-
-    # PJ1 
-    pF = np.zeros_like(p2)
-    # Read in Fabiano/Bellotti's data 
-
-    p2dpj1 = path_GD + 'Berkeley/Research/Juno/PJ1/PJ1-Limbdarkening-Fig6.10-BelottiThesis.csv' 
-
-
-    t = pd.read_csv(p2dpj1,skiprows=[1])    
-
-    for i in range(0,6):
-          # Convert from reduction in % at 45 deg 
-          pF[i,:] = np.interp(lat,t[f'lat{i+1}'].values,np.log((1-t[f'C{i+1}'].values/100))/np.log(np.cos(np.radians(45))),left=np.nan,right=np.nan) 
-
-    fig, axs = plt.subplots(1, 1,figsize=(16,9))
-    for i in range(5,-1,-1):
-          line1, = axs.plot(lat,p2[i,:], label=f'C{i+1}', color = jt.cmap(i/6),alpha=0.8)
-          line2, = axs.plot(eval(f'PJ.C{i+1}.lat_c_i'),eval(f'PJ.C{i+1}.p'), linestyle='--', color = jt.cmap(i/6),alpha=0.8)
-          line3, = axs.plot(lat,pF[i,:], linestyle=':', color = jt.cmap(i/6),alpha=0.8)
 
     legend = axs.legend()
     # Add second legend 
     ax = plt.gca().add_artist(legend)
-    plt.legend([line1,line2,line3],['Boresight','Beam Convolved','Facetting'],loc='lower right')
-    axs.set_title(f'PJ{PJnumber}')
-    axs.set_xlabel('Latitude [deg]')
-    axs.set_ylabel('Limb darkening parameter')
-    axs.invert_yaxis()
-    plt.show()
 
-    # PJ1 - PJ12  
-    pF = np.zeros_like(p2)
-    # Read in Fabiano/Bellotti's data 
-    p2dpj1_12 = path_GD + 'Berkeley/Research/Juno/PJ1-12/R45_FabianoFig9_wpd.csv' 
+    line1, = plt.plot([],[],color='gray')
+    line2, = plt.plot([],[],color='gray',linestyle='--')
+   
+    plt.legend([line1,line2],[f'PJ{PJnumber}','PJ1-12'],loc='lower right')
 
 
-    t = pd.read_csv(p2dpj1_12,skiprows=[1])    
 
-    for i in range(0,6):
-          # Convert from reduction in % at 45 deg 
-          pF[i,:] = np.interp(lat,t[f'lat{i+1}'].values,np.log((1-t[f'C{i+1}'].values/100))/np.log(np.cos(np.radians(45))),left=np.nan,right=np.nan) 
+    ## Verification 
+    if verification:
+        # PJ1 
+        pF = np.zeros_like(p)
+        # Read in Fabiano/Bellotti's data 
+
+        p2dpj1 = path_GD + 'Berkeley/Research/Juno/PJ1/PJ1-Limbdarkening-Fig6.10-BelottiThesis.csv' 
 
 
-    fig, axs = plt.subplots(1, 1,figsize=(16,9))
-    for i in range(5,-1,-1):
-          line1, = axs.plot(lat,p2[i,:], label=f'C{i+1}', color = jt.cmap(i/6),alpha=0.8)
-          #axs.fill_between(lat,p2[i,:]+psig2[i,:],p2[i,:]-psig2[i,:],color=jt.cmap(i/6),alpha=0.3)
-          line2, = axs.plot(eval(f'PJ.C{i+1}.lat_c_i'),eval(f'PJ.C{i+1}.p'), linestyle='--', color = jt.cmap(i/6),alpha=0.8)
-          #axs.fill_between(eval(f'PJ.C{i+1}.lat_c_i'),eval(f'PJ.C{i+1}.p')+eval(f'PJ.C{i+1}.sig_p'),eval(f'PJ.C{i+1}.p')-eval(f'PJ.C{i+1}.sig_p'),color=jt.cmap(i/6),alpha=0.3)
+        t = pd.read_csv(p2dpj1,skiprows=[1])    
 
-          line3, = axs.plot(lat,pF[i,:], linestyle=':', color = jt.cmap(i/6),alpha=0.8)
+        for i in range(0,6):
+              # Convert from reduction in % at 45 deg 
+              pF[i,:] = np.interp(lat,t[f'lat{i+1}'].values,np.log((1-t[f'C{i+1}'].values/100))/np.log(np.cos(np.radians(45))),left=np.nan,right=np.nan) 
 
-    legend=axs.legend(loc='lower left')
-    ax = plt.gca().add_artist(legend)
-    plt.legend([line1,line2,line3],['Boresight','Beam Convolved','Facetting - PJ mean'],loc='lower right')
-    axs.set_title(f'PJ{PJnumber}')
-    axs.set_xlabel('Latitude [deg]')
-    axs.set_ylabel('Limb darkening parameter')
-    axs.invert_yaxis()
+        fig, axs = plt.subplots(1, 1,figsize=(16,9))
+        for i in range(5,-1,-1):
+              line1, = axs.plot(lat,p[i,:], label=f'C{i+1}', color = cmap(i/6),alpha=0.8)
+              line3, = axs.plot(lat,pF[i,:], linestyle=':', color = cmap(i/6),alpha=0.8)
+
+        legend = axs.legend()
+        # Add second legend 
+        ax = plt.gca().add_artist(legend)
+        plt.legend([line1,line2,line3],['Boresight','Beam Convolved','Facetting'],loc='lower right')
+        axs.set_title(f'PJ{PJnumber}')
+        axs.set_xlabel('Latitude [deg]')
+        axs.set_ylabel('Limb darkening parameter')
+        axs.invert_yaxis()
+        plt.show()
+
+        # PJ1 - PJ12  
+        pF = np.zeros_like(p)
+        # Read in Fabiano/Bellotti's data 
+        p2dpj1_12 = path_GD + 'Berkeley/Research/Juno/PJ1-12/R45_FabianoFig9_wpd.csv' 
+
+
+        t = pd.read_csv(p2dpj1_12,skiprows=[1])    
+
+        for i in range(0,6):
+              # Convert from reduction in % at 45 deg 
+              pF[i,:] = np.interp(lat,t[f'lat{i+1}'].values,np.log((1-t[f'C{i+1}'].values/100))/np.log(np.cos(np.radians(45))),left=np.nan,right=np.nan) 
+
+
+        fig, axs = plt.subplots(1, 1,figsize=(16,9))
+        for i in range(5,-1,-1):
+              line1, = axs.plot(lat,p[i,:], label=f'C{i+1}', color = cmap(i/6),alpha=0.8)
+              #axs.fill_between(lat,p2[i,:]+psig2[i,:],p2[i,:]-psig2[i,:],color=jt.cmap(i/6),alpha=0.3)
+              #axs.fill_between(eval(f'PJi.C{i+1}.lat_c_i'),eval(f'PJi.C{i+1}.p')+eval(f'PJi.C{i+1}.sig_p'),eval(f'PJi.C{i+1}.p')-eval(f'PJi.C{i+1}.sig_p'),color=jt.cmap(i/6),alpha=0.3)
+
+              line3, = axs.plot(lat,pF[i,:], linestyle=':', color = cmap(i/6),alpha=0.8)
+
+        legend=axs.legend(loc='lower left')
+        ax = plt.gca().add_artist(legend)
+        plt.legend([line1,line2,line3],['Boresight','Beam Convolved','Facetting - PJ mean'],loc='lower right')
+        axs.set_title(f'PJ{PJnumber}')
+        axs.set_xlabel('Latitude [deg]')
+        axs.set_ylabel('Limb darkening parameter')
+        axs.invert_yaxis()
 
 
 
@@ -5669,7 +6092,7 @@ def fit_Tn_ld(a,mu,window=200, weights=1,):
 
 
 
-def fit_Tn_ld2(a,mu,lat,window=1,resolution=10, weights=1,): 
+def fit_Tn_ld2(a,mu,lat,window=1,resolution=0.1, weights=1,): 
     '''
     Weighted linear least squares  
     '''
@@ -5683,7 +6106,7 @@ def fit_Tn_ld2(a,mu,lat,window=1,resolution=10, weights=1,):
     nparam = 2
 
     # Pre-allocate output arrays 
-    lat_fit = np.arange(-90+window/2,90-window/2+window/resolution,window/resolution)
+    lat_fit = np.arange(-90+window/2,90-window/2+resolution,resolution)
     n_out  = len(lat_fit) 
     Tn = np.zeros(n_out)
     ld = np.zeros_like(Tn) 
@@ -5699,8 +6122,10 @@ def fit_Tn_ld2(a,mu,lat,window=1,resolution=10, weights=1,):
 
         # Raw data points 
         idx = np.logical_and((lat > lat_llim), (lat < lat_ulim))
-    
-        if (np.sum(idx)) < 3: 
+        
+
+        # Skip all bins with less than 10 measurements, really not worth it 
+        if (np.sum(idx)) < 10: 
             Tn[i] = np.nan 
             ld[i] = np.nan  
             sig[:,i] = [np.nan ,np.nan ]
@@ -5737,6 +6162,7 @@ def fit_Tn_ld2(a,mu,lat,window=1,resolution=10, weights=1,):
 
         Tn[i] = np.exp(logT)
         ld[i] = p
+        n_fit[i] = n_data 
 
         # Reduced chi-squared statistic (https://en.wikipedia.org/wiki/Ordinary_least_squares)
         # https://stat.ethz.ch/~geer/bsa199_o.pdf 
@@ -5816,7 +6242,7 @@ def fit_Tn(a,mu,p,window=200, weights=2,):
 
     return Tn, sig
 
-def fit_Tn2(a, mu, p, lat, window=1, resolution=10, weights=1,): 
+def fit_Tn2(a, mu, p, lat, window=1, resolution=0.1, weights=1,): 
     '''
     Try a simple linear least squares approach 
     '''
@@ -5830,7 +6256,7 @@ def fit_Tn2(a, mu, p, lat, window=1, resolution=10, weights=1,):
     nparam = 1
 
     # Pre-allocate output arrays 
-    lat_fit = np.arange(-90+window/2,90-window/2+window/resolution,window/resolution)
+    lat_fit = np.arange(-90+window/2,90-window/2+resolution,resolution)
     n_out  = len(lat_fit) 
     Tn = np.zeros(n_out)
     sig = np.zeros(n_out)
