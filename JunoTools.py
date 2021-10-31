@@ -2757,10 +2757,9 @@ class PJ:
 
         if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
             # Find indices where condition is not true (synchrotron filter)
-            ind_sf = np.where(~((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
-            ind_nsf = np.where(((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0))) 
+            indsc = np.where(~((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0)))[0] 
+            ind_nsf = np.where(((np.abs(lat_f) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(lat_f) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(ob_lat)*(lat_f-ob_lat) < 0)))[0] 
             # Find the indices_planet entries that also function with ind_sf 
-            indsc = np.intersect1d(indpl, ind_sf ,return_indices=True)[1]
         else: 
             indsc = np.arange(0,indpl.shape[0],1)
 
@@ -2795,7 +2794,7 @@ class PJ:
         if glob.glob(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz'): 
             p_mean   = np.interp(lat_fit,np.load(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz')['lat'],np.load(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz')['p_bf'][channel-1,:])
         else: 
-            p_mean = np.nanmean(p[ind_mean])
+            p_mean = np.nanmean(p[ind_mean])*np.ones_like(lat_fit)
         
         # Get the standard deviation from the 20 rotations closest to the planet 
         p_std = np.nanstd(p[ind_mean])
@@ -3758,7 +3757,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
     import pyPR.JunoTools as jt 
     path_GD='/Users/chris/GDrive-UCB/'
     path =  path_GD + 'Berkeley/Research/Juno/'
-    jt.ProcessZonalAverage(path, pjmin=21, pjmax=32,pjexc=[26],reprocess=False,dataversion=2)
+    jt.ProcessZonalAverage(path, pjmin=1, pjmax=12, pjexc=[2,10,11],reprocess=False,dataversion=3,LBfilter=True)
 
     '''
 
@@ -3787,7 +3786,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
 
 
     # Define nlat, the larger the window size 
-
+    # Historical because zonalaverage2 goes between 89.5 and -89.5 in steps of 0.1
     nlat = 1791-(window-1)*10 
 
     # Pre allocate the arrays    
