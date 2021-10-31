@@ -3142,7 +3142,7 @@ class PJ:
             # Uncertainties for regions where p_mean is orbit mean 
 
         # Version 02 - V02 PDS files 
-        (np.savez(path2save + f'_v{version:02d}.npz',
+        (np.savez(path2save + f'_v{dataversion:02d}.npz',
         lat=self.C1.lat_c_i, lat_g=self.C1.lat_g_i, lat_c=self.C1.lat_c_i, freqs=[self.C1.f,self.C2.f,self.C3.f,self.C4.f,self.C5.f,self.C6.f,], window=self.windowbin,
         T = np.vstack([self.C1.T_n, self.C2.T_n, self.C3.T_n, self.C4.T_n, self.C5.T_n, self.C6.T_n]), 
         Tsig = np.vstack([self.C1.sig_T, self.C2.sig_T, self.C3.sig_T, self.C4.sig_T, self.C5.sig_T, self.C6.sig_T]), 
