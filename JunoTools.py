@@ -1035,7 +1035,7 @@ class PJ:
         self.C5.eangle= pj['emssn_angle_JsB5'].values
         if not quicklook: 
             self.C5.eea = np.zeros_like(self.C5.eangle)*np.nan
-
+            self.C5.beamcutoff =  self.beamoffset
             for j in self.C5.indices_planet: 
                 self.C5.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C5.lon[j],self.C5.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C5.hpbw*self.C5.beamcutoff,sampling=self.beamsampling ))
 
@@ -1122,6 +1122,8 @@ class PJ:
         self.C6.eangle= pj['emssn_angle_JsB6'].values
         if not quicklook: 
             self.C6.eea = np.zeros_like(self.C6.eangle)*np.nan
+            self.C6.beamcutoff =  self.beamoffset
+
             for j in self.C6.indices_planet: 
                 self.C6.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C6.lon[j],self.C6.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C6.hpbw*self.C6.beamcutoff,sampling=self.beamsampling ))
 
