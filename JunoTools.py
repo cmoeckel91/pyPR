@@ -3121,7 +3121,7 @@ class PJ:
         return  
    
 
-    def savezonalaverage(self, path2save,version=2):
+    def savezonalaverage(self, path2save,dataversion=2):
 
         # import glob 
         # if glob.glob(path2save): 
