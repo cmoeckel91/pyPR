@@ -806,7 +806,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     T = f(lats) - np.mean(f(lats)) # Residual structure after and levelled to zero 
 
 
-    # Detrend the residuals from emission angle by diving by cos(theta)**p
+    # Detrend the residuals from emission angle by dividing by cos(theta)**p
     f = scipy.interpolate.interp1d(np.degrees(np.ndarray.flatten(lat_emission)), np.ndarray.flatten(alpha), bounds_error=False, fill_value=([alpha[0]],[alpha[-1]]))
     T_db = T/(np.cos(f(lats))**p[0]) 
 
@@ -823,12 +823,14 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
         print('Basemap bug has not yet been removed')
 
     # create Basemap instance for orthographic projection.
-    m = Basemap(projection='ortho',lat_0=ob_lat_d
+    m = Basemap(projection='ortho',lat_0=np.degrees(ob_lat_d) 
                 ,lon_0=90)
+
 
     # compute map projection coordinates for lat/lon grid.
     x, y = m(*np.meshgrid(lons,lats))
     lonpt, latpt = m(x,y,inverse=True)
+
 
 
     # make filled contour plot.
@@ -2327,8 +2329,48 @@ def lat_graphic2centric(lat_g,R_e,R_p):
     lat_g[np.where((-lat_g)>=threshold)] = -threshold
     f = (R_e - R_p)/R_e
     return np.arctan(np.tan(lat_g)*(1-f)**2)
-   
-def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = False ):
+
+def zonalradioprofile(file, f_interp, th_interp, planet='Uranus', residual = False ):
+    ''' Read in zonal profile based on ALMA observations Molter et al. 2019 
+
+    ''' 
+    from scipy.interpolate import interp1d, interp2d 
+
+    if planet.lower().strip() == 'uranus': 
+        # Read in Ned's T + lat profile 
+        path2data = 'pyPR/Data/'+file
+
+        U_A = np.loadtxt(path2data)
+
+
+
+        lat = U_A[:,0] 
+        f_data = np.array([100e9,144e9,243e9]) # GHz 
+        T_100 = U_A[:,1]
+        T_144 = U_A[:,2]
+        T_243 = U_A[:,3] 
+
+
+        # if np.all(f_interp > f_data) or np.all(f_interp < f_data): 
+        #     print('Proceed with caution we are extrapolating')
+
+        #     # Extrapolate for the given latitude input 
+        #     T_expl = np.zeros_like(lat) 
+        #     for i in range(len(lat)):
+        #         f =  interp1d(f_data,U_A[i,1:4],fill_value="extrapolate") 
+        #         T_expl[i] =  f(f_interp)
+
+
+        f = interp2d(f_data,lat,U_A[:,1:4]) 
+        T_interp = f(f_interp, th_interp)
+        if residual: 
+            T_interp = T_interp - np.mean(T_interp)
+
+    return np.ndarray.flatten(T_interp)  
+
+
+
+def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]),planet='Jupiter', residual = False ):
     '''Read out the zonal structure. 
 
     Current version reads out the residuals from Imke de Pater, 2014 
@@ -3000,7 +3042,7 @@ def combine_projections(proj,method='median', title='', Plotting = False, output
         hdu = fits.PrimaryHDU(im)
         hdulist = fits.HDUList([hdu])
         hdulist[0].header = header 
-        hdulist[0].header['HISTORY'] = 'Projections were deprojected with E. Molter coordgrid.py'
+        hdulist[0].header['HISTORY'] = 'Projections were deprojected with E. Molter\s coordgrid.py'
         hdulist[0].header['HISTORY'] = 'Projections modified using pyPR\'s align_projections'
         hdulist[0].header['HISTORY'] = 'Method used for combine_projections: ' + method 
         hdu.writeto(outputname, overwrite=True)
@@ -4126,6 +4168,15 @@ class Model:
                 Bdata_l += TP.Bzonaldata
                 T_res, th_res = zonalstructure('Data/VLA_ZonalScans_2014.fits', nu_u, residual=True)
                 TP.gen_casa(nu_u,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = th_res, setimsize=self.imsize, plotting = False)
+                Bdata_u += TP.Bzonaldata  
+            if hasattr(self, 'Bzonaldata') and self.name == 'Uranus': 
+                file = 'ALMA_ZonalStruture_Uranus.txt' 
+                lat_interp = np.arange(-90,91,1) 
+                T_res = zonalradioprofile(file,nu_l,lat_interp,residual=True)
+                TP.gen_casa(nu_l,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = lat_interp, setimsize=self.imsize, plotting = False)
+                Bdata_l += TP.Bzonaldata
+                T_res = zonalradioprofile(file,nu_u,lat_interp,residual=True)
+                TP.gen_casa(nu_u,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = lat_interp, setimsize=self.imsize, plotting = False)
                 Bdata_u += TP.Bzonaldata  
 
 

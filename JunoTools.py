@@ -2,7 +2,7 @@
 
 Notes
 -----
-05/05/19,CpM, Initial Commit
+05/05/19,CM, Initial Commit
 """
 
 import glob 
@@ -43,6 +43,7 @@ path_radio = '/Users/chris/Documents/Research/Toolbox/radio/'
 if not glob.glob(path_GD): 
     path_GD = '/Volumes/casa/chris/Google Drive/' 
     path_radio = '/Users/chris.moeckel/Documents/Research/radio/'
+
 
 pathJ = path_GD + 'Berkeley/Research/Juno/'
 path_J = pathJ
@@ -320,6 +321,23 @@ def PJ2DOY(number):
     "data": True,
     } 
 
+    PJ33 = {
+    "PJ": 33,
+    "year": 2021, 
+    "doy" : 105, 
+    "time": 23.52, 
+    "data": True,
+    } 
+
+
+    PJ34 = {
+    "PJ": 34,
+    "year": 2021, 
+    "doy" : 159, 
+    "time": 7.75, 
+    "data": True,
+    } 
+
 
     PJ = { 
     'PJ1' :  PJ1,    
@@ -354,6 +372,8 @@ def PJ2DOY(number):
     'PJ30' : PJ30,
     'PJ31' : PJ31,
     'PJ32' : PJ32,
+    'PJ33' : PJ33,
+    'PJ34' : PJ34,
         } 
 
     return PJ[f'PJ{number}']
@@ -423,51 +443,56 @@ def DownloadPDSdata(pathJ, PJnumber, dataversion=3, bracket=[-1,1]):
         print(f'No Data for PJ{PJnumber} recorded! Download data manually if needed')
         return None,None
     
-    urli = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/IRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]:03d}/' 
-    urlg = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/GRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]:03d}/' 
-
-    # Instrument data 
-    ti = requests.get(urli).text
-    vn = f'V{dataversion:02d}'
-    pattern = r'>MWR+.+_' + vn + '.CSV'
-    tempi = re.findall(pattern, ti) 
-    # remove > 
-    fnI = [t[1:] for t in tempi] 
-
-    # Geo data 
-    tg = requests.get(urlg).text
-    tempg = re.findall(pattern, tg) 
-    # remove > 
-    fnG = [t[1:] for t in tempg] 
-
 
     # # Select the files around the Perijove time 
     tpj = PJdict["time"]
     indx = int(tpj) 
 
-
-    if tpj == 0: 
-        print('Wraps around the day') 
-
-    if indx+bracket[0] < 0: 
-        print('Data bracket goes into previous day. Only downloading current day. Future Chris should fix this') 
-
-    while indx + bracket[0] < 0: 
-        bracket[0] += 1  
-
-
-
-    # Download data 
+    # Make Folder for data if they don't exists 
     if not glob.glob(f'{pathJ}PJ{PJnumber}' ): os.system(f'mkdir {pathJ}PJ{PJnumber}') 
     if not glob.glob(f'{pathJ}PJ{PJnumber}/PDS' ): os.system(f'mkdir {pathJ}PJ{PJnumber}/PDS') 
+    # Test if it wraps around the day 
 
-    for fI,fG in zip(fnI[indx+bracket[0]:indx+bracket[1]],fnG[indx+bracket[0]:indx+bracket[1]]): 
+
+    # Step through brackets (overkill but works better for data wrapping around the day ... sigh) 
+
+    for idx in range(indx+bracket[0],indx+bracket[1]+1,1):
+        print(f'Downloading data for {np.mod(idx,24)}:00') 
+        #Test if data are from day before 
+        if idx < 0: 
+            urli = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/IRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]-1:03d}/' 
+            urlg = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/GRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]-1:03d}/' 
+        elif idx > 23: 
+            idx=np.mod(idx,24)
+            urli = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/IRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]+1:03d}/' 
+            urlg = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/GRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]+1:03d}/' 
+        else: 
+            urli = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/IRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]:03d}/' 
+            urlg = f'https://pds-atmospheres.nmsu.edu/PDS/data/jnomwr_1100/DATA/GRDR/{PJdict["year"]}/{PJdict["year"]}{PJdict["doy"]:03d}/' 
+
+        # Instrument data 
+        ti = requests.get(urli).text
+        vn = f'V{dataversion:02d}'
+        pattern = r'>MWR+.+_' + vn + '.CSV'
+        tempi = re.findall(pattern, ti) 
+        # remove > 
+        fnI = [t[1:] for t in tempi] 
+
+        # Geo data 
+        tg = requests.get(urlg).text
+        tempg = re.findall(pattern, tg) 
+        # remove > 
+        fnG = [t[1:] for t in tempg] 
+
+        # Download the data 
+        fI = fnI[idx]; fG = fnG[idx] 
         if not glob.glob(pathJ + f'PJ{PJnumber}/PDS/' + fI):
             wget.download(urli + fI, pathJ + f'PJ{PJnumber}/PDS/' + fI )
         if not glob.glob(pathJ + f'PJ{PJnumber}/PDS/' + fG):
             wget.download(urlg + fG, pathJ + f'PJ{PJnumber}/PDS/' + fG) 
 
-    return fnI[indx+bracket[0]:indx+bracket[1]],fnG[indx+bracket[0]:indx+bracket[1]]
+    print(f'Succesfully download data for {PJnumber}')
+    return None 
 
 def PJFileLocation(path, PJnumber, dataversion=3): 
 
@@ -566,7 +591,8 @@ class PJ:
 
         if load: 
             filehandler = open( pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj','rb' )
-            self.__dict__.update(pickle.load(filehandler).__dict__)                
+            self.__dict__.update(pickle.load(filehandler).__dict__)      
+            self.datapath=pathJ+f'PJ{self.PJnumber}/'
             return 
 
         self.datapath=pathJ+f'PJ{self.PJnumber}/'
@@ -1186,8 +1212,8 @@ class PJ:
             # Save the whole structure as a pickle 
             fname = f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj'
             filehandler = open( pathJ + fname,'wb' )
-            print(f'Perijove data are saved to {fname}')
             pickle.dump(self,filehandler)   
+            print(f'Perijove data are saved to {fname}')
 
     def rot2ind(self,rotnumb):
         return np.where(np.floor(self.rotation) == np.floor(rotnumb))[0] 
@@ -1199,6 +1225,45 @@ class PJ:
             indm =  np.argmin(np.abs(self.ob_lat_g - lat))
 
         return self.rotation[indm]
+
+    def lat2ind(self, lat_range,channel,filter=True): 
+        '''
+        For a given latitude range return all the indices 
+        ''' 
+
+
+        if lat_range[1]<lat_range[0]: 
+            lat_range = [lat_range[1],lat_range[0]]
+
+        lat_llim = lat_range[0]
+        lat_ulim = lat_range[1]
+
+
+        # Read in all data points 
+        idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
+
+        # Find all the indicies where the observations are on the planet 
+        idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
+
+         # Find all the indicies where the observations are on the planet 
+        idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
+
+        try: 
+            ind_sc = eval(f'self.C{channel:d}.indices_science') 
+            idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
+        except AttributeError:  
+            # Find indices where condition is not true (synchrotron filter)
+
+            if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
+                ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(eval(f'self.C{channel}.lat_c')) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
+                idxplf = np.intersect1d(ind_sf, idxpl )
+            else: 
+                idxplf = idxpl
+
+        if filter: 
+            return idxplf 
+        else: 
+            return idxpl 
 
 
     def plotTA(self,channel=6, latlim = 45, eanglelim=30, ld=[], colorize='eangle',geocentric=True): 
@@ -1320,7 +1385,7 @@ class PJ:
 
 
 
-    def NadirFootprints(self,channel,outputname=None): 
+    def NadirFootprints(self,channel,beamfactor=0.5,outputname=None): 
         '''
         This function finds for each rotation where there is a beam on the planet, 
         the location of the most nadir looking beam and calculates the outline 
@@ -1351,14 +1416,16 @@ class PJ:
             ifs = indpl[0] + indrot[0]
             # print(channel, inadir,self.ob_lat_c[inadir], eval(f'self.C{channel}.alpha_boresight[inadir]'))
 
-            # Skip all the non relevant data 
-            beam = np.radians([eval('self.C{:d}.lon[ifs]'.format(channel)),eval('self.C{:d}.lat_c[ifs]'.format(channel))]) 
-            obs  = np.radians([self.ob_lon[ifs],self.ob_lat_c[ifs]]) 
+            d, ob_lon, ob_lat = self.range[ifs]*1e3, np.radians(self.ob_lon[ifs]), np.radians(self.ob_lat_c[ifs])
+            b_lon, b_lat =  np.radians( eval(f'self.C{channel}.lon[ifs]') ), np.radians(eval(f'self.C{channel}.lat_c[ifs]') )
+            r_s = local_radius(b_lon,b_lat,self.r_j)*1e3 
+        
+            beamsize = eval(f'self.C{channel}.hpbw')*beamfactor 
 
-            r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
+            [lon_ffs,lat_ffs],horizon,eangle = ProjectedFootprint2([ r_s, b_lon, b_lat],[d, ob_lon, ob_lat],beamsize,radius=self.r_j*1e3)
 
-            [lon_ffs,lat_ffs],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(channel)),self.range[ifs]*1e3,r_s=r_s*1e3)  
-            
+
+
             # Find maximum latitude and longitude 
             maxfs = [np.nanmin(lon_ffs),np.nanmax(lon_ffs)]
 
@@ -1366,14 +1433,26 @@ class PJ:
             ils = indpl[-1] + indrot[0]
             # print(channel, inadir,self.ob_lat_c[inadir], eval(f'self.C{channel}.alpha_boresight[inadir]'))
 
-            # Skip all the non relevant data 
-            beam = np.radians([eval('self.C{:d}.lon[ils]'.format(channel)),eval('self.C{:d}.lat_c[ils]'.format(channel))]) 
-            obs  = np.radians([self.ob_lon[ils],self.ob_lat_c[ils]]) 
+            # # Skip all the non relevant data 
+            # beam = np.radians([eval('self.C{:d}.lon[ils]'.format(channel)),eval('self.C{:d}.lat_c[ils]'.format(channel))]) 
+            # obs  = np.radians([self.ob_lon[ils],self.ob_lat_c[ils]]) 
 
-            r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
+            # r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
 
-            [lon_fls,lat_fls],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(channel)),self.range[ils]*1e3,r_s=r_s*1e3)  
+            # [lon_fls,lat_fls],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(channel)),self.range[ils]*1e3,r_s=r_s*1e3)  
             
+            # Update this with updated algorithm 
+
+            d, ob_lon, ob_lat = self.range[ils]*1e3, np.radians(self.ob_lon[ils]), np.radians(self.ob_lat_c[ils])
+            b_lon, b_lat =  np.radians( eval(f'self.C{channel}.lon[ils]') ), np.radians(eval(f'self.C{channel}.lat_c[ils]') )
+            r_s = local_radius(b_lon,b_lat,self.r_j)*1e3 
+        
+            beamsize = eval(f'self.C{channel}.hpbw')*beamfactor 
+
+            [lon_fls,lat_fls],horizon,eangle = ProjectedFootprint2([ r_s, b_lon, b_lat],[d, ob_lon, ob_lat],beamsize,radius=self.r_j*1e3)
+
+
+
             # Find maximum latitude and longitude 
             maxls = [np.nanmin(lon_fls),np.nanmax(lon_fls)]
 
@@ -1390,17 +1469,15 @@ class PJ:
             inadir = np.argmin(eval(f'self.C{channel}.alpha_boresight[indrot]')) + indrot[0]
             # print(channel, inadir,self.ob_lat_c[inadir], eval(f'self.C{channel}.alpha_boresight[inadir]'))
 
-            # Skip all the non relevant data 
-            beam = np.radians([eval('self.C{:d}.lon[inadir]'.format(channel)),eval('self.C{:d}.lat_c[inadir]'.format(channel))]) 
-            obs  = np.radians([self.ob_lon[inadir],self.ob_lat_c[inadir]]) 
+            d, ob_lon, ob_lat = self.range[inadir]*1e3, np.radians(self.ob_lon[inadir]), np.radians(self.ob_lat_c[inadir])
+            b_lon, b_lat =  np.radians( eval(f'self.C{channel}.lon[inadir]') ), np.radians(eval(f'self.C{channel}.lat_c[inadir]') )
+            r_s = local_radius(b_lon,b_lat,self.r_j)*1e3 
 
-            r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
+            beamsize = eval(f'self.C{channel}.hpbw')*beamfactor 
 
-            [lon_fp,lat_fp],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(channel)),self.range[inadir]*1e3,r_s=r_s*1e3)  
-            
+            [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, b_lon, b_lat],[d, ob_lon, ob_lat],beamsize,radius=self.r_j*1e3)
 
-
-            FPcenter.append(np.degrees(beam))
+            FPcenter.append(np.degrees([ob_lon,ob_lat]))
             FPoutline.append(np.degrees([lon_fp,lat_fp]))
             
         if outputname: 
@@ -1420,42 +1497,93 @@ class PJ:
         return FPcenter,FPoutline
 
 
-    def PlotFootprintsForLat(self, lat, channel, latllim=0.5, polar=False, alpha=0.5, rlim = 45, color='channel'):
-
-        latlim = 0.5
-        lat_llim = lat - latlim
-        lat_ulim = lat + latlim
+    def PlotFootprintsForLat(self, lat, channel, latlim=0.5, polar=False, alpha=0.5, rlim = 45, color='channel' , beamfactor = 0.5, mapfile=None, maproll=None, xlim=None,ylim=None,outfile=None,animation=False, meanprofile=False, savefig = False,filter = True, deltalon=-5):
 
 
-        # Read in all data points 
-        idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
+        # lat_llim = lat - latlim
+        # lat_ulim = lat + latlim
 
-        # Find all the indicies where the observations are on the planet 
-        idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
+        idxplf = self.lat2ind([lat - latlim,lat + latlim],channel,filter=filter) 
 
-        try: 
-            ind_sc = eval(f'self.C{channel:d}.indices_science') 
-            idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
-        except AttributeError:  
-            # Find indices where condition is not true (synchrotron filter)
+        # # Read in all data points 
+        # idx = np.logical_and((eval(f'self.C{channel:d}.lat_c') > lat_llim), (eval(f'self.C{channel:d}.lat_c') < lat_ulim))
 
-            if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
-                ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(eval(f'self.C{channel}.lat_c')) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
-                idxplf = np.intersect1d(ind_sf, idxpl )
-            else: 
-                idxplf = idxpl
+        # # Find all the indicies where the observations are on the planet 
+        # idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
 
+        # try: 
+        #     ind_sc = eval(f'self.C{channel:d}.indices_science') 
+        #     idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
+        # except AttributeError:  
+        #     # Find indices where condition is not true (synchrotron filter)
+
+        #     if not np.array_equal(eval(f'np.array(self.C{channel}.synchrotron_filter)'), np.array([0,90])):
+        #         ind_sf = np.where(~((np.abs(eval(f'self.C{channel}.lat_c')) > eval(f'self.C{channel}.synchrotron_filter')[0]) & (np.abs(eval(f'self.C{channel}.lat_c')) < eval(f'self.C{channel}.synchrotron_filter')[1]) & (np.sign(self.ob_lat_c)*(eval(f'self.C{channel}.lat_c')-self.ob_lat_c) < 0))) 
+        #         idxplf = np.intersect1d(ind_sf, idxpl )
+        #     else: 
+        #         idxplf = idxpl
 
         # ind_sc = eval(f'self.C{channel:d}.indices_science') 
         # idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
-        self.PlotFootprintsForIdx(idxplf,channels = [channel], step=1, polar=polar,alpha =alpha, color=color,rlim = rlim, title = f'PJ {self.PJnumber} - C {channel} - Latitude {lat} deg' )
+        if outfile is not None: 
+            outfile += f'_lat{lat}'
+
+        self.PlotFootprintsForIdx(idxplf,channels = [channel], step=1, polar=polar,alpha =alpha, beamfactor=beamfactor, color=color,rlim = rlim, title = f'PJ{self.PJnumber} - C{channel} - Latitude {lat} deg' ,mapfile=mapfile,maproll=maproll, xlim=xlim,ylim=ylim,outfile=outfile,animation=animation, meanprofile = meanprofile, deltalon = deltalon, savefig = savefig)
+
+        return idxplf
+
+    def ExportFootprintsForIdx(self,idxs, ch, beamsize, outfile=None, beammask=False ): 
+        '''
+        Plot Footprints for a number of indices for a given Channel 
+        '''
+
+
+        FP = np.zeros((len(idxs),len(beamsize),2,100))  
+        BC = np.zeros((len(idxs),2))
+        fc = np.zeros(len(idxs)) 
+
+        Tn = (eval(f'self.C{ch:d}.T_a[idxs]/np.cos(np.radians(self.C{ch:d}.eea[idxs]))**self.C{ch:d}.ld')) 
+        mu = eval(f'self.C{ch}.eea[idxs]') 
+        t = eval(f'self.time[idxs]')
+
+
+        for j in range(len(idxs)): 
+            # Compute the projected footprint for the given index 
+            idx = idxs[j]
+            d, ob_lon, ob_lat = self.range[idx]*1e3, np.radians(self.ob_lon[idx]), np.radians(self.ob_lat_c[idx])
+            b_lon, b_lat =  np.radians( eval(f'self.C{ch}.lon[idx]') ), np.radians(eval(f'self.C{ch}.lat_c[idx]') )
+            r_s = local_radius(b_lon,b_lat,self.r_j)*1e3 
+            BC[j,:] = (np.degrees([b_lon, b_lat]))
+            # Called Beam Cloud mask convolution 
+            if beammask:
+                fc[j] = BeamConvolvedMask([b_lon, b_lat],[ob_lon, ob_lat], d, ch, eval(f'self.C{ch}.hpbw')*1.25, normalized=False, sampling=1 ,plotting=False)
+
+            for i in range(len(beamsize)): 
+                [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, b_lon, b_lat],[d, ob_lon, ob_lat],eval(f'self.C{ch}.hpbw')/2*beamsize[i],radius=self.r_j*1e3)
+                FP[j,i,:,:] = (np.degrees([lon_fp,lat_fp]))
+            
+
+
+        if outfile: 
+            (np.savez(self.datapath+outfile,
+            channel = ch,
+            beamsize = beamsize,
+            center  = BC,
+            outline = FP,
+            Tn      = Tn,
+            f_cloud = fc, 
+            emissionangle = mu,
+            time = t,))
 
 
 
-    def PlotFootprintsForIdx(self,idxs, channels=[2,6], step=10, mapfile=None, polar=False, rlim = 45, alpha = 0.1, color='channel',title=None ): 
+    def PlotFootprintsForIdx(self,idxs, channels=[2,6], beamfactor = 0.5, step=10, mapfile=None, maproll=None, polar=False, rlim = 45, alpha = 0.1, color='channel',title=None,xlim=None,ylim=None,outfile=None,animation=False, meanprofile=False,deltalon = -7, savefig=None): 
         '''
         Plot Footprints for a number of indices 
-        '''
+                '''
+        from matplotlib.collections import LineCollection
+        from matplotlib.colors import ListedColormap, BoundaryNorm
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
         if polar: 
@@ -1464,20 +1592,59 @@ class PJ:
         else: 
             fig, axs = plt.subplots(figsize=(16,9))
 
+        if mapfile is not None: 
+            JCmap = plt.imread(mapfile)
+            if maproll is not None: 
+                JCmap = np.roll(JCmap,int(maproll/(360/JCmap.shape[1])),axis=1)
+            axs.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+
 
         for ch in channels: 
             FP = [] 
+            BC = [] # Beam center 
             Tn = []
+
+            # Find limb darkening for the given latitude  
+            lat_c_i, T_a, T_n, p,  eea,  = eval(f'self.C{ch:d}.lat_c_i'), eval(f'self.C{ch:d}.T_a'), eval(f'self.C{ch:d}.T_n'), eval(f'self.C{ch:d}.p'), eval(f'self.C{ch:d}.eea')  
+
+
+            
+            #Tn.append(eval(f'self.C{ch:d}.T_a[idx]/np.cos(np.radians(self.C{ch:d}.eea[idx]))**self.C{ch:d}.ld')) 
+
             for idx in idxs: 
                 # Compute the projected footprint for the given index 
-                beam = np.radians([eval('self.C{:d}.lon[idx]'.format(ch)),eval('self.C{:d}.lat_c[idx]'.format(ch))]) 
-                obs  = np.radians([self.ob_lon[idx],self.ob_lat_c[idx]]) 
+                # beam = np.radians([eval('self.C{:d}.lon[idx]'.format(ch)),eval('self.C{:d}.lat_c[idx]'.format(ch))]) 
+                # obs  = np.radians([self.ob_lon[idx],self.ob_lat_c[idx]]) 
 
-                r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
+                # r_s = self.RJ[0]*self.RJ[2]/(np.sqrt((self.RJ[2]*np.cos(obs[1]))**2 + (self.RJ[0]*np.sin(obs[1]))**2))
 
-                [lon_fp,lat_fp],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(ch)),self.range[idx]*1e3,r_s=r_s*1e3)  
+                # [lon_fp,lat_fp],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(ch)),self.range[idx]*1e3,r_s=r_s*1e3) 
+
+
+
+                d, ob_lon, ob_lat = self.range[idx]*1e3, np.radians(self.ob_lon[idx]), np.radians(self.ob_lat_c[idx])
+                b_lon, b_lat =  np.radians( eval(f'self.C{ch}.lon[idx]') ), np.radians(eval(f'self.C{ch}.lat_c[idx]') )
+                r_s = local_radius(b_lon,b_lat,self.r_j)*1e3 
+
+                beamsize = eval(f'self.C{ch}.hpbw')*beamfactor 
+
+                [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, b_lon, b_lat],[d, ob_lon, ob_lat],beamsize,radius=self.r_j*1e3)
+
+                BC.append(np.degrees([b_lon, b_lat]))
                 FP.append(np.degrees([lon_fp,lat_fp]))
-                Tn.append(eval(f'self.C{ch:d}.T_a[idx]/np.cos(np.radians(self.C{ch:d}.eea[idx]))**self.C{ch:d}.ld')) 
+                
+                Tn.append(T_a[idx]/np.cos(np.radians(eea[idx]))**p[np.argmin(np.abs(np.radians(lat_c_i)-b_lat))])
+                
+
+            if outfile: 
+                (np.savez(self.datapath+outfile +f'_C{ch}',
+                channel = ch,
+                center  = BC,
+                outline = FP,
+                Tn      = Tn,
+                emissionangle = eval(f'self.C{ch}.eea[idxs]'),
+                time = eval(f'self.time[idxs]'),))
 
 
             # Plot the colorbar for the antenna 
@@ -1485,36 +1652,102 @@ class PJ:
             if color == 'temperature': 
                 Z = [[0,0],[0,0]]
                 levels = range(int(np.floor(np.nanmin(Tn))),int(np.ceil(np.nanmax(Tn))),1)
-                CS3 = axs.contourf(Z, levels, cmap=cm.magma )
+                CS3 = axs.contourf(Z, levels, cmap=cm.coolwarm )
                 for coll in CS3.collections:
                     coll.remove()
 
             nfp = len(FP) 
+            print(f'Total number of footprints: {nfp}') 
+
+            if title is None: 
+                axs.set_title(f'PJ{self.PJnumber}')
+            else: 
+                axs.set_title(title)
+            if xlim is not None:
+                axs.set_xlim(xlim)
+            
+            if ylim is not None:
+                axs.set_ylim(ylim)
+
+            if color == 'temperature': 
+                divider = make_axes_locatable(axs)
+                cax = divider.append_axes("right", size="2%", pad=0.05)
+                cb = plt.colorbar(CS3,label='T (deg)',cax= cax) 
+
+
+            axs.set_aspect('equal')
+            axs.set_ylabel('Latitude (deg)')
+            axs.set_xlabel('Longitude (deg)')
+
+            cnt = 0 
             for i in range(0,nfp,step): 
                 if color == 'channel': 
-                    clr = cmap((ch-1)/6)
+                    clr = cmap((ch-1)/5)
                 elif color == 'temperature': 
                     # Determine the beam brightness temperature 
-                    clr = cmap((np.nanmax(Tn) - Tn[i])/(np.nanmax(Tn) - np.nanmin(Tn)))
+                    clr = cm.coolwarm_r((np.nanmax(Tn) - Tn[i])/(np.nanmax(Tn) - np.nanmin(Tn)))
                 if polar: 
                     axs.plot(np.radians(np.array(FP[i])[0]),np.array(FP[i])[1],color=clr,alpha=alpha)
                     axs.set_xlabel('Latitude (deg)')
                     #axs.set_xlabel('Longitude (deg)')
                 else: 
-                    axs.plot(np.array(FP[i])[0],np.array(FP[i])[1],color=clr,alpha=alpha)
-                    axs.set_ylabel('Latitude (deg)')
-                    axs.set_xlabel('Longitude (deg)')
+                    if mapfile is not None: 
+                        #lon = np.mod(180 - np.array(FP[i])[0],360)
+                        #lon = 360 - np.array(FP[i])[0] 
+                        # CM changed this to work for PJ7 
+                        lon = np.mod(- np.array(FP[i])[0],360 )
+                    else: 
+                        lon = np.array(FP[i])[0] 
+                    axs.plot(lon,np.array(FP[i])[1],color=clr,alpha=alpha)
 
-        if title is None: 
-            axs.set_title(f'PJ{self.PJnumber}')
-        else: 
-            axs.set_title(title)
+                    if animation: 
+                        path2save = self.datapath + 'Animations/Files/' 
+                        if not glob.glob(path2save): 
+                            os('mkdir '+ path2save)
+                        if np.mod(i,20)==0:
+                            plt.savefig(path2save+f'Footprints_ch{ch}_{cnt}'+'.png', format='png', transparent = True, dpi=500)
+                            cnt +=1
 
-        if color == 'temperature': 
-            cb = plt.colorbar(CS3) # using the colorbar info I got from contourf
-            cb.set_label('T (K)', rotation=90)
+                        '''
+                        ffmpeg -f image2  -framerate 4 -i Footprints_ch5_%0d.png PJ4-Flyby.mp4 
+                        ffmpeg  -i PJ4-Flyby.mp4 -vf "fps=10,scale=2048:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop -1 PJ4-Flyby.gif
 
-    def PlotNadirFootprintMap(self, channels=[2,6], step=10, mapfile=None, polar=False, rlim = 45, alpha = 0.1  ): 
+                        ffmpeg -i PJ4-Flyby.mp4 -pix_fmt rgb24 PJ4-Flyby.gif
+                        '''
+
+            if meanprofile: 
+
+                # Fit a line through the 
+                
+                #CM changed this for PJ7 
+                #lat, lon = self.ob_lat_c, 360 - self.ob_lon + deltalon
+                lat, lon = self.ob_lat_c, np.mod(-self.ob_lon + deltalon,360) 
+
+
+
+                points = np.array([lon, lat]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+                norm = plt.Normalize(np.nanmin(Tn), np.nanmax(Tn))
+
+                lc = LineCollection(segments, cmap=cm.coolwarm, norm=norm)
+                # Set the values used for colormapping
+                lc.set_array(np.interp(lat,lat_c_i,T_n))
+
+                lc.set_linewidth(20)
+                line = axs.add_collection(lc)
+                plt.show()
+
+            if savefig is not None: 
+                path2save = self.datapath + savefig 
+                plt.savefig(path2save+'.png', format='png', transparent = True, dpi=500)
+                plt.savefig(path2save+'.pdf', format='pdf', transparent = True, dpi=500)
+                #plt.savefig(path2save+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+
+    def PlotNadirFootprintMap(self, channels=[2,6], step=10, mapfile=None, polar=False, rlim = 45, alpha = 0.1, ylim=None, xlim=None  ): 
 
 
         # Find the ones where it jumps across -180 or 180, split into two pairs, truncate at -180 and 180 
@@ -1523,8 +1756,13 @@ class PJ:
             axs.set_rlim(bottom=90, top=rlim)
         else: 
             fig,axs = plt.subplots(1,figsize=(16,4))
-            axs.set_ylim(0,90)
-            axs.set_xlim(-180,180)
+            if ylim is not None: axs.set_ylim(ylim)
+            else: axs.set_ylim(-90,90)
+            if xlim is not None: axs.set_xlim(xlim)
+            else: axs.set_xlim(-180,180)
+            axs.set_aspect('equal')
+
+            
 
         for ch in channels: 
             FP =  self.NadirFootprints(ch)
@@ -1541,6 +1779,709 @@ class PJ:
                     axs.set_xlabel('Longitude (deg)')
 
         axs.set_title(f'PJ{self.PJnumber}')
+
+
+
+
+    def DeconvolveBeams(self, lat_range, channel, fltr=True, sampling=10, I_max = 6, beamscaling = 0.5, verbose=False, plotting=False, path2map=None, path2save=None, savedata=True): 
+        ''' Deconvolve Juno beams and get sub beam resolution 
+
+
+        import pyPR.JunoTools as jt 
+        PJnumber = 4; 
+
+        lats = [-13]; latlim = 10
+        lat_range = [lats[0]-10,lats[0]+10]
+        PJ = jt.PJ(PJnumber)
+        pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
+        PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
+        for channel in [4]:
+        
+            path2save = pathJ + f'PJ{PJnumber}/Deconvolution/C{channel}/'
+
+            path2maps = f'PJ{PJnumber}/HST/'
+            path2map = pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
+
+            T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap, _ = PJ.DeconvolveBeams(lat_range,channel,plotting=True,path2map=path2map,path2save=path2save) 
+            
+            del T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap, GMap
+            plt.close('all')
+
+
+
+        '''
+
+
+        '''
+        Structure of the Algorithm 
+        0. Collect all observations 
+        1. Compute observational geometry for all observations (Front load and save in memory) 
+        2. Convole the geometry with current model (i = 0, a-priori Zonal information)   
+            2.1. Convolve each observation with model:
+                * Compute difference between observation and model 
+                * Add Gaussian emission at beam location
+            2.2. Normalize the map by number of contributions 
+        3. Update model and go back to Step 3 
+        5. Iterate until model no longer improves 
+
+        '''
+
+        # Deconvolution of Juno beams 
+
+
+        from   scipy.stats import multivariate_normal
+        import time 
+  
+
+        #--------------------- Observations ---------------------------
+        # Step 0: Collect all observations 
+        idxplf = self.lat2ind(lat_range,channel,filter=fltr) 
+
+
+
+        #--------------------- Geometry---------------------------------
+        # Step 1: Compute the observational geometry for the selected observations 
+
+
+        # Load in the beam 
+        path_B = path_J + 'Beam/'
+        G,p,t, hpbw   = readJunoBeam(path_B,channel,normalized=True) 
+
+        # Using linspace so that the endpoint of 360 is included...
+        azimuths  = np.degrees(t) #theta -> outwards radial component 
+        zeniths = np.degrees(p) # phi -> contours around the beam
+
+        radialextent = eval(f'self.C{channel}.hpbw')*1.25
+        
+        # sampling = 10
+
+
+
+        # Dimensions for the computation 
+        N = len(idxplf) # Number of observations  
+        M = int(np.ceil(radialextent)) # Integration regions for convolution 
+        O = int(len(azimuths)/sampling) # Resolution for azimuths 
+
+        # Preallocate arrays 
+        mu_i = np.zeros((N,M,O))
+        fp_i = np.zeros((N,M,O,2)) # Longitude , Latitude 
+        beamshape = np.zeros((N,5))
+
+        # Build the reference map 
+
+        lat_m = np.arange(-90,90,0.1)
+        lon_m = np.arange(0,360,0.1)
+        GMap = np.zeros((N,len(lat_m),len(lon_m))) # Gaussian map 
+
+        idx_remove = []
+
+        for n in range(N):
+            if verbose:
+                if np.mod(n,50) == 0 :
+                    print(f'Geometry - Progress: {int(n/N*100):d} %')
+            # Read in the observation geometry for selected index 
+            idx = idxplf[n]
+            beam = [np.radians(eval(f'self.C{channel}.lon[idx]')), np.radians(eval(f'self.C{channel}.lat_c[idx]')) ]
+            obs  = [np.radians(self.ob_lon[idx]), np.radians(self.ob_lat_c[idx]) ]
+            dist =  self.range[idx]*1e3
+
+            # Compute the outline for the hpwb 
+            r_s = local_radius(beam[0],beam[1],np.array([71492000., 71492000., 66854000.]))
+            [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, beam[0], beam[1]],[dist, obs[0], obs[1]],hpbw/2, n = int(len(azimuths)/sampling))
+            
+            # CM changed this 
+            #lon_fp = 2*np.pi - lon_fp  
+            lon_fp = np.mod(-lon_fp,2*np.pi)
+
+
+            C,A,a = fitting_ellipse(lon_fp,lat_fp,plotting=False) # Orientation of the mean beam 
+            beamshape[n,:2] = C; beamshape[n,2:4] = A; beamshape[n,4] = a
+
+            # # Plot the footprint and the fitted beam 
+            # fig, ax = plt.subplots(1, 1,figsize=(16,8))
+            # ax.set_aspect('equal')
+            # ax.scatter(lon_fp*57.3,lat_fp*57.3)
+            # ellipse = Ellipse(xy=(np.degrees(beamshape[n,0]),np.degrees(beamshape[n,1])), width=np.degrees(beamshape[n,2])*2, height=np.degrees(beamshape[n,3])*2, 
+            #                         edgecolor='black', fc='None', lw=2, angle=np.degrees(beamshape[n,4]))
+            # ax.add_patch(ellipse) 
+            # ax.invert_xaxis() 
+            # ax.set_ylim([-25,0])
+            # ax.set_xlim([286,265])
+
+
+
+            # Find the emission angle at the beam center 
+            ea_bcenter = EmissionAngle([dist,obs[0],obs[1]], beam[0], beam[1])[0]
+            mu_i[n,0,:] = np.ones(int(len(t)/sampling))*ea_bcenter
+            fp_i[n,0,:,:] = np.array([np.ones(O)*beam[0],np.ones(O)*beam[1]]).T
+
+            # Project the beam onto the planet 
+            # ------------------------------------------------------------------
+            for m in range(1,M):
+
+                # Local radius 
+                r_s = local_radius(beam[0],beam[1],np.array([71492000., 71492000., 66854000.]))
+                [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, beam[0], beam[1]],[dist, obs[0], obs[1]],azimuths[m], n = int(len(azimuths)/sampling))
+
+                # If a beam element is off the planet 
+                if np.sum(np.isnan(lon_fp))>1: 
+                    print(f'{idx} We are far above the sea @ {m} deg')
+                    mu_i[n,m,:] = np.ones(O)*np.nan  
+                    fp_i[n,m,:,:] = np.ones((O,2))*np.nan 
+                    idx_remove.append(n)
+                    continue 
+
+                # This needs to be checked, but probably due to East longitude convention 
+                #lon_fp = 2*np.pi - lon_fp  
+                lon_fp = np.mod(-lon_fp,2*np.pi)
+
+                # Save all the values into pre-allocated array 
+                mu_i[n,m,:] = eangle 
+                fp_i[n,m,:,:] = np.array([lon_fp,lat_fp]).T 
+
+            # ------------------------------------------------------------------
+            # Make a gaussian based on the maximum computed outline and place it onto the map 
+            center = [np.degrees(beamshape[n,0]),np.degrees(beamshape[n,1])]
+
+            # Create Covariance matrix 
+            # Diagonal elements are the widths 
+            Sigma = np.array([[np.degrees(beamshape[n,2]*beamscaling)**2,0],[0,np.degrees(beamshape[n,3]*beamscaling)**2]])
+
+            # Create off-diagonal elements 
+            alpha =  np.mod(beamshape[n,4],2*np.pi) 
+            c, s = np.cos(alpha), np.sin(alpha)
+            Rot = np.array([[c, -s], [s, c]])
+
+            # Transformation matrix
+            if Rot[0,0]<0:
+                COV = Sigma.dot(-Rot)
+            else: 
+                COV = Sigma.dot(Rot)
+
+            try:    
+                # Speed up by subsampling 
+                lat_ms = np.arange(int(np.min(np.degrees(lat_fp))),int(np.max(np.degrees(lat_fp))),0.1)
+                lon_ms = np.arange(int(np.min(np.degrees(lon_fp))),int(np.max(np.degrees(lon_fp))),0.1) 
+                x, y = np.meshgrid(lon_ms, lat_ms)
+                poss= np.dstack((x, y))
+                Gbeam = multivariate_normal(center, COV,allow_singular=True).pdf(poss) 
+
+
+                # We add it back into total map 
+                idx_lat = np.argmin(np.abs(lat_m -lat_ms[0] ))
+                idx_lon = np.argmin(np.abs(lon_m -lon_ms[0] ))
+                GMap[n,idx_lat:idx_lat+len(lat_ms),idx_lon:idx_lon+len(lon_ms)] = Gbeam
+
+            except: 
+                if verbose: 
+                    print(n,alpha*57.3)
+                    print(COV)
+                GMap[n,:,:] = np.zeros((1800,3600))
+                continue 
+
+
+
+        # Remove observations that where off the planet  
+        N -= len(idx_remove) 
+
+        mu_i = np.delete(mu_i, idx_remove,axis=0)
+        fp_i = np.delete(fp_i, idx_remove,axis=0)
+        beamshape = np.delete(beamshape, idx_remove,axis=0)
+        idxplf = np.delete(idxplf, idx_remove,axis=0)
+
+
+        #--------------------- Convolution---------------------------------
+        # Step 2: Convole the geometry with a-priori information derived from zonal average  
+       
+        # Actual observations 
+        T_obs = eval(f'self.C{channel}.T_a[idxplf]') 
+
+        T_z = eval(f'self.C{channel}.T_n')
+        p_z = eval(f'self.C{channel}.p') 
+        lat_z = eval(f'self.C{channel}.lat_c_i') 
+
+        llim = np.where(lat_z>lat_range[0]-np.diff(lat_range)/4)[0][0]
+        ulim = np.where(lat_z<lat_range[1]-np.diff(lat_range)/4)[0][-1]
+ 
+        # # Find a rough correlation between T and p for the given region 
+        T_c = np.arange(np.floor(np.nanmin(T_z)),np.ceil(np.nanmax(T_z)),1)
+        Tvp_c = np.polyfit(T_z[llim:ulim],p_z[llim:ulim],1)
+        Tvp = T_c*Tvp_c[0] + Tvp_c[1] 
+
+
+        if plotting: 
+            fig, axs = plt.subplots(1, 1,figsize=(8,8))
+            Z = [[0,0],[0,0]]
+            levels = range(int(np.floor(lat_z[llim])),int(np.ceil(lat_z[ulim])),1)
+            CS3 = axs.contourf(Z, levels, cmap=cm.magma )
+            for coll in CS3.collections:
+                coll.remove()
+
+            cs = axs.scatter(T_z[llim:ulim],p_z[llim:ulim],c=cmap((lat_z[llim:ulim] - lat_z[llim])/(lat_z[ulim]-lat_z[llim])))
+            axs.plot(T_c,Tvp,linewidth=4,linestyle='--',color='gray')
+            axs.set_ylim([Tvp[0]*0.9,Tvp[-1]*1.1])
+            axs.set_xlim(T_c[0],T_c[-1])
+            axs.set_ylabel('Limb darkening ')
+            axs.set_xlabel('Temperature (K) ')
+
+            plt.colorbar(CS3,label='lat (deg)')  
+
+          
+
+        T_ap  = np.interp(lat_m,lat_z,T_z)
+        p_ap  = np.interp(lat_m,lat_z,p_z)
+
+        T_m = np.tile(T_ap,(3600,1)).T
+        p_m = np.tile(p_ap,(3600,1)).T
+
+
+        # Set number of iterations 
+        I = I_max   
+        conv = False 
+        Res = np.zeros(I)
+
+
+        # Pre-allocate arrays 
+        T_beam = np.zeros((I,N))
+        DeltaT = np.zeros((I,N)) 
+
+        TMap = np.zeros((I,len(lat_m),len(lon_m))) # Convoled map 
+        pMap = np.zeros((I,len(lat_m),len(lon_m))) # Convoled map 
+        DeltaTMap = np.zeros((I,len(lat_m),len(lon_m))) # Convoled map 
+        DeltapMap = np.zeros((I,len(lat_m),len(lon_m))) # Convoled map 
+        NormMap = np.zeros((len(lat_m),len(lon_m))) # Normalization map  
+
+        # Allocate iteration 0 arrays 
+
+        for itr in range(I):
+            if conv: 
+                continue 
+            print(f'Iteration: {itr}')
+            t0 = time.time() 
+            for n in range(N):
+                if verbose: 
+                    if np.mod(n,50) == 0 :
+                        print(f'Convolution - Progress: {int(n/N*100):d} %')
+
+                # Pre-allocate the array 
+                T_b = np.zeros((O,M)) # Temperature at Beam element 
+                p_b = np.zeros((O,M)) # # limb-darkeing at Beam element 
+
+                
+                for m in range(M): 
+                    # Find each observations find nearest neighbor 
+                    lon_fp,lat_fp = fp_i[n,m,:,:].T  
+                    idx_lon = [np.argmin(np.abs(x-np.radians(lon_m))) for x in lon_fp ]
+                    idx_lat = [np.argmin(np.abs(y-np.radians(lat_m))) for y in lat_fp ] 
+
+                    # Compute the atmospheric properties at the given location 
+                    T_b[:,m] = T_m[idx_lat,idx_lon]
+                    p_b[:,m] = p_m[idx_lat,idx_lon]
+                mu = mu_i[n,:,:].T # Emission angle for the given beam location 
+                # Convolve the beam sensitivity with model temperature and limb-darkening parameters 
+                T_beam[itr,n] = np.sum(np.flipud(G[0:M,::sampling].T)*T_b*np.cos(mu)**p_b)/np.sum(G[0:M,::sampling].T)
+            
+                if np.isnan(T_beam[itr,n]):
+                    DeltaT[itr,n] = 0 
+                    print(n,idxplf[n])
+                else: 
+                    DeltaT[itr,n] = T_obs[n] - T_beam[itr,n]
+
+                #  Normalize so that the Gaussian is peaked at 1 
+                # Save the Temperature map 
+                TMap[itr,...] += GMap[n,...]*DeltaT[itr,n] 
+                pMap[itr,...] += GMap[n,...]*DeltaT[itr,n]*Tvp_c[0]
+
+                # Save the 
+                Gnorm    = GMap[n,...]
+                Gnorm[Gnorm<1e-3] = 0
+                NormMap += Gnorm 
+
+
+                # # # Plot the Gaussian onto the beam shape 
+                # fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                # ax.set_aspect('equal')
+                # cs = ax.contourf(lon_m,lat_m,GMap[n,...]*DeltaT[itr,n] ) 
+                # ellipse = Ellipse(xy=(np.degrees(beamshape[n,0]),np.degrees(beamshape[n,1])), width=np.degrees(beamshape[n,2])*2, height=np.degrees(beamshape[n,3])*2, 
+                #                         edgecolor='black', fc='None', lw=2, angle=np.degrees(beamshape[n,4]))
+                # ax.set_title('Sigma/2')
+                # ax.add_patch(ellipse) 
+                # ax.invert_xaxis() 
+                # ax.set_ylim([-25,0])
+                # ax.set_xlim([286,265])
+                # cb = plt.colorbar(cs)  # using the colorbar info I got from contourf
+
+            Res[itr] = np.nansum(np.abs(DeltaT[itr,:]))
+
+            print(f'Time elapsed: {(time.time() - t0)/60:2.2f} min, Residual {Res[itr]/(0.5*N)*100:2.2f}% ') 
+
+            if (itr >= 1) and (Res[itr] - Res[itr-1] > 0): 
+                conv = True 
+                itr_conv = itr +1
+            else: 
+                itr_conv = itr 
+
+            # If larger than 1, acts like an average kernel 
+            # If smaller than, it reduces the weight 
+            NormMap[NormMap<1] = 1/NormMap[NormMap<1]
+
+            # Update the model map 
+            DeltaTMap[itr,...]    = TMap[itr,...]/NormMap # Normalize the map by number of beams 
+            DeltapMap[itr,...]    = pMap[itr,...]/NormMap # Normalize the map by number of beams 
+            DeltaTMap[itr,np.isnan(DeltaTMap[itr,...])] = 0   
+            DeltapMap[itr,np.isnan(DeltapMap[itr,...])] = 0   
+
+            #--------------------- Update model-------------------------
+            # Step 1: Compute the observational geometry for the selected observations 
+            T_m         +=  DeltaTMap[itr,...]
+            p_m         -=  DeltapMap[itr,...]
+
+            # Return a-priori model and the Delta maps 
+            
+            T_0 = np.tile(T_ap,(3600,1)).T
+            p_0 = np.tile(p_ap,(3600,1)).T            
+
+
+        if plotting: 
+            ylim = [lat_range[0]-5,lat_range[1]+3] 
+            # CM changed for PJ7 
+            #x_center = 360 - self.ob_lon[np.argmin(np.abs(self.ob_lat_c-np.mean(ylim))) ]
+            x_center = - self.ob_lon[np.argmin(np.abs(self.ob_lat_c-np.mean(ylim))) ]
+
+            xlim = [np.round(x_center)+np.diff(ylim)[0],np.round(x_center)-np.diff(ylim)[0]]
+            self.PlotDeconvolution(T_0, p_0, Res[:itr_conv], DeltaT[:itr_conv,...], DeltaTMap[:itr_conv,...], DeltapMap[:itr_conv,...], NormMap, GMap, path2map=path2map, path2save = path2save, channel = channel,ylim=ylim,xlim=xlim)
+
+        if savedata: 
+            if fltr: 
+                savename = self.datapath + f'Deconvolution/C{channel}/Deconvolved_C{channel}_GRS.npz'
+            else: 
+                savename = self.datapath + f'Deconvolution/C{channel}/Deconvolved_C{channel}_GRS_uf.npz'
+
+            np.savez(savename,T_0=T_0, p_0=p_0, Res=Res[:itr_conv], DeltaT=DeltaT[:itr_conv,...], DeltaTMap=DeltaTMap[:itr_conv,...], DeltapMap=DeltapMap[:itr_conv,...], NormMap=NormMap)
+
+        return T_0, p_0, Res[:itr_conv], DeltaT[:itr_conv,...], DeltaTMap[:itr_conv,...], DeltapMap[:itr_conv,...], NormMap, GMap  
+
+    def PlotDeconvolution(self, T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap, GMap, path2map=None, path2save = None, channel = None,ylim=None, xlim=None, plotitr=False): 
+        '''
+        Function to plot the Deconvolution results 
+        import pyPR.JunoTools as jt 
+        PJnumber = 4; 
+
+        lats = [-13]; latlim = 10
+        lat_range = [lats[0]-10,lats[0]+10]
+        PJ = jt.PJ(PJnumber)
+
+        path2save = path_J + f'PJ{PJnumber}/Deconvolution/C{channel}/'
+
+        '''
+
+    
+        
+        import os 
+        # Insert plotting scheme here 
+        from matplotlib.ticker import MaxNLocator
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        # create an axes on the right side of ax. The width of cax will be 5%
+        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+        import matplotlib.colors as colors
+
+        # if path2save is None: 
+        #     path2save = self.path_J + f'PJ{PJnumber}/Deconvolution/C{channel}/'
+
+        os.system('mkdir ' + path2save )
+
+
+
+        I = len(Res) 
+        itr_min = np.argmin(Res)
+        N = np.shape(DeltaT)[1]
+
+        n_lat, n_lon = np.shape(T_0)[0], np.shape(T_0)[1]
+        # Create axis   
+        lat_m = np.arange(-90,90,(180)/n_lat)
+        lon_m = np.arange(0,360,(360)/n_lon)
+
+
+        # Converge diagnostic
+        # ---------------------------------------------------------- 
+
+        fig, ax = plt.subplots(1, 1,figsize=(8,6))
+        ax.plot(np.arange(I),Res/(N*0.5)*100,'*',linewidth=5) 
+        ax.plot(np.arange(I),np.ones(I)*100,color='gray',linestyle='--',linewidth=2)
+        ax.set_ylabel('Residual (%)')
+        ax.set_xlabel('Iteration')
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Convergence'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Convergence'+'.pdf', format='pdf', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Convergence'+'.eps', format='eps', transparent = True, dpi=500)
+
+        # Dynamically set the contour plots and colorbars 
+        DTstep = 0.5
+
+        DTr = np.ceil(np.nanmax(np.abs(DeltaTMap)/DTstep))*DTstep
+        DTlevels = np.arange(-DTr,DTr+DTstep,DTstep)
+
+        # Find maximum and minimum in xlim and ylim region 
+        if ylim is not None:  
+            T_l = np.floor(np.nanmin((T_0+np.sum(DeltaTMap[:itr_min,...],axis=0))[np.argmin(np.abs(lat_m-ylim[0])):np.argmin(np.abs(lat_m-ylim[1])),: ]))
+            T_u = np.ceil(np.nanmax((T_0+np.sum(DeltaTMap[:itr_min,...],axis=0))[np.argmin(np.abs(lat_m-ylim[0])):np.argmin(np.abs(lat_m-ylim[1])),: ]))
+        else: 
+            T_l = np.floor(np.nanmin(T_0+np.sum(DeltaTMap[:itr_min,...],axis=0)))
+            T_u = np.ceil(np.nanmax(T_0+np.sum(DeltaTMap[:itr_min,...],axis=0)))
+        
+        Tlevels = np.arange(T_l,T_u,1)
+        
+
+        fig, axs = plt.subplots(1, 1,figsize=(6,6))
+        Z = [[0,0],[0,0]]
+        cbDT = axs.contourf(Z, DTlevels, cmap=cm.coolwarm )
+        for coll in cbDT.collections:
+            coll.remove()
+
+        fig, axs = plt.subplots(1, 1,figsize=(6,6))
+        Z = [[0,0],[0,0]]
+        cbT = axs.contourf(Z, Tlevels, cmap=cm.coolwarm )
+        for coll in cbT.collections:
+            coll.remove()
+
+        
+
+        # Plot the final Delta-T and Delta-p maps  
+        # ---------------------------------------------------------- 
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+
+        if path2map is not None: 
+            JCmap = plt.imread(path2map)
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+        ax.set_title(rf'$\Delta$ T: Channel {channel} - Iteration {itr_min}')
+
+
+        cs = ax.contour(360-np.flipud(lon_m),lat_m,np.sum(DeltaTMap[:itr_min,...],axis=0),DTlevels,alpha=0.3,cmap='coolwarm') 
+        # cs = ax.contour(360-np.flipud(lon_m),lat_m,T_m2+np.sum(DeltaTMap[:itr,...],axis=0),len(T_c)//2,cmap='coolwarm') 
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cbDT,label=r'$\Delta$ T (deg)',cax= cax) 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-27.5,0])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_min}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_min}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_min}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+        if path2map is not None: 
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+        ax.set_title(rf'$\Delta$ p: Channel {channel} - Iteration {itr_min}')
+
+        #cs = ax.contour(360-np.flipud(lon_m),lat_m,p_m2 + np.sum(DeltapMap[:itr,...],axis=0),cmap='coolwarm') 
+        cs = ax.contour(360-np.flipud(lon_m),lat_m,np.sum(DeltapMap[:itr_min,...],axis=0),10,alpha=0.3,cmap='coolwarm') 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-27.5,0])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=rf'$\Delta$ p (-)',cax=cax) # using the colorbar info I got from contourf
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_DeltapMap_itr{itr_min}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_DeltapMap_itr{itr_min}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_DeltapMap_itr{itr_min}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+        # Plot the final T and p maps  
+        # ---------------------------------------------------------- 
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+
+        if path2map is not None: 
+            JCmap = plt.imread(path2map)
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+        ax.set_title(rf'T: Channel {channel} - Iteration {itr_min}')
+        cs = ax.contourf(360-np.flipud(lon_m),lat_m,T_0+np.sum(DeltaTMap[:itr_min,...],axis=0),Tlevels,alpha=0.2,cmap='coolwarm') 
+
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cbT,label=r'T (deg)',cax=cax) 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-27.5,0])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_TMap_itr{itr_min}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_TMap_itr{itr_min}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_TMap_itr{itr_min}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+        if path2map is not None: 
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+        ax.set_title(rf'p: Channel {channel} - Iteration {itr_min}')
+
+        cs = ax.contourf(360-np.flipud(lon_m),lat_m,p_0+ np.sum(DeltapMap[:itr_min,...],axis=0),10,alpha=0.1,cmap='coolwarm') 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-27.5,0])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=rf'p (-)',cax=cax) 
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_pMap_itr{itr_min}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_pMap_itr{itr_min}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_pMap_itr{itr_min}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+        # Plot the progression 
+
+
+
+        if plotitr: 
+            for itr in range(I):
+                # Plot T map 
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                #ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+                ax.set_title(f'Model T: Channel {channel} - Iteration {itr}')
+                if itr == 0: 
+                    cs = ax.contourf(360-np.flipud(lon_m),lat_m,T_0,cmap='coolwarm') 
+                else: 
+                    cs = ax.contourf(360-np.flipud(lon_m),lat_m,T_0+np.sum(DeltaTMap[:itr,...],axis=0),15,cmap='coolwarm') 
+                ax.contour(360-np.flipud(lon_m), lat_m, (NormMap)) 
+
+                if ylim is not None: ax.set_ylim(ylim)
+                else: ax.set_ylim([-27.5,0])
+               
+                if xlim is not None: ax.set_xlim(xlim)
+                else: ax.set_xlim([308,252])
+
+                ax.set_ylabel('Latitude (deg)')
+                ax.set_xlabel('Longitude (deg)')
+
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="2%", pad=0.05)
+                cb = plt.colorbar(cbT,label=r'T (deg)',cax=cax) 
+
+                if path2save is not None: 
+                    plt.savefig(path2save+f'TMap_itr{itr}'+'.png', format='png', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'TMap_itr{itr}'+'.pdf', format='pdf', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'TMap_itr{itr}'+'.eps', format='eps', transparent = True, dpi=500)
+
+                # Plot p map 
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                #ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+                ax.set_title(f'Model p: Channel {channel} - Iteration {itr}')
+                if itr == 0: 
+                    cs = ax.contourf(360-np.flipud(lon_m),lat_m,p_0,10,cmap='coolwarm') 
+                else: 
+                    cs = ax.contourf(360-np.flipud(lon_m),lat_m,p_0+np.sum(DeltapMap[:itr,...],axis=0),10,cmap='coolwarm') 
+                ax.contour(360-np.flipud(lon_m), lat_m, (NormMap)) 
+
+                if ylim is not None: ax.set_ylim(ylim)
+                else: ax.set_ylim([-27.5,0])
+               
+                if xlim is not None: ax.set_xlim(xlim)
+                else: ax.set_xlim([308,252])
+
+                ax.set_ylabel('Latitude (deg)')
+                ax.set_xlabel('Longitude (deg)')
+
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="2%", pad=0.05)
+                cb = plt.colorbar(cs,label=rf'p (-)',cax=cax) 
+                
+                if path2save is not None: 
+                    plt.savefig(path2save+f'pMap_itr{itr}'+'.png', format='png', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'pMap_itr{itr}'+'.pdf', format='pdf', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'pMap_itr{itr}'+'.eps', format='eps', transparent = True, dpi=500)
+
+                # Plot DT map 
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                #ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+                ax.set_title(f'Model T: Channel {channel} - Iteration {itr}')
+                cs = ax.contourf(360-np.flipud(lon_m),lat_m,DeltaTMap[itr,...],DTlevels ,cmap='coolwarm') 
+                ax.contour(360-np.flipud(lon_m), lat_m, (NormMap)) 
+
+                if ylim is not None: ax.set_ylim(ylim)
+                else: ax.set_ylim([-27.5,0])
+               
+                if xlim is not None: ax.set_xlim(xlim)
+                else: ax.set_xlim([308,252])
+
+                ax.set_ylabel('Latitude (deg)')
+                ax.set_xlabel('Longitude (deg)')
+
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="2%", pad=0.05)
+                cb = plt.colorbar(cbDT,label=r'$\Delta$ T (deg)',cax= cax) 
+
+                if path2save is not None: 
+                    plt.savefig(path2save+f'DeltaTMap_itr{itr}'+'.png', format='png', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'DeltaTMap_itr{itr}'+'.pdf', format='pdf', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'DeltaTMap_itr{itr}'+'.eps', format='eps', transparent = True, dpi=500)
+
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                #ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+                ax.set_title(f'Model p: Channel {channel} - Iteration {itr}')
+                cs = ax.contourf(360-np.flipud(lon_m),lat_m,DeltapMap[itr,...],10 ,cmap='coolwarm') 
+                ax.contour(360-np.flipud(lon_m), lat_m, (NormMap)) 
+
+                if ylim is not None: ax.set_ylim(ylim)
+                else: ax.set_ylim([-27.5,0])
+               
+                if xlim is not None: ax.set_xlim(xlim)
+                else: ax.set_xlim([308,252])
+
+                ax.set_ylabel('Latitude (deg)')
+                ax.set_xlabel('Longitude (deg)')
+
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="2%", pad=0.05)
+                cb = plt.colorbar(cs,label=rf'$\Delta$ p (-)',cax=cax) # using the colorbar info I got from contourf
+
+
+                if path2save is not None: 
+                    plt.savefig(path2save+f'DeltapMap_itr{itr}'+'.png', format='png', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'DeltapMap_itr{itr}'+'.pdf', format='pdf', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'DeltapMap_itr{itr}'+'.eps', format='eps', transparent = True, dpi=500)
+
 
 
 
@@ -1686,7 +2627,7 @@ class PJ:
 #    os.system('ffmpeg -f image2  -framerate {:d}  -i {:s}%0{:d}d.png {:s}.mp4'.format(framerate, path2im,width,path2gif))
 
 
-    def PlotSingleFootprint( self, mapfile, rotnum, fpnum, channel, title = None, xlim=None, ylim=None,  Crange = [0,0], outputname = False, TA=True, keepTA = None, dpi = 200, TAlim = None, eacontour=False): 
+    def PlotSingleFootprint( self, mapfile, rotnum, fpnum, channel, beamfactor=0.5, title = None, xlim=None, ylim=None,  Crange = [0,0], outputname = False, TA=True,  keepTA = None, dpi = 200, TAlim = None, eacontour=False): 
         '''
 
         import pyPR.JunoTools as jt 
@@ -1784,27 +2725,40 @@ class PJ:
         d2r = 180/np.pi
 
         
-        # Skip all the non relevant data 
-        beam = np.radians([eval('self.C{:d}.lon[j]'.format(channel)),eval('self.C{:d}.lat_c[j]'.format(channel))]) 
-        obs  = np.radians([self.ob_lon[j],self.ob_lat_c[j]]) 
-        dist = self.range[j]*1e3
+        # # Skip all the non relevant data 
+        # beam = np.radians([eval('self.C{:d}.lon[j]'.format(channel)),eval('self.C{:d}.lat_c[j]'.format(channel))]) 
+        # obs  = np.radians([self.ob_lon[j],self.ob_lat_c[j]]) 
+        # dist = self.range[j]*1e3
 
 
-        #print('j: {:d}, Latitude: {:2.2f}, Beam location {:2.2f},{:2.2f}'.format(j,obs[1]*d2r,*beam*d2r))
-        r_s = R[0]*R[2]/(np.sqrt((R[2]*np.cos(obs[1]))**2 + (R[0]*np.sin(obs[1]))**2))
+        # #print('j: {:d}, Latitude: {:2.2f}, Beam location {:2.2f},{:2.2f}'.format(j,obs[1]*d2r,*beam*d2r))
+        # r_s = R[0]*R[2]/(np.sqrt((R[2]*np.cos(obs[1]))**2 + (R[0]*np.sin(obs[1]))**2))
 
-        if np.isnan(beam).any(): 
+
+        #[lon_fp,lat_fp],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(channel)),self.range[j]*1e3,r_s=r_s*1e3)  
+        
+
+
+        d, ob_lon, ob_lat = self.range[j]*1e3, np.radians(self.ob_lon[j]), np.radians(self.ob_lat_c[j])
+        b_lon, b_lat =  np.radians( eval(f'self.C{channel}.lon[j]') ), np.radians(eval(f'self.C{channel}.lat_c[j]') )
+        r_s = local_radius(b_lon,b_lat,self.r_j)*1e3 
+
+        
+        beamsize = eval(f'self.C{channel}.hpbw')*beamfactor 
+
+        [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, b_lon, b_lat],[d, ob_lon, ob_lat],beamsize,radius=self.r_j*1e3)
+
+
+        if np.isnan(lon_fp).any(): 
             print('No beam planet intercept')
             return 
 
-        [lon_fp,lat_fp],horizon = ProjectedFootprint(beam,obs,eval('self.C{:d}.hpbw'.format(channel)),self.range[j]*1e3,r_s=r_s*1e3)  
-        
         if eacontour: 
             #compute the ea outlines for the given axis 
 
-            lon_range = np.arange(np.floor(np.nanmin(lon_fp*57.3)),np.ceil(np.nanmax(lon_fp*57.3)),0.5) 
-            lat_range = np.arange(np.floor(np.nanmin(lat_fp*57.3)),np.ceil(np.nanmax(lat_fp*57.3)),0.5) 
-            sc = [dist ,obs[0], obs[1]]
+            lon_range = np.arange(np.floor(np.nanmin(np.degrees(lon_fp))),np.ceil(np.nanmax(np.degrees(lon_fp))),0.5) 
+            lat_range = np.arange(np.floor(np.nanmin(np.degrees(lat_fp))),np.ceil(np.nanmax(np.degrees(lat_fp))),0.5) 
+            sc = [d ,ob_lon, ob_lat]
             ea,lo,la = EmissionAngleMap(sc, np.radians(lon_range),np.radians(lat_range) ) 
             print(f'SC {sc}, Lo {np.floor(np.nanmin(lon_fp*57.3))}-{np.ceil(np.nanmax(lon_fp*57.3))}, La {np.floor(np.nanmin(lat_fp*57.3))} - {np.ceil(np.nanmax(lat_fp*57.3))} ')
 
@@ -1815,8 +2769,8 @@ class PJ:
             print('The color for the scatter points is outside of [0,1]. Check Crange')
         ax1.scatter(lon_fp*d2r,lat_fp*d2r,color=cmap(plotcolor),alpha=0.1) 
         ax1.scatter(lon_fp[horizon]*d2r,lat_fp[horizon]*d2r,color='red',alpha=0.3) 
-        ax1.scatter(beam[0]*d2r,beam[1]*d2r,color=cmap2(plotcolor),alpha=0.3)
-        ax1.scatter(obs[0]*d2r,obs[1]*d2r,color='navy',alpha=1)
+        ax1.scatter(b_lon*d2r,b_lat*d2r,color=cmap2(plotcolor),alpha=0.3)
+        ax1.scatter(ob_lon*d2r,ob_lat*d2r,color='navy',alpha=1)
 
         if xlim is not None: 
             ax1.set_xlim(xlim)
@@ -1865,6 +2819,8 @@ class PJ:
             ax2.set_yticks([])  
 
                     #ax1.set_rasterized(True)
+            clim = [-30,30]
+
             cbaxes = fig.add_axes([0.15,0.1,0.25,0.03])
             cbar = plt.colorbar(cs,ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]], cax = cbaxes,orientation = 'horizontal')
             cbar.set_label('[K]')
@@ -2204,6 +3160,67 @@ class PJ:
             print(i,Tsync)
 
         return Tsync
+
+    def Temperature_ratio(self,chs,lat_range,bin_width = 2,plotting = False ): 
+        ''' For a given latitude range, find the brightness temperature ratio for a given Channel)'''
+
+
+
+        idx1 = np.where( (eval(f'self.C{chs[0]}.lat_c') > lat_range[0]) & (eval(f'self.C{chs[0]}.lat_c') < lat_range[-1]))  [0]
+        C1ea = eval(f'self.C{chs[0]}.eea')[idx1] 
+        T1  = eval(f'self.C{chs[0]}.T_a')[idx1] 
+
+
+
+        idx2 = np.where( (eval(f'self.C{chs[1]}.lat_c') > lat_range[0]) & (eval(f'self.C{chs[1]}.lat_c')<lat_range[-1]))[0]
+        C2ea = eval(f'self.C{chs[1]}.eea')[idx2] 
+        T2   = eval(f'self.C{chs[1]}.T_a')[idx2] 
+
+        if plotting: 
+            fig,axs = plt.subplots(1,figsize=(8,8))
+            axs.scatter(C1ea,T1,color=cmap(0/6))
+            axs.scatter(C2ea,T2,color=cmap(1/6))
+            axs.set_title(f'Raw data: C {chs[0]}/{chs[1]} ratio for {lat_range[0]} < lat < {lat_range[-1]}')
+            axs.set_ylabel('T (K)')
+            axs.set_xlabel('Emission Angle (deg)')
+
+        # Plot the ratio as a function of emission angle 
+        # Bin into 1 degree bins 
+        lat_bin = np.arange(0,90,bin_width)
+        ids1 = np.digitize(C1ea,lat_bin)
+        ids2 = np.digitize(C2ea,lat_bin)
+
+        R12 = np.zeros(len(lat_bin)) 
+
+
+        for i in range(len(lat_bin)): 
+            id1 = np.where(ids1 == i)
+            id2 = np.where(ids2 == i)
+
+            # Project onto 1 degree using ld relationship 
+
+            p1 = 0.44 
+            p2 = 0.30 
+
+            T1_pr = T1[id1]* ( np.cos(np.radians(lat_bin[i]))/np.cos(np.radians(C1ea[id1])) )**p1
+            T2_pr = T2[id2]* ( np.cos(np.radians(lat_bin[i]))/np.cos(np.radians(C2ea[id2])) )**p2
+
+
+            R12[i] = np.mean(T1_pr)/np.mean(T2_pr)
+
+
+        # Sort them into 1 deg bins 
+        if plotting: 
+            fig,axs = plt.subplots(1,figsize=(8,8))
+            axs.plot(lat_bin,R12) 
+            axs.set_title(f'Average ratio: C {chs[0]}/{chs[1]} ratio for {lat_range[0]} < lat < {lat_range[-1]}')
+            axs.set_ylabel('Ratio ()')
+            axs.set_xlabel('Emission Angle (deg)')
+
+
+        return R12, lat_bin
+
+
 
     def zonalaverage(self, channel, window=20, weight=1, sigmafil=10, smoothing=True, plotting=False, geocentric=True, rotlim = 10, beamconv=True): 
         """ Calculate the mean profile   
@@ -2780,6 +3797,7 @@ class PJ:
 
 
         # Make a for loop bin the data call fit_Tn_ld to fit the data 
+        # This returns an array that is greater than 
         T_n, p, sig, lat_fit, n_fit = fit_Tn_ld2(T_s, mu_s, lat_s, window=window, resolution=resolution, weights=weight,)
 
         # Find median and std of the data based on the 20 rotations closest to the planet 
@@ -2807,7 +3825,8 @@ class PJ:
         # Find regions where p exceeds (out of limit)
         ind_ol = np.where((p > p_mean + sigmafil*p_std) | (p < p_mean - sigmafil*p_std))
         
-        exec(f'self.C{channel}.indices_syncfilt =  self.C{channel}.indices_science[ind_ol]')
+        # This doesn't work because indices_science refers to the unprocessed data 
+        #exec(f'self.C{channel}.indices_syncfilt =  self.C{channel}.indices_science[ind_ol]')
 
         # Merge the data 
         T_n[ind_ol] = T_n_fp[ind_ol]
@@ -3181,7 +4200,7 @@ class PJ:
 
 
             rotnum = -30
-            channel = 1
+            channel = 5
             # plt.close('BeamConvolved')
             # fig, axs = plt.subplots(1, 1,figsize=(8,8),num='BeamConvolved')
 
@@ -3290,7 +4309,7 @@ class PJ:
         return ee, be
 
 
-    def PlotLimbDarkening(self, lat, filterraw = False, latlim = 0.5, size = 8, savefig = False ):
+    def PlotLimbDarkening(self, lat, filterraw = False, latlim = 0.5, size = 8, zoomin=True, zoominxlim=None, savefig = False, ):
 
 
         # for PJ3 self.indices = self.indices[:-1]
@@ -3324,12 +4343,13 @@ class PJ:
                 axs.scatter(mu_t[idx_mu],TA_t[idx_mu],facecolors='none', edgecolors ='gray',alpha=0.7,s=size)
 
                 # Plot all observations greater than mu_t 
-                if channel == 2:
+                if channel == 2 and zoomin:
                     # Plot insert 
                     axs2 = axs.inset_axes([0.08, 0.53, 0.6, 0.2])
                     axs2.scatter(mu_e,TA_t,facecolors='none', edgecolors ='gray',alpha=0.7,s=size)
         else: 
-            axs2 = axs.inset_axes([0.08, 0.53, 0.6, 0.2])
+            if zoomin:
+                axs2 = axs.inset_axes([0.08, 0.53, 0.6, 0.2])
 
         # Plot the science observations 
         for channel in range(1,nchan+1):
@@ -3377,7 +4397,7 @@ class PJ:
             for sigma in [1,3,10]:
                 axs.fill_between(np.linspace(0,np.max(mu_e)),(T_n+sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p-sigma*p_sig),(T_n-sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p+sigma*p_sig),alpha=1/sigma*0.5,color=cmap2((channel-1)/nchan) )
             
-            if channel == 2:
+            if channel == 2 and zoomin:
                 # Plot observations 
                 axs2.scatter(mu_e,TA_t,color=cmap2((channel-1)/nchan),s=size)
 
@@ -3385,8 +4405,8 @@ class PJ:
                 axs2.plot(np.linspace(0,np.max(mu_e)),T_n*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**p,color=cmap2((channel-1)/nchan))
                 for sigma in [1,3,10]:
                     axs2.fill_between(np.linspace(0,np.max(mu_e)),(T_n+sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p-sigma*p_sig),(T_n-sigma*T_sig)*np.cos(np.radians(np.linspace(0,np.max(mu_e))))**(p+sigma*p_sig),alpha=1/sigma*0.5,color=cmap2((channel-1)/nchan) )
-                
-                xlim = [7,35]
+                if zoominxlim is not None: xlim = zoominxlim
+                else: xlim = [7,35]
                 sigmaplot = 7
                 ylim = [(T_n-sigmaplot*T_sig)*np.cos(np.radians(xlim[-1]))**(p+sigmaplot*p_sig),(T_n+sigmaplot*T_sig)*np.cos(np.radians(xlim[0]))**(p-sigmaplot*p_sig)  ]
                 if np.all(np.isfinite(ylim)): axs2.set_ylim(ylim) 
@@ -3432,7 +4452,7 @@ class PJ:
         plt.legend([line1,line2,line3],['Model fit','Obs. (used)','Obs. (discarded)'],loc='lower left',ncol=3)
 
 
-        axs.set_title(f'Observations at {ilat} deg')
+        axs.set_title(rf'PJ{self.PJnumber}: Observations at {ilat} $\pm$ {latlim} deg')
         axs.set_ylabel(r'T$_B$ [K]')
         axs.set_xlabel('Emission angle [deg]')
         axs.set_ylim(0,900)
@@ -3441,9 +4461,9 @@ class PJ:
 
 
         if savefig: 
-            plt.savefig(path2save + f'Juno_{self.PJnumber}_lat{int(lat):d}_LD_fit.png', format='png', transparent = True, dpi=500)
-            plt.savefig(path2save + f'Juno_{self.PJnumber}_lat{int(lat):d}_LD_fit.pdf', format='pdf', transparent = True, dpi=500)
-            plt.savefig(path2save + f'Juno_{self.PJnumber}_lat{int(lat):d}_LD_fit.eps', format='eps', transparent = True, dpi=500)
+            plt.savefig(savefig+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(savefig+'.pdf', format='pdf', transparent = True, dpi=500)
+            plt.savefig(savefig+'.eps', format='eps', transparent = True, dpi=500)
   
 
     def PlotLimbDarkening_old(self, lat, filterraw = False, latlim = 0.5, savefig = False, beamcenter=False, n = 10, sigma = 1 ): 
@@ -3757,7 +4777,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
     import pyPR.JunoTools as jt 
     path_GD='/Users/chris/GDrive-UCB/'
     path =  path_GD + 'Berkeley/Research/Juno/'
-    jt.ProcessZonalAverage(path, pjmin=1, pjmax=12, pjexc=[2,10,11],reprocess=False,dataversion=3,LBfilter=True)
+    jt.ProcessZonalAverage(path, pjmin=21, pjmax=32,reprocess=False,dataversion=3,LBfilter=True)
 
     '''
 
@@ -5439,7 +6459,7 @@ def ProjectedFootprint2(beam,obs,beamsize,radius=np.array([71492000., 71492000.,
     #     BI[0,i] = - B[1]
     #     print(f'3:  {np.degrees(BI[0,i])}')
 
-    # Flip latitude just becuase  
+    # Flip latitude just because  
     if B[2] < 0: 
         B_lat  = -(np.pi/2 + B[2])  
     else: 
@@ -5826,6 +6846,236 @@ def BeamConvolvedEmission(beam,obs,dist,channel,radialextent,normalized=False,gr
 
     return ea_bc
 
+def readCloudMask(path2mask,graphic2centric=True,plotting=False,deep=1,ylim=None,xlim=None): 
+    '''
+    path2mask = path_J + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array.txt'
+    cmask = np.genfromtxt(path2mask, delimiter=',')[:,:] 
+    np.savez(path_J + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array.npz',mask=np.flipud(cmask),lat=np.arange(-90,90,0.1),lon=np.arange(359.9,-0.1,-0.1))
+
+
+    # Monochromatic image 
+    path2mask = path_J + 'PJ4/CloudMask/Monochromatic_img_arr.txt'
+    cmask = np.genfromtxt(path2mask, delimiter=',')[:,:] 
+    print(np.unique(cmask).shape)
+    plt.figure() 
+    cb = plt.contourf(np.flipud(cmask),n=np.unique(cmask).shape[0],cmap='gray', origin='lower')
+    plt.gca().invert_xaxis()
+    plt.colorbar(cb)  
+
+    # val = np.unique(cmask)[1] 
+    # cmask[cmask!=val] = 0 
+    # cmask[cmask==val] = 1
+
+    # plt.figure() 
+    # cb = plt.contourf(cmask,cmap='gray', origin='lower')
+    # plt.gca().invert_xaxis()
+    # plt.colorbar(cb)
+
+
+    np.savez(path_J + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_7c.npz',mask=np.flipud(cmask),lat=np.arange(-90,90.1,0.1),lon=np.arange(360,-0.1,-0.1))
+    
+
+    path_J = pathJ
+    # Composite Color image 
+    path2mask = path_J + 'PJ4/CloudMask/Composite_img_arr.txt'
+    cmask = np.genfromtxt(path2mask, delimiter=',')[:,:] 
+
+    plt.figure() 
+    cb = plt.contourf(cmask,cmap='gray', origin='lower')
+    plt.gca().invert_xaxis()
+    plt.colorbar(cb)
+
+    # cmask[cmask.astype(np.int)!=65] = 0 
+    # cmask[cmask.astype(np.int)==65] = 1
+    np.savez(path_J + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_Com_4c.npz',mask=np.flipud(cmask),lat=np.arange(-90,90,0.1),lon=np.arange(359.9,-0.1,-0.1))
+
+
+
+
+    
+    import pyPR.JunoTools as jt
+
+    path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_7c.npz'
+    cmask2 = jt.readCloudMask(path2mask,plotting=True,deep=3,ylim=[-20,0],xlim=[300,255])
+
+
+    path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_Com_4c.npz'
+    cmask, [lon,lat] = jt.readCloudMask(path2mask,plotting=True,deep=2,ylim=[-20,0],xlim=[300,255])
+
+
+    import pyPR.JunoTools as jt
+
+    path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_631_v2.npz'
+    cmask2 = jt.readCloudMask(path2mask,plotting=True,deep=1,ylim=[-20,0],xlim=[300,255])
+
+
+
+    plt.figure() 
+    cb = plt.contourf(lon,lat,cmask+cmask2,cmap='gray', origin='lower')
+    plt.gca().invert_xaxis()
+    plt.colorbar(cb)
+
+
+    ''' 
+
+    from scipy.interpolate import interp2d 
+
+    temp = np.load(path2mask,allow_pickle=True)
+    cmask = temp['mask']
+    lon = temp['lon']
+    lat = temp['lat']
+    
+
+
+    if np.unique(cmask).shape[0] > 2: 
+            val = np.unique(cmask)[deep] 
+            cmask[cmask!=val] = 0 
+            cmask[cmask==val] = 1
+
+    if graphic2centric: 
+        f = interp2d(np.flipud(lon),np.degrees(geod2geoc3(np.radians(temp['lat']), 71492e3 , 66854e3)) ,np.fliplr(cmask))
+        cmask = np.fliplr(f(lon,lat))
+
+
+    if plotting: 
+        fig, axs = plt.subplots(1,1,figsize=(8,6))
+        cb = axs.contourf(lon,lat,cmask,cmap='gray', origin='lower')
+        axs.invert_xaxis()
+        fig.colorbar(cb)
+        axs.set_aspect('equal')
+
+        if xlim is not None: 
+            axs.set_xlim(xlim)
+        if ylim is not None: 
+            axs.set_ylim(ylim)
+
+    return cmask, [lon,lat]
+
+def BeamConvolvedMask(path2mask, beam,obs,dist,channel,radialextent, hpbw = 12, normalized=False, sampling=1 ,plotting=False, deep = 1): 
+    '''
+    Function that calculates the effective convolved beam mask  
+
+
+    Example
+    -------
+    import pyPR.JunoTools as jt
+
+    # PJ 4, Rotation -10, Channel 2, ind_pl[3] 
+
+    PJnumber = 4; 
+
+    PJ = jt.PJ(PJnumber)
+    pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
+    PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
+
+
+    idx = 91768 # lat = -12 
+    idx = 91511 # dimmest 91511,91757,92004
+    idx = 91521 # brightest  numbers 91521,91768,92014
+
+
+    channel = 4 
+    dist, ob_lon, ob_lat = PJ.range[idx]*1e3, np.radians(PJ.ob_lon[idx]), np.radians(PJ.ob_lat_c[idx])
+    b_lon, b_lat =  np.radians( eval(f'PJ.C{channel}.lon[idx]') ), np.radians(eval(f'PJ.C{channel}.lat_c[idx]') )
+
+    beam = ([b_lon, b_lat])
+    obs =  ([ob_lon, ob_lat])
+    radialextent = eval(f'PJ.C{channel}.hpbw')*1.25
+
+    path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_Com_4c.npz'
+
+    # path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_631_v2.npz'# 631 nm  154.5 cut off value 
+
+
+    # cmask, [lon,lat] = jt.readCloudMask(path2mask,plotting=True)
+    f_cloud = jt.BeamConvolvedMask(path2mask,beam,obs,dist,channel,radialextent,hpbw=eval(f'PJ.C{channel}.hpbw'), deep=3, plotting=True) 
+    print(f_cloud) 
+
+
+    '''
+    from astropy.convolution import Gaussian1DKernel, interpolate_replace_nans 
+    import pyPR.JunoTools as jt
+    import matplotlib as mpl
+    from scipy import interpolate
+
+    #Read in cloud mask 
+
+    # path2mask = path_J + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_7c.npz' # Monochromatic 7 cluster 
+    # #path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array_Com_4c.npz'# Composite 4 cluster 
+    # #path2mask = pathJ + 'PJ4/CloudMask/K-Means-Cloud-Mask-Array.npz'# Composite 4 cluster 
+
+    cmask,[clon,clat] = readCloudMask(path2mask,deep=deep)
+
+    if plotting: 
+        fig, axs = plt.subplots(1,1,figsize=(12,8))
+        Z = [[0,0],[0,0]]
+        levels = range(0,int(radialextent/hpbw*2*100),20)
+        CS3 = axs.contourf(Z, levels, cmap=jt.cmap3 )
+        for coll in CS3.collections:
+            coll.remove()
+
+        axs.contourf(clon,clat,cmask,cmap='gray')
+        axs.invert_xaxis()
+
+
+    #path_B = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
+    path_B = path_J + 'Beam/'
+    G,p,t, hpbw   = readJunoBeam(path_B,channel,normalized=normalized) 
+
+
+    #-- Generate Data -----------------------------------------
+    # Using linspace so that the endpoint of 360 is included...
+    azimuths  = np.degrees(t) #theta -> outwards radial component 
+    zeniths = np.degrees(p) # phi -> contours around the beam
+
+    ccmask = np.zeros((int(len(t)/sampling),int(radialextent)))
+
+    # Computes the emission angle for a given 
+    for i in range(1,int(radialextent)):
+
+        # Local radius 
+        r_s = local_radius(beam[0],beam[1],np.array([71492000., 71492000., 66854000.]))
+        [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, beam[0], beam[1]],[dist, obs[0], obs[1]],azimuths[i], n = int(len(azimuths)/sampling))
+
+        lon_fp = 2*np.pi - lon_fp
+
+        # Find nearest neighbor 
+        idx_lon = [np.argmin(np.abs(x-np.radians(clon))) for x in lon_fp ]
+        idx_lat = [np.argmin(np.abs(y-np.radians(clat))) for y in lat_fp ]
+
+
+        # if np.sum(np.isnan(lon_fp))>1:
+        #     return np.nan
+
+        # Save the mask value for the given beam gain value 
+        ccmask[:,i] =  cmask[idx_lat,idx_lon]
+
+
+        # Plot the individual azimuths 
+        if plotting and np.mod(i,2)==0: 
+            plt.plot(np.degrees(lon_fp),np.degrees(lat_fp),color=jt.cmap3(i/int(radialextent)),alpha=0.7)
+
+
+    # Beamaveraged emission angle 
+    #mu[:,0] = np.ones(len(t))*np.cos(bsangle) # Nadir pointing is the boresight emission angle 
+    # Emission angle beam center: 
+    mask_bcenter = cmask[np.argmin(np.abs(beam[1]-np.radians(clat))),np.argmin(np.abs(beam[0]-np.radians(clon)))]
+    ccmask[:,0] = np.ones(int(len(t)/sampling))*mask_bcenter
+
+    mask_bc = np.sum(np.flipud(G[0:int(radialextent),::sampling].T)*ccmask)/np.sum(G[0:int(radialextent),::sampling].T)
+
+    if plotting:
+        plt.xlim([np.nanmax(np.degrees(lon_fp))+20,np.nanmin(np.degrees(lon_fp))-20])
+        plt.ylim([np.nanmin(np.degrees(lat_fp))-10,np.nanmax(np.degrees(lat_fp))+10])
+
+        plt.plot([np.nanmax(np.degrees(lon_fp))+20,np.nanmin(np.degrees(lon_fp))-20],[-8,-8],color='firebrick')
+
+        cbaxes = fig.add_axes([0.92,0.2,0.015,0.6])
+        cb = plt.colorbar(CS3,cax = cbaxes,orientation = 'vertical') # using the colorbar info I got from contourf
+        cb.set_label('Beam fraction  (% hpbw)', rotation=90)
+       
+    return mask_bc
+
 
 def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False, sampling=1 ,plotting=False): 
     '''
@@ -6111,6 +7361,60 @@ def fit_Tn_ld(a,mu,window=200, weights=1,):
     return Tn,ld, sig
 
 
+def fit_Tn_ld2_ind(Ta, mu,weights=1,fitlim=10): 
+
+        nparam = 2 
+
+        if len(Ta)<fitlim: 
+            return np.nan, np.nan, [np.nan,np.nan],0 
+
+        # Bin the data 
+        suba = Ta
+        subb = mu
+        n_data = len(suba)
+
+        # Build the A matrix 
+        A = np.vstack([np.ones_like(suba),np.log(np.cos(np.radians(subb)))]).T  
+        # Build the weights (only lightly downweigh observations at large emission angles 
+        #W = np.diag(1/np.radians(subb)**weights)
+        W = np.diag(np.cos(np.radians(subb))**weights)
+        # Build the solution matrix 
+        b = np.log(suba)
+        db = np.log(suba*0.015)
+
+        # Left hand side 
+        ATW = A.T@W
+        ATWA = ATW@A 
+        iATWA = np.linalg.inv(A.T@W.T@A)
+        iATWTA = np.linalg.inv(A.T@W.T@A)
+        # Right hand side 
+        ATWb = ATW@b 
+        ATWdb = ATW@db 
+        WTA = W.T@A
+        logT,p = iATWA@ATWb
+
+        if np.isnan(np.exp(logT)):
+            XKCD
+
+        Tn = np.exp(logT)
+        ld = p
+        n_fit  = n_data 
+
+        # Reduced chi-squared statistic (https://en.wikipedia.org/wiki/Ordinary_least_squares)
+        # https://stat.ethz.ch/~geer/bsa199_o.pdf 
+        # Caluclate the sigmasq 
+        My = b - A@([logT,p]) # Calculate the residuals    
+        MyTW = My.T@W   
+        sigsq = MyTW@My/(n_data-nparam) # Calculate the unbiased chi-squared 
+
+        # Compute the covariance matrix 
+        RCS = np.linalg.inv(ATWA)*sigsq # Calculate the covariance 
+        sig = np.zeros(2)
+        # Uncertainties are on the diagonal 
+        sig[0] = np.exp(logT) * (np.exp(np.sqrt(RCS[0,0])) - 1) 
+        sig[1] = np.sqrt(RCS[1,1]) 
+
+        return  Tn, ld, sig.T, n_fit 
 
 def fit_Tn_ld2(a,mu,lat,window=1,resolution=0.1, weights=1,): 
     '''
@@ -6145,7 +7449,7 @@ def fit_Tn_ld2(a,mu,lat,window=1,resolution=0.1, weights=1,):
         
 
         # Skip all bins with less than 10 measurements, really not worth it 
-        if (np.sum(idx)) < 6: 
+        if (np.sum(idx)) < 10: 
             Tn[i] = np.nan 
             ld[i] = np.nan  
             sig[:,i] = [np.nan ,np.nan ]
@@ -6335,6 +7639,78 @@ def fit_Tn2(a, mu, p, lat, window=1, resolution=0.1, weights=1,):
 
     return Tn, sig, lat_fit, n_fit
 
+def fitting_ellipse(x,y,plotting=False): 
+
+    '''
+
+    Lat = np.array([
+       [-2.8939], 
+       [-2.0614], 
+       [-0.1404], 
+       [2.6772 ], 
+       [5.1746 ], 
+       [3.2535 ], 
+       [-0.1724],]) 
+
+    Lon = np.array([
+    [ 4.1521],
+    [ 2.1684],
+    [ 1.9764],
+    [3.0323],
+    [5.7199],
+    [8.1196],
+    [ 6.8398], ])
+
+    # X = np.array([ Lat, Lon])[:,:,0]
+
+    fitting_ellipse()
+    ''' 
+
+    from matplotlib.patches import Ellipse
+
+    # Put input into a single array and detrend 
+    X = np.squeeze(np.array([ x - np.mean(x), y - np.mean(y)])) 
+
+    # Build the solution matrix for quadratic equation 
+    B = np.array([X[0,:]**2, X[0,:]*X[1,:], X[1,:]**2, X[0,:], X[1,:], np.ones(len(X[0,:]))]).T
+
+    # Perform SVD on it 
+    [U, S, V] = np.linalg.svd(B)
+
+    u = V[5,:]
+    A = [[u[0], u[1]/2],[u[1]/2, u[2]]]
+    bb = [u[3], u[4]]
+    c = u[5]
+
+    [D,Q] = np.linalg.eig(A) 
+    D = np.diag(D) 
+    alpha = np.arctan2(Q[0,1],Q[0,0]) 
+    bs = np.matmul(Q.T,bb)
+    zs = np.linalg.lstsq(-(2*D),bs,rcond=None)[0] 
+    z = np.matmul(Q,zs) 
+    h = np.matmul(-bs.T,zs)/2 - c 
+    a = np.sqrt(h/D[0,0])  
+    b = np.sqrt(h/D[1,1])  
+
+    lam1 = D[0,0]
+    lam2 = D[1,1]
+    a1 = np.sqrt(bb[0]**2/(4*lam1**2) + bb[1]**2/(4*lam1*lam2) - c/lam1)
+    b1 = np.sqrt(bb[0]**2/(4*lam1*lam2)  + bb[1]**2/(4*lam1**2) - c/lam2)
+    alpha = np.arctan2(Q[1,0],Q[0,0]) 
+    cx = -bb[0]/2/lam1
+    cy = -bb[1]/2/lam2
+
+    #print(cx,cy,a1,b1)
+    if plotting: 
+        fig, ax = plt.subplots(1, 1,figsize=(10,8))
+        ax.set_aspect('equal')
+        ax.scatter(x ,y) 
+        ellipse = Ellipse(xy=(cx+np.mean(x) , cy+np.mean(y)), width=a1*2, height=b1*2, 
+                                edgecolor='black', fc='None', lw=2, angle=alpha*57.3)
+        ax.add_patch(ellipse)
+
+    return [cx+np.mean(x),cy+np.mean(y)],[a1,b1], alpha 
+
 
 def movingaverage(a,window=200, weights=None,): 
     '''
@@ -6435,6 +7811,75 @@ def geod2geoc( lat_d, h, r=714921e3 , f=1-66854/71492 ):
                       (h*np.cos(lat_d) + r*np.cos(lat_s))))
 
     return lat_c
+
+
+def geod2geoc3( lat_d,r_e,r_p ): 
+    """Conversion from geodetic to geocentric. '
+    
+
+    
+    Planetocentric: Defined with respect to a sphere 
+        Longitude: Positive eastwards 
+        Latitude: Positive northward 
+    Planetodetic: Defined with respect to the local tangent plane
+        Longitude: Positive eastwards   
+        Latitude: Positive northward 
+    Planetographic: Defined with respect to the local tangent plane, 
+    and longitude is increasing with time for the observer 
+        Longitude: Positive WESTwards   
+        Latitude: Positive northward 
+    
+    Source: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/Tutorials
+    /pdf/individual_docs/17_frames_and_coordinate_systems.pdf (slide 23-25)
+
+
+    Parameters
+    ----------
+    h : float
+        [m] height of the observer 
+    r_e : float
+        [m] equatorial radius of the planet 
+    lat_d : float
+        [rad] Geodetic Latitude
+    flat: float 
+        [-] Flattening parameter (1-R_p/R_e) or (R_e-R_p)/R_e
+
+
+    Keyword Arguments
+    ----------
+
+
+    Returns
+    -------
+    lat_c : float
+        [rad] Geocentric Latitude
+
+    Warnings
+    -------
+    Assuming spherical Earth rather than WGS Spheroid. To Be Added
+
+    Example
+    -------
+    import pyPR.PlanetGeometry as PG 
+    # Earth WGS - 84, Paris 
+    f = 1/298.257223563; lat_d = np.radians(48.8567); r_e = 6378.137e3; h = 400
+    np.degrees(PG.geod2geoc(h, r_e, lat_d, f)) # 48.665943820540754
+
+
+
+    References
+    ------------
+    https://www.mathworks.com/help/aeroblks/geodetictogeocentriclatitude.html
+
+    Notes
+    -------
+    12/11/18, CM, Initial commit, Geocentric only
+    """
+
+    # Calculate the geocentric latitude at the surface intercept 
+
+    return np.arctan((1-(r_e-r_p)/r_e)**2*np.tan(lat_d))
+
 
 def geoc2geod( lat_c, r=714921e3 , f=1-66854/71492): 
     """Conversion from geocentric to geodetic. '
