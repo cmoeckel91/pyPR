@@ -722,7 +722,7 @@ def polar2cart(r, theta, phi):
          r * np.cos(np.pi/2-phi)
     ])
 
-def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening, T_res, th_res, conv = 0.01, plotting = False ): 
+def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening, T_res, th_res, conv = 0.01, plotting = False, ldresiduals=False ): 
     """Create a brightness map with structure of Jupiter 
 
     Based on x,y and grid, create a brightness map of Jupiter. Iterative 
@@ -904,7 +904,10 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     pexp = (p[0]+(np.abs(yv)*r_pla/R[2])*(p[1]-p[0]))
     pexp[pexp > np.max(p)] = np.max(p)
     pexp[pexp < np.min(p)] = np.min(p)
-    T_res_ld = T_resmap*cos**(pexp)
+    if ldresiduals: 
+        T_res_ld = T_resmap*cos**(pexp)
+    else: 
+        T_res_ld = T_resmap
 
     # 
     # T_res_ld = np.multiply(T_resmap,np.cos(th)**np.mean(p)) 
@@ -1766,7 +1769,11 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     Parameters
     -------
     R : [3x1] float
-        [m] Principal rotation axis of the planet (equator, pole, equator)
+        [m] Principal rotation axis of the planet (equator, pole, third axis)
+    ob_lat_d : [1] float
+        [rad] Sub observer latitude - geodetic 
+    ob_lon : [1] float
+        [rad] Sub observer longitude 
     obs_range : [1] float
         [m] Observer's distance from surface 
             Best obtained by calculating the distance of light travel time 
@@ -1785,12 +1792,24 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
 
     Example
     -------
+    import pyPR.PlanetGeometry as pg 
     # Example by running ephem on some Jupiter data 
-    R = np.array([71492., 71492., 66854.]) 
+    R = np.array([80492., 71492., 66854.]) 
     ob_range = 8.0491221e+11
-    ob_lat_d = np.radians(-3.267)
-    ob_lon = np.radians(73.12)
-    axis , center = rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+    ob_lat_d = np.radians(90)
+    ob_lon = np.radians(270)
+    axis , center = pg.rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+    #axis = [80163.21294996 71199.97540399] 
+   
+    import pyPR.PlanetGeometry as pg 
+    # Example for Uranian moons 
+    R = np.array([64,0.25*64+0.75*32,32])*1e3
+    ob_range =  18.8324879927471*149e6
+    ob_lat_d = np.radians(46.259246) 
+    ob_lon = np.radians(228.132784)
+    axis , center = pg.rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+    
+    # Expected return array([59082.54146921, 37395.41267873])
 
     Warnings
     -------
@@ -1819,11 +1838,13 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     f = (R[0]-R[2])/R[0] 
     
     # [rad] Convert into geocentric latitude based on altitude, radius and latitude
-    ob_lat_c = geod2geoc( ob_lat_d, ob_range, R[0], f )  
+    # ob_lat_c = geod2geoc( ob_lat_d, ob_range, R[0], f )  
+    ob_lat_c = ob_lat_d
 
     # [m] Obtain local radius 
     r_s = R[0]*R[2]/(np.sqrt((R[2]*np.cos(ob_lat_c))**2 + (R[0]*np.sin(ob_lat_c))**2))
- 
+    r_s = 0 
+    
     # Obtain the coordinates of the observer in an Jovian-centered frame 
     r_J = geo2eci(ob_range+r_s,ob_lon,ob_lat_c).reshape(3,1)
     # Normalized vector to define projection plane 
@@ -2329,6 +2350,45 @@ def lat_graphic2centric(lat_g,R_e,R_p):
     lat_g[np.where((-lat_g)>=threshold)] = -threshold
     f = (R_e - R_p)/R_e
     return np.arctan(np.tan(lat_g)*(1-f)**2)
+
+
+
+
+
+def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False): 
+
+    from scipy.interpolate import interp2d
+
+    path2map  = imname 
+    #data =  np.swapaxes(np.fliplr(np.flipud(plt.imread(path2map))),0,1)
+    data =  np.fliplr(np.flipud(plt.imread(path2map))) 
+
+    if np.nanmax(data) <=1.0: 
+        data *= 255 
+
+
+    lon = np.arange(0,360,res)
+    lat = np.arange(-90,90+res,res)
+    lat_c = np.degrees(lat_graphic2centric(np.radians(lat), 71492e3 , 66854e3)) 
+
+
+    lon_i = np.arange(0,360,res)
+    lat_i = np.arange(-90,90+res,res)
+    data_c = np.zeros((len(lat_i),len(lon_i),3))
+    for i in range(3): 
+        f = interp2d(lon,lat_c,data[...,i])
+        data_c[...,i] = np.fliplr(f(lon_i,lat_i))
+
+    data_c = data_c.astype('uint8')
+
+    if plotting: 
+        plt.figure() 
+        plt.imshow(data_c ,origin='lower')
+        plt.imsave(fname=path2save+'.png', arr=data_c, format='png')
+
+    return 
+
+
 
 def zonalradioprofile(file, f_interp, th_interp, planet='Uranus', residual = False ):
     ''' Read in zonal profile based on ALMA observations Molter et al. 2019 
@@ -3166,10 +3226,17 @@ def animate_projections(path2im,path2gif,framerate = 2, width=2,padednamewidth=2
     framerate = 2 
     padednamewidth = 2 # 04 vs 004
     # https://trac.ffmpeg.org/wiki/Slideshow 
+
+    ffmpeg -f image2 -framerate 1 -i C%d-DeltaTBmap.png Storm.mp4
+    ffmpeg -i Storm.mp4 -filter_complex "fps=5,scale=1920:-1:flags=lanczos,reverse" Storm.gif
+
+,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer"
     '''
 
     os.system('ffmpeg -f image2  -framerate {:d}  -i {:s}%0{:d}d.png {:s}.mp4'.format(framerate, path2im, padednamewidth, path2gif))
     os.system('ffmpeg -i {:s}.mp4 -pix_fmt rgb8 {:s}.gif'.format(path2gif,path2gif))
+
+
 
 
 class Map:
@@ -3362,6 +3429,8 @@ class Map:
         
         display_deprojected(path_map+fitsfile,bandwidth)
 
+
+
         References
         ------------
 
@@ -3378,8 +3447,23 @@ class Map:
 
         # Import the Deprojected map 
         hdul_map = fits.open(fitsfile)
-        theta = np.arange(hdul_map[0].header['NAXIS1']*hdul_map[0].header['CDELT1']/2,hdul_map[0].header['NAXIS1']*-hdul_map[0].header['CDELT1']/2,-hdul_map[0].header['CDELT1'])
-        phi = np.arange(-hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['CDELT2'])
+
+        # Rewrite to use all available info 
+        n_lon, n_lat        = hdul_map[0].header['NAXIS1'], hdul_map[0].header['NAXIS2'] 
+        dlon, dlat          = hdul_map[0].header['CDELT1'], hdul_map[0].header['CDELT2'] 
+        reflon, reflat      = hdul_map[0].header['CRVAL1'], hdul_map[0].header['CRVAL2']
+        refpix_lon, refpix_lat = hdul_map[0].header['CRPIX1'], hdul_map[0].header['CRPIX2']
+
+        # Build axes 
+        lon_left = reflon - refpix_lon*dlon
+        theta    = np.arange(0,n_lon)*dlon+lon_left 
+        lat_bot  = reflat - refpix_lat*dlat
+        phi      = np.arange(0,n_lat)*dlat+lat_bot 
+
+        # theta = np.arange(hdul_map[0].header['NAXIS1']*hdul_map[0].header['CDELT1']/2,hdul_map[0].header['NAXIS1']*-hdul_map[0].header['CDELT1']/2,-hdul_map[0].header['CDELT1'])
+        # phi = np.arange(-hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['CDELT2'])
+
+
         kernel = Gaussian2DKernel(x_stddev=1)
 
         #print('Changed kernel to from 2 to 1. Check if it still works')  

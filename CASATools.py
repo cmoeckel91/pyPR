@@ -537,7 +537,7 @@ def ldvis(rho, amp, k,  a, ):
     amp : [1] float
         [Jy] zero baseline flux amplitude    
     a : [1] float 
-        [arcseconds] size of the planet (diameter) 
+        [radians] size of the planet (diameter) 
 
     Returns
     ----------

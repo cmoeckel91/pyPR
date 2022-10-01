@@ -1497,7 +1497,7 @@ class PJ:
         return FPcenter,FPoutline
 
 
-    def PlotFootprintsForLat(self, lat, channel, latlim=0.5, polar=False, alpha=0.5, rlim = 45, color='channel' , beamfactor = 0.5, mapfile=None, maproll=None, xlim=None,ylim=None,outfile=None,animation=False, meanprofile=False, savefig = False,filter = True, deltalon=-5):
+    def PlotFootprintsForLat(self, lat, channel, latlim=0.5, polar=False, alpha=0.5, rlim = 45, color='channel' , beamfactor = 0.5, mapfile=None, maproll=None, xlim=None,ylim=None,outfile=None,animation=False, meanprofile=False, path2save = None,filter = True, deltalon=-5):
 
 
         # lat_llim = lat - latlim
@@ -1528,7 +1528,7 @@ class PJ:
         if outfile is not None: 
             outfile += f'_lat{lat}'
 
-        self.PlotFootprintsForIdx(idxplf,channels = [channel], step=1, polar=polar,alpha =alpha, beamfactor=beamfactor, color=color,rlim = rlim, title = f'PJ{self.PJnumber} - C{channel} - Latitude {lat} deg' ,mapfile=mapfile,maproll=maproll, xlim=xlim,ylim=ylim,outfile=outfile,animation=animation, meanprofile = meanprofile, deltalon = deltalon, savefig = savefig)
+        self.PlotFootprintsForIdx(idxplf,channels = [channel], step=1, polar=polar,alpha =alpha, beamfactor=beamfactor, color=color,rlim = rlim, title = f'PJ{self.PJnumber} - C{channel} - Latitude {lat} deg' ,mapfile=mapfile,maproll=maproll, xlim=xlim,ylim=ylim,outfile=outfile,animation=animation, meanprofile = meanprofile, deltalon = deltalon, path2save = path2save)
 
         return idxplf
 
@@ -1577,7 +1577,7 @@ class PJ:
 
 
 
-    def PlotFootprintsForIdx(self,idxs, channels=[2,6], beamfactor = 0.5, step=10, mapfile=None, maproll=None, polar=False, rlim = 45, alpha = 0.1, color='channel',title=None,xlim=None,ylim=None,outfile=None,animation=False, meanprofile=False,deltalon = -7, savefig=None): 
+    def PlotFootprintsForIdx(self,idxs, channels=[2,6], beamfactor = 0.5, step=10, mapfile=None, maproll=None, polar=False, rlim = 45, alpha = 0.1, color='channel',title=None,xlim=None,ylim=None,outfile=None,animation=False, meanprofile=False,deltalon = -7, path2save=None): 
         '''
         Plot Footprints for a number of indices 
                 '''
@@ -1596,7 +1596,7 @@ class PJ:
             JCmap = plt.imread(mapfile)
             if maproll is not None: 
                 JCmap = np.roll(JCmap,int(maproll/(360/JCmap.shape[1])),axis=1)
-            axs.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+            axs.imshow((JCmap),extent=[360,0,-90,90])
 
 
 
@@ -1738,8 +1738,7 @@ class PJ:
                 line = axs.add_collection(lc)
                 plt.show()
 
-            if savefig is not None: 
-                path2save = self.datapath + savefig 
+            if path2save is not None: 
                 plt.savefig(path2save+'.png', format='png', transparent = True, dpi=500)
                 plt.savefig(path2save+'.pdf', format='pdf', transparent = True, dpi=500)
                 #plt.savefig(path2save+'.eps', format='eps', transparent = True, dpi=500)
@@ -2153,9 +2152,9 @@ class PJ:
 
         if savedata: 
             if fltr: 
-                savename = self.datapath + f'Deconvolution/C{channel}/Deconvolved_C{channel}_GRS.npz'
+                savename = self.datapath + f'Deconvolution/C{channel}/Deconvolved_C{channel}.npz'
             else: 
-                savename = self.datapath + f'Deconvolution/C{channel}/Deconvolved_C{channel}_GRS_uf.npz'
+                savename = self.datapath + f'Deconvolution/C{channel}/Deconvolved_C{channel}_uf.npz'
 
             np.savez(savename,T_0=T_0, p_0=p_0, Res=Res[:itr_conv], DeltaT=DeltaT[:itr_conv,...], DeltaTMap=DeltaTMap[:itr_conv,...], DeltapMap=DeltapMap[:itr_conv,...], NormMap=NormMap)
 
@@ -5784,7 +5783,7 @@ def Raydlat(PJ, channel, lat_range, zdepth = [], plotting=False):
 
 
 
-def PlotRays(PJ, channel, lat_range, lat_type = 'beam', plotspacecraft=False, beamblend = False, eanglelim = [0,45], latlim = [], ylim = [], zdepth = [] ): 
+def PlotRays(PJ, channel, lat_range, lat_type = 'beam', plotspacecraft=False, beamblend = False, eanglelim = [0,45], latlim = [], ylim = [], zdepth = [],justgrid=False ): 
     """ Show the latitudinal extent for rays penetrating the atmosphere 
 
     This function will plot all the rayes for a given lat_range, corresponding 
@@ -5835,13 +5834,15 @@ def PlotRays(PJ, channel, lat_range, lat_type = 'beam', plotspacecraft=False, be
     PJnumber = 1
     PJ = jt.PJ(PJnumber)
     pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
-    PJ.readdata(pathJ) 
+    PJ.readdata(pathJ,load=True) 
     lat = [-1,1]
 
     for channel in range(1,4): 
         ea_max = np.max(jt.Raydlat(PJ,channel,lat,plotting=False)[0])
         jt.PlotRays(PJ,channel,lat,eanglelim=[38,40], plotspacecraft = True, beamblend=True)
         jt.PlotRays(PJ,channel,lat,eanglelim=[38,40], plotspacecraft = True, beamblend=True, lat_type='spacecraft',latlim=[-3,3])
+
+
 
 
     References
@@ -5982,8 +5983,9 @@ def PlotRays(PJ, channel, lat_range, lat_type = 'beam', plotspacecraft=False, be
     # Plot the spacecraft 
     for i in range(len(SC_lat)): 
         if color[i] > 1: 
-            ax.plot(np.radians([SC_lat[i],B_lat[i]]),[SC_h[i],B_h[i]],color = 'firebrick', alpha=1)
+            ax.plot(np.radians([SC_lat[i],B_lat[i]]),[SC_h[i],B_h[i]],color = 'firebrick', alpha=alpha)
         else: 
+            if justgrid: continue 
             ax.plot(np.radians([SC_lat[i],B_lat[i]]),[SC_h[i],B_h[i]],color = cmap(1 - plotcolor[i]), alpha=plotcolor[i])
             if beamblend: 
                 ax.plot(np.radians([SC_lat[i],B_lat[i]-d_fp[0,i]]),[SC_h[i],B_h[i]],linewidth = 1, linestyle=':',color = cmap(1 - plotcolor[i]), alpha=plotcolor[i])
