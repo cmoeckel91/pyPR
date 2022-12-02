@@ -911,13 +911,16 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
 
     # 
     # T_res_ld = np.multiply(T_resmap,np.cos(th)**np.mean(p)) 
+    # CMM remove normalization 
 
     # Normalize so that the overall structure has zero flux 
-    pixels = np.ones_like(zv) # Pixels that contain flux 
-    # This works, not pretty, but it works 
-    ldpix = T_res_ld != 0 
+    # pixels = np.ones_like(zv) # Pixels that contain flux 
+    # # This works, not pretty, but it works 
+    # ldpix = T_res_ld != 0 
 
-    T_res_ld[ldpix] -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+    # T_res_ld[ldpix] -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+
+    T_res_ld[zv<1] = 0 
 
     #T_res_ld -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.01])) 
     
@@ -930,7 +933,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
         plt.show()
 
     # Subtraction forces off-planet residuals below zero 
-    # T_res_ld[zv<0.001] = 0 
+    #T_res_ld[zv<0.001] = 0 
 
     # Normalize so that the structure has zero flux 
     # pixels = np.ones_like(zv) # Pixels that contain flux 
@@ -2391,7 +2394,7 @@ def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False):
 
 
 def zonalradioprofile(file, f_interp, th_interp, planet='Uranus', residual = False ):
-    ''' Read in zonal profile based on ALMA observations Molter et al. 2019 
+    ''' Read in zonal profile based on ALMA observations by Molter et al. 2019 
 
     ''' 
     from scipy.interpolate import interp1d, interp2d 
@@ -2404,12 +2407,15 @@ def zonalradioprofile(file, f_interp, th_interp, planet='Uranus', residual = Fal
 
 
 
+
+
         lat = U_A[:,0] 
-        f_data = np.array([100e9,144e9,243e9]) # GHz 
+        f_data = np.array([100e9,144e9,233e9]) # GHz 
         T_100 = U_A[:,1]
         T_144 = U_A[:,2]
-        T_243 = U_A[:,3] 
+        T_233 = U_A[:,3] 
 
+        #T_interp = np.interp(th_interp,lat,T_233)
 
         # if np.all(f_interp > f_data) or np.all(f_interp < f_data): 
         #     print('Proceed with caution we are extrapolating')
@@ -4836,7 +4842,7 @@ class Model:
         self.ra  = ra
         self.dec = dec
 
-    def exportasfits(self,data, exportname = 'output', bandwidth = 1e9, units = 'Jy/pixel',ephemeris = True, header = True): 
+    def exportasfits(self,data, exportname = 'output', bandwidth = 1e9, units = 'Jy/pixel',ephemeris = True, header = True,vla=True): 
         """ Import header infromation from CASA data 
     
         Extended description of the function.
@@ -5004,17 +5010,29 @@ class Model:
                 hdulist[0].header['OBSERVER']= 'C. Moeckel'  
                 modeltime = datetime.strptime(self.time.strip(),'%Y-%b-%d %H:%M:%S.%f')                                      
                 hdulist[0].header['DATE-OBS']=  modeltime.strftime("%Y-%m-%dT%H:%M:%S.%f")                                         
-                hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
+                hdulist[0].header['TIMESYS'] = 'UTC     '
+            if vla:                                                             
                 hdulist[0].header['OBSRA']   =   self.ra                                                  
                 hdulist[0].header['OBSDEC']  =   self.dec                                                 
                 hdulist[0].header['OBSGEO-X']=  -1.601156673287E+06    # VLA                                              
                 hdulist[0].header['OBSGEO-Y']=  -5.041988986066E+06    # VLA                                                
                 hdulist[0].header['OBSGEO-Z']=   3.554879236821E+06    # VLA                                              
-                hdulist[0].header['OBJECT']  = self.name.upper()                                                             
+                hdulist[0].header['OBJECT']  = self.name.lower()                                                             
                 hdulist[0].header['TELESCOP']= 'Model    '                                                            
                 hdulist[0].header['INSTRUME']= 'Model    '                                                            
-                hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
-            
+                hdulist[0].header['DISTANCE']=   0.000000000000E+00    
+            else: 
+                hdulist[0].header['OBSRA']   =   4.150107934281E+01                                              
+                hdulist[0].header['OBSDEC']  =   1.558261664349E+01                                                 
+                hdulist[0].header['OBSGEO-X']=   2.225142180269E+06    # ALMA                                             
+                hdulist[0].header['OBSGEO-Y']=  -5.440307370349E+06    # ALMA                                                
+                hdulist[0].header['OBSGEO-Z']=  -2.481029851874E+06    # ALMA                                              
+                hdulist[0].header['OBJECT']  = self.name.lower()                                                             
+                hdulist[0].header['TELESCOP']= 'Model    '                                                            
+                hdulist[0].header['INSTRUME']= 'Model    '                                                            
+                hdulist[0].header['DISTANCE']=   0.000000000000E+00  
+
+ 
             hdulist[0].header['DATE']    = now.strftime("%Y-%m-%dT%H:%M:%S.%f") #Date FITS file was written              
             hdulist[0].header['ORIGIN']  = 'pyPR'
 
