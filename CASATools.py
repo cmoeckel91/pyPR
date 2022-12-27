@@ -967,7 +967,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 fo.write('$robust = {:2.1f};          # Optional imaging weighting parameter.\n'.format(robust))
             else: 
                 fo.write('$robust = 0.0;          # Optional imaging weighting parameter.\n')            
-            fo.write('$plradius = 71492.0     # Optional planet radius in kilometers.\n')
+            fo.write('$plradius = 25362     # Optional planet radius in kilometers.\n')
             fo.write('# $obstime = ""  # Optional observation time used for geometry.\n')
             fo.close()
 
