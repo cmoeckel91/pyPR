@@ -2328,6 +2328,51 @@ def lat_graphic2centric(lat_g,R_e,R_p):
     f = (R_e - R_p)/R_e
     return np.arctan(np.tan(lat_g)*(1-f)**2)
    
+
+
+def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False): 
+
+
+    ''' 
+    import pyPR.PlanetGeometry as pg 
+    path2GD = '/Users/chris/GoogleDrive/'  
+    path2map = 'Berkeley/Research/Juno/PJ12/HST/' 
+    imname = path2GD + path2map + 'global_hst_pj12.tif'
+    pg.jpg_graphic2centric(imname,path2GD+path2map+'map_centric',res=0.1,plotting=True) 
+    
+    ''' 
+    from scipy.interpolate import interp2d
+
+    path2map  = imname 
+    #data =  np.swapaxes(np.fliplr(np.flipud(plt.imread(path2map))),0,1)
+    data =  np.fliplr(np.flipud(plt.imread(path2map))) 
+
+    if np.nanmax(data) <=1.0: 
+        data *= 255 
+    # jpg have three color channels, so sublect one, and then hope that n_lon > n_lat 
+
+    n_lat, n_lon = np.min(data[...,0].shape), np.max(data[...,0].shape)
+    lon = np.linspace(0,360,n_lon)
+    lat = np.linspace(-90,90,n_lat)
+    lat_c = np.degrees(lat_graphic2centric(np.radians(lat), 71492e3 , 66854e3)) 
+
+
+    lon_i = np.arange(0,360,res)
+    lat_i = np.arange(-90,90+res,res)
+    data_c = np.zeros((len(lat_i),len(lon_i),3))
+    for i in range(3): 
+        f = interp2d(lon,lat_c,data[...,i])
+        data_c[...,i] = np.fliplr(f(lon_i,lat_i))
+
+    data_c = data_c.astype('uint8')
+
+    if plotting: 
+        plt.figure() 
+        plt.imshow(data_c ,origin='lower')
+        plt.imsave(fname=path2save+'.png', arr=np.flipud(data_c), format='png')
+
+    return 
+
 def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = False ):
     '''Read out the zonal structure. 
 
