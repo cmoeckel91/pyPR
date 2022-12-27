@@ -811,7 +811,8 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     planet = 'jupiter', 
     filepath_data= './', 
     filepath_script = 'Parallel_facets.bsh', 
-    tmp_directory = '/tmp'): 
+    tmp_directory = '/tmp',
+    planetradius=71492): 
     """Write a bash script that allows for parrallel execution 
     of Bob's Deprojection technique in MIRIAD 
 
@@ -967,7 +968,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
                 fo.write('$robust = {:2.1f};          # Optional imaging weighting parameter.\n'.format(robust))
             else: 
                 fo.write('$robust = 0.0;          # Optional imaging weighting parameter.\n')            
-            fo.write('$plradius = 25362     # Optional planet radius in kilometers.\n')
+            fo.write('$plradius = {planetradius}     # Optional planet radius in kilometers.\n')
             fo.write('# $obstime = ""  # Optional observation time used for geometry.\n')
             fo.close()
 
