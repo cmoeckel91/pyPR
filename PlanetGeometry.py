@@ -722,7 +722,7 @@ def polar2cart(r, theta, phi):
          r * np.cos(np.pi/2-phi)
     ])
 
-def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening, T_res, th_res, conv = 0.01, plotting = False ): 
+def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening, T_res, th_res, conv = 0.01, plotting = False, ldresiduals=False ): 
     """Create a brightness map with structure of Jupiter 
 
     Based on x,y and grid, create a brightness map of Jupiter. Iterative 
@@ -806,7 +806,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     T = f(lats) - np.mean(f(lats)) # Residual structure after and levelled to zero 
 
 
-    # Detrend the residuals from emission angle by diving by cos(theta)**p
+    # Detrend the residuals from emission angle by dividing by cos(theta)**p
     f = scipy.interpolate.interp1d(np.degrees(np.ndarray.flatten(lat_emission)), np.ndarray.flatten(alpha), bounds_error=False, fill_value=([alpha[0]],[alpha[-1]]))
     T_db = T/(np.cos(f(lats))**p[0]) 
 
@@ -823,12 +823,14 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
         print('Basemap bug has not yet been removed')
 
     # create Basemap instance for orthographic projection.
-    m = Basemap(projection='ortho',lat_0=ob_lat_d
+    m = Basemap(projection='ortho',lat_0=np.degrees(ob_lat_d) 
                 ,lon_0=90)
+
 
     # compute map projection coordinates for lat/lon grid.
     x, y = m(*np.meshgrid(lons,lats))
     lonpt, latpt = m(x,y,inverse=True)
+
 
 
     # make filled contour plot.
@@ -902,17 +904,23 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
     pexp = (p[0]+(np.abs(yv)*r_pla/R[2])*(p[1]-p[0]))
     pexp[pexp > np.max(p)] = np.max(p)
     pexp[pexp < np.min(p)] = np.min(p)
-    T_res_ld = T_resmap*cos**(pexp)
+    if ldresiduals: 
+        T_res_ld = T_resmap*cos**(pexp)
+    else: 
+        T_res_ld = T_resmap
 
     # 
     # T_res_ld = np.multiply(T_resmap,np.cos(th)**np.mean(p)) 
+    # CMM remove normalization 
 
     # Normalize so that the overall structure has zero flux 
-    pixels = np.ones_like(zv) # Pixels that contain flux 
-    # This works, not pretty, but it works 
-    ldpix = T_res_ld != 0 
+    # pixels = np.ones_like(zv) # Pixels that contain flux 
+    # # This works, not pretty, but it works 
+    # ldpix = T_res_ld != 0 
 
-    T_res_ld[ldpix] -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+    # T_res_ld[ldpix] -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.0])) 
+
+    T_res_ld[zv<1] = 0 
 
     #T_res_ld -= (np.nansum(T_res_ld)/np.sum(pixels[zv>0.01])) 
     
@@ -925,7 +933,7 @@ def zonal_residual_model(R, r_pla, x_pix, y_pix, p, ob_lat_d, orange, flattening
         plt.show()
 
     # Subtraction forces off-planet residuals below zero 
-    # T_res_ld[zv<0.001] = 0 
+    #T_res_ld[zv<0.001] = 0 
 
     # Normalize so that the structure has zero flux 
     # pixels = np.ones_like(zv) # Pixels that contain flux 
@@ -1764,7 +1772,11 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     Parameters
     -------
     R : [3x1] float
-        [m] Principal rotation axis of the planet (equator, pole, equator)
+        [m] Principal rotation axis of the planet (equator, pole, third axis)
+    ob_lat_d : [1] float
+        [rad] Sub observer latitude - geodetic 
+    ob_lon : [1] float
+        [rad] Sub observer longitude 
     obs_range : [1] float
         [m] Observer's distance from surface 
             Best obtained by calculating the distance of light travel time 
@@ -1783,12 +1795,24 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
 
     Example
     -------
+    import pyPR.PlanetGeometry as pg 
     # Example by running ephem on some Jupiter data 
-    R = np.array([71492., 71492., 66854.]) 
+    R = np.array([80492., 71492., 66854.]) 
     ob_range = 8.0491221e+11
-    ob_lat_d = np.radians(-3.267)
-    ob_lon = np.radians(73.12)
-    axis , center = rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+    ob_lat_d = np.radians(90)
+    ob_lon = np.radians(270)
+    axis , center = pg.rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+    #axis = [80163.21294996 71199.97540399] 
+   
+    import pyPR.PlanetGeometry as pg 
+    # Example for Uranian moons 
+    R = np.array([64,0.25*64+0.75*32,32])*1e3
+    ob_range =  18.8324879927471*149e6
+    ob_lat_d = np.radians(46.259246) 
+    ob_lon = np.radians(228.132784)
+    axis , center = pg.rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+    
+    # Expected return array([59082.54146921, 37395.41267873])
 
     Warnings
     -------
@@ -1817,11 +1841,13 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     f = (R[0]-R[2])/R[0] 
     
     # [rad] Convert into geocentric latitude based on altitude, radius and latitude
-    ob_lat_c = geod2geoc( ob_lat_d, ob_range, R[0], f )  
+    # ob_lat_c = geod2geoc( ob_lat_d, ob_range, R[0], f )  
+    ob_lat_c = ob_lat_d
 
     # [m] Obtain local radius 
     r_s = R[0]*R[2]/(np.sqrt((R[2]*np.cos(ob_lat_c))**2 + (R[0]*np.sin(ob_lat_c))**2))
- 
+    r_s = 0 
+    
     # Obtain the coordinates of the observer in an Jovian-centered frame 
     r_J = geo2eci(ob_range+r_s,ob_lon,ob_lat_c).reshape(3,1)
     # Normalized vector to define projection plane 
@@ -2327,9 +2353,8 @@ def lat_graphic2centric(lat_g,R_e,R_p):
     lat_g[np.where((-lat_g)>=threshold)] = -threshold
     f = (R_e - R_p)/R_e
     return np.arctan(np.tan(lat_g)*(1-f)**2)
+
    
-
-
 def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False): 
 
 
@@ -2341,6 +2366,7 @@ def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False):
     pg.jpg_graphic2centric(imname,path2GD+path2map+'map_centric',res=0.1,plotting=True) 
     
     ''' 
+
     from scipy.interpolate import interp2d
 
     path2map  = imname 
@@ -2349,6 +2375,7 @@ def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False):
 
     if np.nanmax(data) <=1.0: 
         data *= 255 
+
     # jpg have three color channels, so sublect one, and then hope that n_lon > n_lat 
 
     n_lat, n_lon = np.min(data[...,0].shape), np.max(data[...,0].shape)
@@ -2369,11 +2396,55 @@ def jpg_graphic2centric(imname,path2save,res = 0.05,plotting=False):
     if plotting: 
         plt.figure() 
         plt.imshow(data_c ,origin='lower')
-        plt.imsave(fname=path2save+'.png', arr=np.flipud(data_c), format='png')
 
     return 
 
-def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]), residual = False ):
+
+
+def zonalradioprofile(file, f_interp, th_interp, planet='Uranus', residual = False ):
+    ''' Read in zonal profile based on ALMA observations by Molter et al. 2019 
+
+    ''' 
+    from scipy.interpolate import interp1d, interp2d 
+
+    if planet.lower().strip() == 'uranus': 
+        # Read in Ned's T + lat profile 
+        path2data = 'pyPR/Data/'+file
+
+        U_A = np.loadtxt(path2data)
+
+
+
+
+
+        lat = U_A[:,0] 
+        f_data = np.array([100e9,144e9,233e9]) # GHz 
+        T_100 = U_A[:,1]
+        T_144 = U_A[:,2]
+        T_233 = U_A[:,3] 
+
+        #T_interp = np.interp(th_interp,lat,T_233)
+
+        # if np.all(f_interp > f_data) or np.all(f_interp < f_data): 
+        #     print('Proceed with caution we are extrapolating')
+
+        #     # Extrapolate for the given latitude input 
+        #     T_expl = np.zeros_like(lat) 
+        #     for i in range(len(lat)):
+        #         f =  interp1d(f_data,U_A[i,1:4],fill_value="extrapolate") 
+        #         T_expl[i] =  f(f_interp)
+
+
+        f = interp2d(f_data,lat,U_A[:,1:4]) 
+        T_interp = f(f_interp, th_interp)
+        if residual: 
+            T_interp = T_interp - np.mean(T_interp)
+
+    return np.ndarray.flatten(T_interp)  
+
+
+
+def zonalstructure(fitsfile, f_interp ,th_interp = np.array([]),planet='Jupiter', residual = False ):
     '''Read out the zonal structure. 
 
     Current version reads out the residuals from Imke de Pater, 2014 
@@ -3045,7 +3116,7 @@ def combine_projections(proj,method='median', title='', Plotting = False, output
         hdu = fits.PrimaryHDU(im)
         hdulist = fits.HDUList([hdu])
         hdulist[0].header = header 
-        hdulist[0].header['HISTORY'] = 'Projections were deprojected with E. Molter coordgrid.py'
+        hdulist[0].header['HISTORY'] = 'Projections were deprojected with E. Molter\s coordgrid.py'
         hdulist[0].header['HISTORY'] = 'Projections modified using pyPR\'s align_projections'
         hdulist[0].header['HISTORY'] = 'Method used for combine_projections: ' + method 
         hdu.writeto(outputname, overwrite=True)
@@ -3169,10 +3240,17 @@ def animate_projections(path2im,path2gif,framerate = 2, width=2,padednamewidth=2
     framerate = 2 
     padednamewidth = 2 # 04 vs 004
     # https://trac.ffmpeg.org/wiki/Slideshow 
+
+    ffmpeg -f image2 -framerate 1 -i C%d-DeltaTBmap.png Storm.mp4
+    ffmpeg -i Storm.mp4 -filter_complex "fps=5,scale=1920:-1:flags=lanczos,reverse" Storm.gif
+
+,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer"
     '''
 
     os.system('ffmpeg -f image2  -framerate {:d}  -i {:s}%0{:d}d.png {:s}.mp4'.format(framerate, path2im, padednamewidth, path2gif))
     os.system('ffmpeg -i {:s}.mp4 -pix_fmt rgb8 {:s}.gif'.format(path2gif,path2gif))
+
+
 
 
 class Map:
@@ -3365,6 +3443,8 @@ class Map:
         
         display_deprojected(path_map+fitsfile,bandwidth)
 
+
+
         References
         ------------
 
@@ -3381,8 +3461,23 @@ class Map:
 
         # Import the Deprojected map 
         hdul_map = fits.open(fitsfile)
-        theta = np.arange(hdul_map[0].header['NAXIS1']*hdul_map[0].header['CDELT1']/2,hdul_map[0].header['NAXIS1']*-hdul_map[0].header['CDELT1']/2,-hdul_map[0].header['CDELT1'])
-        phi = np.arange(-hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['CDELT2'])
+
+        # Rewrite to use all available info 
+        n_lon, n_lat        = hdul_map[0].header['NAXIS1'], hdul_map[0].header['NAXIS2'] 
+        dlon, dlat          = hdul_map[0].header['CDELT1'], hdul_map[0].header['CDELT2'] 
+        reflon, reflat      = hdul_map[0].header['CRVAL1'], hdul_map[0].header['CRVAL2']
+        refpix_lon, refpix_lat = hdul_map[0].header['CRPIX1'], hdul_map[0].header['CRPIX2']
+
+        # Build axes 
+        lon_left = reflon - refpix_lon*dlon
+        theta    = np.arange(0,n_lon)*dlon+lon_left 
+        lat_bot  = reflat - refpix_lat*dlat
+        phi      = np.arange(0,n_lat)*dlat+lat_bot 
+
+        # theta = np.arange(hdul_map[0].header['NAXIS1']*hdul_map[0].header['CDELT1']/2,hdul_map[0].header['NAXIS1']*-hdul_map[0].header['CDELT1']/2,-hdul_map[0].header['CDELT1'])
+        # phi = np.arange(-hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['NAXIS2']*hdul_map[0].header['CDELT2']/2,hdul_map[0].header['CDELT2'])
+
+
         kernel = Gaussian2DKernel(x_stddev=1)
 
         #print('Changed kernel to from 2 to 1. Check if it still works')  
@@ -4172,6 +4267,15 @@ class Model:
                 T_res, th_res = zonalstructure('Data/VLA_ZonalScans_2014.fits', nu_u, residual=True)
                 TP.gen_casa(nu_u,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = th_res, setimsize=self.imsize, plotting = False)
                 Bdata_u += TP.Bzonaldata  
+            if hasattr(self, 'Bzonaldata') and self.name == 'Uranus': 
+                file = 'ALMA_ZonalStruture_Uranus.txt' 
+                lat_interp = np.arange(-90,91,1) 
+                T_res = zonalradioprofile(file,nu_l,lat_interp,residual=True)
+                TP.gen_casa(nu_l,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = lat_interp, setimsize=self.imsize, plotting = False)
+                Bdata_l += TP.Bzonaldata
+                T_res = zonalradioprofile(file,nu_u,lat_interp,residual=True)
+                TP.gen_casa(nu_u,self.T_da,self.limbdarkening, beamsize = self.beam, T_res = T_res, th_res = lat_interp, setimsize=self.imsize, plotting = False)
+                Bdata_u += TP.Bzonaldata  
 
 
         # Modify Bdata to avoid singularities 
@@ -4746,7 +4850,7 @@ class Model:
         self.ra  = ra
         self.dec = dec
 
-    def exportasfits(self,data, exportname = 'output', bandwidth = 1e9, units = 'Jy/pixel',ephemeris = True, header = True): 
+    def exportasfits(self,data, exportname = 'output', bandwidth = 1e9, units = 'Jy/pixel',ephemeris = True, header = True,vla=True): 
         """ Import header infromation from CASA data 
     
         Extended description of the function.
@@ -4914,17 +5018,29 @@ class Model:
                 hdulist[0].header['OBSERVER']= 'C. Moeckel'  
                 modeltime = datetime.strptime(self.time.strip(),'%Y-%b-%d %H:%M:%S.%f')                                      
                 hdulist[0].header['DATE-OBS']=  modeltime.strftime("%Y-%m-%dT%H:%M:%S.%f")                                         
-                hdulist[0].header['TIMESYS'] = 'UTC     '                                                            
+                hdulist[0].header['TIMESYS'] = 'UTC     '
+            if vla:                                                             
                 hdulist[0].header['OBSRA']   =   self.ra                                                  
                 hdulist[0].header['OBSDEC']  =   self.dec                                                 
                 hdulist[0].header['OBSGEO-X']=  -1.601156673287E+06    # VLA                                              
                 hdulist[0].header['OBSGEO-Y']=  -5.041988986066E+06    # VLA                                                
                 hdulist[0].header['OBSGEO-Z']=   3.554879236821E+06    # VLA                                              
-                hdulist[0].header['OBJECT']  = self.name.upper()                                                             
+                hdulist[0].header['OBJECT']  = self.name.lower()                                                             
                 hdulist[0].header['TELESCOP']= 'Model    '                                                            
                 hdulist[0].header['INSTRUME']= 'Model    '                                                            
-                hdulist[0].header['DISTANCE']=   0.000000000000E+00                                                  
-            
+                hdulist[0].header['DISTANCE']=   0.000000000000E+00    
+            else: 
+                hdulist[0].header['OBSRA']   =   4.150107934281E+01                                              
+                hdulist[0].header['OBSDEC']  =   1.558261664349E+01                                                 
+                hdulist[0].header['OBSGEO-X']=   2.225142180269E+06    # ALMA                                             
+                hdulist[0].header['OBSGEO-Y']=  -5.440307370349E+06    # ALMA                                                
+                hdulist[0].header['OBSGEO-Z']=  -2.481029851874E+06    # ALMA                                              
+                hdulist[0].header['OBJECT']  = self.name.lower()                                                             
+                hdulist[0].header['TELESCOP']= 'Model    '                                                            
+                hdulist[0].header['INSTRUME']= 'Model    '                                                            
+                hdulist[0].header['DISTANCE']=   0.000000000000E+00  
+
+ 
             hdulist[0].header['DATE']    = now.strftime("%Y-%m-%dT%H:%M:%S.%f") #Date FITS file was written              
             hdulist[0].header['ORIGIN']  = 'pyPR'
 
