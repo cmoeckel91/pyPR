@@ -804,6 +804,7 @@ def miriad_processing(uv, niter, robust=0.5, ):
 
 
 def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
+    latcenter=0, 
     spwn=1,
     fwhm = None,
     robust = 0.0,
@@ -906,7 +907,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
     # Number of latitude bands per core 
     nband = np.ceil(nlat/ncore) 
 
-    lat_lower = -latrange/2 
+    lat_lower = -latrange/2 + latcenter
 
 
     overwrite = False

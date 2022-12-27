@@ -2,7 +2,10 @@
 
 Notes
 -----
+
 05/05/19,CM, Initial Commit
+07/27/22 CM, Updated
+
 """
 
 import glob 
