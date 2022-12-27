@@ -872,17 +872,6 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
     # Split the uvfits file into their individual components, seperate by comma, add upper directory to each 
 
-
-
-    # Old code 
-    # Calculate the corresponding latitude ranges 
-    dlat = latrange/np.ceil(latrange/latint)
-    
-    # Number of latitude circles 
-    nlat = (latrange/dlat) 
-
-    # New code 
-      # Old code 
     # Calculate the corresponding latitude ranges 
     dlat = latint
     
@@ -944,10 +933,10 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
 
         # Calculate the latitude range 
         lat_upper = lat_lower + (nband-1)*dlat 
-        if lat_upper > latrange/2: 
-            lat_upper = latrange/2
-        print(lat_lower, lat_upper)
+        if lat_upper > latrange/2+latcenter: 
+            lat_upper = latrange/2+latcenter
 
+        print(lat_lower, lat_upper)
 
         filepath = temp_name+'/params' + '.pl' 
         with open(filepath,'w') as fo:  
