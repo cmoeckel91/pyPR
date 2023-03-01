@@ -2209,6 +2209,7 @@ class PJ:
 
         fig, ax = plt.subplots(1, 1,figsize=(8,6))
         ax.plot(np.arange(I),Res/(N*0.5)*100,'*',linewidth=5) 
+        # Updated number of expected measurement noise  0.1% based on Table 2 and Table 7 from Janssen et al. DOI 10.1007/s11214-017-0349-5
         ax.plot(np.arange(I),np.ones(I)*100,color='gray',linestyle='--',linewidth=2)
         ax.set_ylabel('Residual (%)')
         ax.set_xlabel('Iteration')

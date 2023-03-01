@@ -1,5 +1,6 @@
 """Initialize python repository for pyPR geometry.
 
+
 Notes
 -----
 11/17/17,CM, Initial Commit
@@ -252,7 +253,7 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
                 radii = radii.split('km')[0]
                 R = np.zeros(3) # Radius (km)
                 for j in range(3):
-                    R[j] = np.float(radii.split('x')[j])
+                    R[j] = np.float(radii.split(',')[j])
             # get observatory lat, lon, alt for later
             if ephem[i].startswith('Center geodetic'):
                 l = ephem[i].split(':')[1]
