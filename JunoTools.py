@@ -40,16 +40,16 @@ import warnings, sys
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-path_GD='/Users/chris/GoogleDrive/'
-path_radio = '/Users/chris/Documents/Research/Toolbox/radio/'
+# path_GD='/Users/chris/GoogleDrive/'
+# path_radio = '/Users/chris/Documents/Research/Toolbox/radio/'
 
-if not glob.glob(path_GD): 
-    path_GD = '/Volumes/casa/chris/Google Drive/' 
-    path_radio = '/Users/chris.moeckel/Documents/Research/radio/'
+# if not glob.glob(path_GD): 
+#     path_GD = '/Volumes/casa/chris/Google Drive/' 
+#     path_radio = '/Users/chris.moeckel/Documents/Research/radio/'
 
 
-pathJ = path_GD + 'Berkeley/Research/Juno/'
-path_J = pathJ
+# pathJ = path_GD + 'Berkeley/Research/Juno/'
+# path_J = pathJ
 
 # If you want to reload 
     # import pyPR.JunoTools as jt
@@ -597,8 +597,9 @@ class PJ:
             self.__dict__.update(pickle.load(filehandler).__dict__)      
             self.datapath=pathJ+f'PJ{self.PJnumber}/'
             return 
-
+        self.path = pathJ
         self.datapath=pathJ+f'PJ{self.PJnumber}/'
+
         # Define the 6 channels 
         self.C1 = C(1)
         self.C2 = C(2)
@@ -715,7 +716,7 @@ class PJ:
             for j in self.C1.indices_planet: 
                 if np.mod((cnt/len(self.C1.indices_planet)*100),10) == 0:
                     print(f'Progress: {cnt/len(self.C1.indices_planet)*100:2.0f}%') 
-                self.C1.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C1.lon[j],self.C1.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C1.hpbw*self.C1.beamcutoff,sampling=self.beamsampling ))
+                self.C1.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C1.lon[j],self.C1.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C1.hpbw*self.C1.beamcutoff,self.path+'Beam/',sampling=self.beamsampling ))
                 cnt += 1 
             self.C1.indices_planet = self.indices[np.where(np.isfinite(self.C1.eea))].astype(int)
 
@@ -807,7 +808,7 @@ class PJ:
             self.C2.eea = np.zeros_like(self.C2.eangle)*np.nan
             self.C2.beamcutoff = self.beamoffset*1.2
             for j in self.C2.indices_planet: 
-                self.C2.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C2.lon[j],self.C2.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C2.hpbw*self.C1.beamcutoff,sampling=self.beamsampling ))
+                self.C2.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C2.lon[j],self.C2.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C2.hpbw*self.C1.beamcutoff,self.path+'Beam/',sampling=self.beamsampling ))
             self.C2.indices_planet = self.indices[np.where(np.isfinite(self.C2.eea))].astype(int)
 
         # Compute the uncleaned zonal average 
@@ -895,7 +896,7 @@ class PJ:
             self.C3.eea = np.zeros_like(self.C3.eangle)*np.nan
             self.C3.beamcutoff =  self.beamoffset*1.2
             for j in self.C3.indices_planet: 
-                self.C3.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C3.lon[j],self.C3.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C3.hpbw*self.C3.beamcutoff ,sampling=self.beamsampling ))
+                self.C3.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C3.lon[j],self.C3.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C3.hpbw*self.C3.beamcutoff ,self.path+'Beam/', sampling=self.beamsampling ))
             self.C3.indices_planet = self.indices[np.where(np.isfinite(self.C3.eea))].astype(int)
 
         # Compute the uncleaned zonal average 
@@ -1066,7 +1067,7 @@ class PJ:
             self.C5.eea = np.zeros_like(self.C5.eangle)*np.nan
             self.C5.beamcutoff =  self.beamoffset
             for j in self.C5.indices_planet: 
-                self.C5.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C5.lon[j],self.C5.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C5.hpbw*self.C5.beamcutoff,sampling=self.beamsampling ))
+                self.C5.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C5.lon[j],self.C5.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C5.hpbw*self.C5.beamcutoff,self.path+'Beam/',sampling=self.beamsampling ))
 
             self.C5.indices_planet = self.indices[np.where(np.isfinite(self.C5.eea))].astype(int) 
 
@@ -1154,7 +1155,7 @@ class PJ:
             self.C6.beamcutoff =  self.beamoffset
 
             for j in self.C6.indices_planet: 
-                self.C6.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C6.lon[j],self.C6.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C6.hpbw*self.C6.beamcutoff,sampling=self.beamsampling ))
+                self.C6.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C6.lon[j],self.C6.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C6.hpbw*self.C6.beamcutoff,self.path+'Beam/',sampling=self.beamsampling ))
 
             self.C6.indices_planet = self.indices[np.where(np.isfinite(self.C6.eea))].astype(int)
 
@@ -5291,7 +5292,7 @@ class PJ:
                 dist = self.range[j]*1e3
                 eangle = eval(f'self.C{channel}.eangle[j]')
                 be[cnt] = np.radians(eangle)
-                ee[cnt] = BeamConvolvedEmission2(beam,obs,dist,channel,eval(f'self.C{channel}.hpbw')*hpbw,normalized=True,sampling=sampling)
+                ee[cnt] = BeamConvolvedEmission2(beam,obs,dist,channel,eval(f'self.C{channel}.hpbw')*hpbw,self.path+'Beam/',normalized=True,sampling=sampling)
                 cnt += 1
 
             return ee, be
@@ -8126,7 +8127,7 @@ def BeamConvolvedMask(path2mask, beam,obs,dist,channel,radialextent, hpbw = 12, 
     return mask_bc
 
 
-def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False, sampling=1 ,plotting=False): 
+def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, beampath, normalized=False, sampling=1 ,plotting=False): 
     '''
     Function that calculates the effect of emission angle on the beam 
 
@@ -8145,12 +8146,12 @@ def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False,
     radialextent = 20.6*1.25
     channel = 2 
 
-
+    path_B = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/Beam/'
     normalized = True; plotting = False 
-    ea1 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=1,plotting=plotting)
-    ea2 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=2,plotting=plotting)
-    ea4 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=4,plotting=plotting)
-    ea10= jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=10,plotting=plotting)
+    ea1 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,path_B, normalized=normalized,sampling=1,plotting=plotting)
+    ea2 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,path_B, normalized=normalized,sampling=2,plotting=plotting)
+    ea4 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,path_B, normalized=normalized,sampling=4,plotting=plotting)
+    ea10= jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,path_B, normalized=normalized,sampling=10,plotting=plotting)
 
     print(np.degrees(ea1),np.degrees(ea2),np.degrees(ea4),np.degrees(ea10)) 
 
@@ -8165,7 +8166,7 @@ def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False,
     from scipy import interpolate
 
     #path_B = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
-    path_B = path_J + 'Beam/'
+    path_B = beampath
     
     # # This is probably not correct 
     # G,p,t, hpbw   = jt.readJunoBeam(path_B,channel,normalized=normalized) 
