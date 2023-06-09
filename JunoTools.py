@@ -9,7 +9,7 @@ Notes
 """
 
 import glob 
-
+import os 
 import pandas as pd
 import numpy as np
 import astropy as ap 
@@ -40,7 +40,7 @@ import warnings, sys
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-path_GD='/Users/chris/GDrive-UCB/'
+path_GD='/Users/chris/GoogleDrive/'
 path_radio = '/Users/chris/Documents/Research/Toolbox/radio/'
 
 if not glob.glob(path_GD): 
@@ -1783,32 +1783,1058 @@ class PJ:
         axs.set_title(f'PJ{self.PJnumber}')
 
 
+    def ZonalModelMap(self,channel,mapstep=0.1): 
+        '''
+        Make a 2D map based on zonally averaged quantities. 
+        import pyPR.JunoTools as jt 
+        pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
+
+       
+        PJnumber = 4
+        PJ = jt.PJ(PJnumber)
+        PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
+        PJ.ZonalModelMap(4)
+
+        '''
+
+        # Make an a-priori based on zonally averaged information  
+        # How to deal with NaNs 
+        T_z = eval(f'self.C{channel}.T_n') # Zonal temperature 
+        p_z = eval(f'self.C{channel}.p') # Zonal limb-darkening  
+        lat_z = eval(f'self.C{channel}.lat_c_i') 
+
+        lat_m = np.arange(-90,90,mapstep) # (deg) Latitude model 
+        lon_m = np.arange(0,360,mapstep) # (deg) Longitude model 
+        
+        idx_obs = np.isfinite(T_z)
+        T_ap  = np.interp(lat_m,lat_z[idx_obs],T_z[idx_obs])
+        p_ap  = np.interp(lat_m,lat_z[idx_obs],p_z[idx_obs])
+
+        # Make a 2D map based on the 1D zonal average 
+        T_m = np.tile(T_ap,( len(lon_m),1)).T
+        p_m = np.tile(p_ap,( len(lon_m),1)).T
+
+        return [T_m,p_m], [lon_m,lat_m]
+
+
+    def PlotDeconvolvedMaps(self, channel, dTstep=2, alpha=0.5, savenametail='v2', path2save=None, path2map=None, plotitr=False, xlim=None, ylim=[-30,30]): 
+        ''' 
+        Plot the results of the Deconvolution 
+
+        import pyPR.JunoTools as jt 
+        pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
+
+        PJnumber = 4
+        PJ = jt.PJ(PJnumber)
+        PJ.readdata(pathJ,quicklook=False, load = False, dataversion=3)
+    
+        path2maps = f'PJ{PJnumber}/HST/'
+        path2map = pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
+            
+        channel = 2       
+        path2save = PJ.datapath + f'Deconvolution/C{channel}/Maps/' 
+        PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,alpha=0.5,dTstep=1.5)
+
+
+        '''
+
+        import os 
+        # Insert plotting scheme here 
+        from matplotlib.ticker import MaxNLocator
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        # create an axes on the right side of ax. The width of cax will be 5%
+        # of ax and the padding between cax and ax will be fixed at 0.05 inch.
+        import matplotlib.colors as colors
+
+        '''
+        savenametail='v3'
+        fname = f'/Users/chris/GoogleDrive/Berkeley/Research/Juno/PJ4/Deconvolution/C{channel}/Map_C{channel}_{savenametail}.npz'
+        temp = np.load(fname)
+        dTstep=1; alpha=0.5;  path2save=None;  plotitr=False; xlim=None; ylim=[-60,60]
+        ''' 
+
+        # Load in the data 
+        fname = self.datapath + f'Deconvolution/C{channel}/Map_C{channel}_{savenametail}.npz'
+        try: temp = np.load(fname)
+        except: sys.exit('Archive not found')
+
+        if path2save is not None: 
+            os.makedirs(os.path.dirname(path2save), exist_ok=True)
+        if plotitr: 
+            os.makedirs(os.path.dirname(path2save+'Iterations/'), exist_ok=True)
+
+        # Unpack variables 
+
+        #np.savez(fname,DeltaT=DeltaT, TMap=TMap, pMap=pMap, NormMap=NormMap, lat=lat_m, lon=lon_m)
+        DeltaT      = np.array(temp['DeltaT']) 
+        TMap        = np.array(temp['TMap']) 
+        pMap        = np.array(temp['pMap']) 
+        DeltaTMap   = np.array(temp['DeltaTMap']) 
+        DeltapMap   = np.array(temp['DeltapMap']) 
+
+        lon_m, lat_m = np.array(temp['lon']), np.array(temp['lat'])
+        nitr,nobs   = np.shape(DeltaT) 
+    
+        # 
+
+        #itr_min = np.argmin(np.sum(DeltaT,axis=1)) 
+        
+        itr_c = temp['n_convergence'] 
+        idx_c = itr_c - 1 
+        
+
+        # Converge diagnostic
+        # ---------------------------------------------------------- 
+        '''
+        fig, ax = plt.subplots(1, 1,figsize=(8,6))
+        ax.plot(np.arange(nitr),np.sum(DeltaT,axis=1)/nobs,'*',linewidth=5) 
+        # Updated number of expected measurement noise  0.1% based on Table 2 and Table 7 from Janssen et al. DOI 10.1007/s11214-017-0349-5
+        ax.set_ylabel(r'Avg $\Delta T$ per beam ')
+        ax.set_xlabel('Iteration')
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.plot( [itr_c-1, itr_c-1],[np.min(np.sum(DeltaT,axis=1)/nobs), np.max(np.sum(DeltaT,axis=1)/nobs)],linestyle='--',color='gray')
+        
+
+
+            plt.savefig(path2save+f'Convergence'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Convergence'+'.pdf', format='pdf', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Convergence'+'.eps', format='eps', transparent = True, dpi=500)
+
+        ''' 
+
+        
+        # # Set the xlim for the observations 
+        if xlim is None: 
+            # Find region where we have information by summing over all 
+            lon_data = np.where(np.sum(np.sum(DeltaTMap,axis=0),axis=0)>0)[0]
+            xlim = np.array([lon_m[lon_data[-1]],lon_m[lon_data[0] ]])
+        
+        # Dynamically set the contour plots and colorbars 
+        if ylim is not None: 
+            llim = np.argmin(np.abs(ylim[0]-lat_m)) 
+            ulim = np.argmin(np.abs(ylim[1]-lat_m)) 
+        else: 
+            llim = 0 
+            ulim = len(lat_m) 
+
+        DTr = np.ceil(np.nanmax(np.abs(np.sum(DeltaTMap[:idx_c,...],axis=0)[llim:ulim,:])/dTstep))*dTstep
+        DTlevels = np.arange(-DTr,DTr+dTstep,dTstep)
+
+        Dpr = np.round(np.nanmax(np.abs(np.sum(DeltapMap[:idx_c,...],axis=0)[llim:ulim,:])),3)
+        Dplevels = np.linspace(-Dpr,Dpr,10)
+
+        # Plot the final Delta-T map  
+        # ---------------------------------------------------------- 
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+
+        if path2map is not None: 
+            JCmap = plt.imread(path2map)
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+        ax.set_title(rf'$\Delta$ T: Channel {channel}')
+
+        cs = ax.contour(360-np.flipud(lon_m),lat_m,np.sum(DeltaTMap[:idx_c,...],axis=0),levels=DTlevels,alpha=alpha,norm=colors.CenteredNorm(),cmap='coolwarm') 
+        # cs = ax.contour(360-np.flipud(lon_m),lat_m,T_m2+np.sum(DeltaTMap[:itr,...],axis=0),len(T_c)//2,cmap='coolwarm') 
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=r'$\Delta$ T (deg)',cax= cax) 
+
+        if ylim is not None: ax.set_ylim(ylim)
+       
+        if xlim is not None: ax.set_xlim(xlim)
+
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_c}_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_c}_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+
+        if path2map is not None: 
+            JCmap = plt.imread(path2map)
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+        ax.set_title(rf'$\Delta$ T: Channel {channel}')
+
+        cs = ax.contour(360-np.flipud(lon_m),lat_m,np.sum(DeltaTMap[:1,...],axis=0),levels=DTlevels,alpha=alpha,norm=colors.CenteredNorm(),cmap='coolwarm') 
+        # cs = ax.contour(360-np.flipud(lon_m),lat_m,T_m2+np.sum(DeltaTMap[:itr,...],axis=0),len(T_c)//2,cmap='coolwarm') 
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=r'$\Delta$ T (deg)',cax= cax) 
+
+        if ylim is not None: ax.set_ylim(ylim)
+       
+        if xlim is not None: ax.set_xlim(xlim)
+
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+
+
+
+        if plotitr: 
+            for i in range(itr_c): 
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+
+                if path2map is not None: 
+                    JCmap = plt.imread(path2map)
+                    ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+                ax.set_title(rf'$\Delta$ T: Channel {channel} - Iteration {i}')
+                try: 
+                    cs = ax.contour(360-np.flipud(lon_m),lat_m,DeltaTMap[i,...],DTlevels,alpha=alpha,norm=colors.CenteredNorm(),cmap='coolwarm') 
+                    divider = make_axes_locatable(ax)
+                    cax = divider.append_axes("right", size="2%", pad=0.05)
+                    cb = plt.colorbar(cs,label=r'$\Delta$ T (deg)',cax= cax) 
+                except: 
+                    cs = ax.contour(360-np.flipud(lon_m),lat_m,DeltaTMap[i,...],10,alpha=alpha,norm=colors.CenteredNorm(),cmap='coolwarm') 
+                    divider = make_axes_locatable(ax)
+                    cax = divider.append_axes("right", size="2%", pad=0.05)
+                    cb = plt.colorbar(cs,label=r'$\Delta$ T (deg)',cax= cax)                    
+                # cs = ax.contour(360-np.flipud(lon_m),lat_m,T_m2+np.sum(DeltaTMap[:itr,...],axis=0),len(T_c)//2,cmap='coolwarm') 
+
+
+                if ylim is not None: ax.set_ylim(ylim)
+               
+                if xlim is not None: ax.set_xlim(xlim)
+
+
+                ax.set_ylabel('Latitude (deg)')
+                ax.set_xlabel('Longitude (deg)')
+
+
+                if path2save is not None: 
+                    plt.savefig(path2save+f'Iterations/DeltaTMap_itr{i}_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'Iterations/DeltaTMap_itr{i}_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+                    #plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+        # Plot the final Delta p-map 
+        # ---------------------------------------------------------- 
+
+
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+        if path2map is not None: 
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+        ax.set_title(rf'$\Delta$ p: Channel {channel} ')
+
+        #cs = ax.contour(360-np.flipud(lon_m),lat_m,p_m2 + np.sum(DeltapMap[:itr,...],axis=0),cmap='coolwarm') 
+        cs = ax.contour(360-np.flipud(lon_m),lat_m,np.sum(DeltapMap[:idx_c,...],axis=0),levels=Dplevels,alpha=alpha,norm=colors.CenteredNorm(),cmap='coolwarm') 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-30,30])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=rf'$\Delta$ p (-)',cax=cax) # using the colorbar info I got from contourf
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_DeltapMap_itr{itr_c}_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_DeltapMap_itr{itr_c}_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_DeltapMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+        if plotitr: 
+            for i in range(itr_c): 
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                if path2map is not None: 
+                    ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+                ax.set_title(rf'$\Delta$ p: Channel {channel} - Iteration {i}')
+
+                #cs = ax.contour(360-np.flipud(lon_m),lat_m,p_m2 + np.sum(DeltapMap[:itr,...],axis=0),cmap='coolwarm') 
+                cs = ax.contour(360-np.flipud(lon_m),lat_m,DeltapMap[i,...],10,alpha=alpha,norm=colors.CenteredNorm(),cmap='coolwarm') 
+
+                if ylim is not None: ax.set_ylim(ylim)
+                else: ax.set_ylim([-30,30])
+               
+                if xlim is not None: ax.set_xlim(xlim)
+                else: ax.set_xlim([308,252])
+
+                ax.set_ylabel('Latitude (deg)')
+                ax.set_xlabel('Longitude (deg)')
+
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="2%", pad=0.05)
+                cb = plt.colorbar(cs,label=rf'$\Delta$ p (-)',cax=cax) # using the colorbar info I got from contourf
+
+
+                if path2save is not None: 
+                    plt.savefig(path2save+f'Iterations/DeltapMap_itr{i}_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
+                    plt.savefig(path2save+f'Iterations/DeltapMap_itr{i}_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+                    #plt.savefig(path2save+f'Final_DeltaTMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+
+        # Find maximum and minimum in xlim and ylim region 
+        if ylim is not None:  
+            T_l = np.floor(np.nanmin(TMap[idx_c,...][np.argmin(np.abs(lat_m-ylim[0])):np.argmin(np.abs(lat_m-ylim[1])),: ]))
+            T_u  = np.ceil(np.nanmax(TMap[idx_c,...][np.argmin(np.abs(lat_m-ylim[0])):np.argmin(np.abs(lat_m-ylim[1])),: ]))
+        else: 
+            T_l = np.floor(np.nanmin(TMap[idx_c,...]))
+            T_u  = np.ceil(np.nanmax(TMap[idx_c,...]))
+        
+        Tlevels = np.arange(T_l,T_u,1)
+
+        # Plot the final T-map 
+        # ---------------------------------------------------------- 
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+
+        if path2map is not None: 
+            JCmap = plt.imread(path2map)
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+
+        ax.set_title(rf'T: Channel {channel} - Iteration {itr_c}')
+        cs = ax.contourf(360-np.flipud(lon_m),lat_m,TMap[idx_c,...],Tlevels,alpha=alpha,cmap='coolwarm') 
+
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=r'T (deg)',cax=cax) 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-27.5,0])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        ax.set_ylabel('Latitude (deg)')
+        ax.set_xlabel('Longitude (deg)')
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_TMap_itr{itr_c}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_TMap_itr{itr_c}_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_TMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
+
+        # Plot the final p-map 
+        # ---------------------------------------------------------- 
+        fig, ax = plt.subplots(1, 1,figsize=(16,8))
+        if path2map is not None: 
+            ax.imshow((JCmap),extent=[360,0,-90,90],origin='lower')
+        ax.set_title(rf'p: Channel {channel} - Iteration {itr_c}')
+
+        cs = ax.contourf(360-np.flipud(lon_m),lat_m,pMap[idx_c,...],10,alpha=0.3,cmap='coolwarm') 
+
+        if ylim is not None: ax.set_ylim(ylim)
+        else: ax.set_ylim([-27.5,0])
+       
+        if xlim is not None: ax.set_xlim(xlim)
+        else: ax.set_xlim([308,252])
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        cb = plt.colorbar(cs,label=rf'p (-)',cax=cax) 
+
+
+        if path2save is not None: 
+            plt.savefig(path2save+f'Final_pMap_itr{itr_c}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(path2save+f'Final_pMap_itr{itr_c}_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(path2save+f'Final_pMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+
+
+        return 
+
+
+
+
+
+    def ProduceDeconvolvedMaps(self, channel, lat_range,  filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 10): 
+        ''' 
+
+        import pyPR.JunoTools as jt 
+        pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
+
+
+        PJnumber = 4
+        PJ = jt.PJ(PJnumber)
+        PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
+
+        path2maps = f'PJ{PJnumber}/HST/'
+        path2map = pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
+       
+        savenametail='v3'
+        lat_range = [-60,60]; 
+        # for channel in [1,2,3]:
+        #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=20, lat_convergen_stats=20 )
+        #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+        #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
+ 
+        for channel in [4,5,6]:
+            #TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False,ITR_max=10)
+            path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+            #path2save = None 
+            PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
+
+
+        '''
+        from glob import glob
+        import time
+        from matplotlib.ticker import MaxNLocator
+
+
+
+
+        # Check if output exists 
+        if savenametail is not None: 
+            fpath = self.datapath + f'Deconvolution/C{channel}/'
+            os.makedirs(os.path.dirname(fpath+f'Statistics'), exist_ok=True)
+
+            fname = fpath + f'Map_C{channel}_{savenametail}.npz'
+            if glob(fname): 
+                print(f'Warning: Archive Map_C{channel}_{savenametail} exists and will be overwritten')
+
+
+
+        idxplf = self.lat2ind(lat_range,channel,filter=filter)
+
+        # implement emission angle filter 
+
+        eangle = eval(f'self.C{channel}.eangle[idxplf]')
+        idx_remove = np.where(eangle>eafilter)[0]
+        idxplf = np.delete(idxplf, idx_remove,axis=0)
+
+        # Produce a map based on the zonally averaged quantaties 
+        [T_m,p_m],[lon_m,lat_m] = self.ZonalModelMap(channel)
+
+        # Pre-allicate arrays to save 
+        TMap = np.zeros((ITR_max+1,len(lat_m),len(lon_m)))
+        pMap = np.zeros_like(TMap)
+        DeltaTMap = np.zeros_like(TMap)
+        DeltapMap = np.zeros_like(TMap)
+        NormMap   = np.zeros_like(TMap)
+
+        DeltaT = [] 
+
+        # Convergence statitics. Allocate large number and check progree 
+        DT_avg,DT_std,DT_avg_ir, DT_std_ir  = np.zeros(ITR_max), np.zeros(ITR_max), np.zeros(ITR_max), np.zeros(ITR_max) 
+        
+        convergence = False 
+
+        TMap[0,...] = T_m 
+        pMap[0,...] = p_m 
+
+        itr = 0
+        while not convergence and itr<ITR_max:  
+            itr += 1 
+            t_0 = time.time() 
+            if savenametail is not None: 
+                statplots = f'{savenametail}_i{itr}' 
+            else: 
+                statplots = savenametail 
+            DTMap,DpMap,dT,G = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], ld_strategy='correlation',  beamscaling = 1, hpbwscale=2.5,  asampling=10, statplots=f'{savenametail}_i{itr}', plotting=False,  verbose = False, normalized=False )
+
+            # Updates the models: 
+            T_m +=  DTMap 
+            p_m +=  DpMap 
+
+            # Save iterations 
+            TMap[itr,...]       = T_m
+            pMap[itr,...]       = p_m
+            DeltaTMap[itr-1,...]  = DTMap
+            DeltapMap[itr-1,...]  = DpMap
+            NormMap[itr-1,...]    = G
+
+            DeltaT.append(dT)
+
+            # Converge diagnostic
+            # ---------------------------------------------------------- 
+
+            DT_avg[itr-1] = np.mean(np.abs(dT)) 
+            DT_std[itr-1] = np.std(dT) 
+            
+            # Compute statistics only for inner 20 degree 
+            lat_c_center = eval(f'self.C{channel}.lat_c[idxplf]') 
+            idx_ir = np.where(np.abs(lat_c_center)<lat_convergen_stats)[0]
+
+            if len(idx_ir)<10: 
+                print('Not enough observations available')
+                DT_avg_ir[itr-1] = 0 
+                DT_std_ir[itr-1] = 0 
+            else: 
+                DT_avg_ir[itr-1] = np.mean(np.abs(dT[idx_ir]))
+                DT_std_ir[itr-1] = np.std(dT[idx_ir])
+
+            print(f'Iteration {itr}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
+
+            # Compute the 
+            if itr > 1: 
+                if lat_convergen_stats < 90: 
+                    if DT_avg_ir[itr-2] < DT_avg_ir[itr-1]: 
+                        convergence = True 
+                        nitr = itr-1
+                        nitr_c = itr-2
+                else: 
+                    if DT_avg[itr-2] < DT_avg[itr-1]: 
+                        convergence = True 
+                        nitr = itr-1
+                        nitr_c = itr-2
+            
+
+        if not convergence : 
+            print(f'System did not converge in {ITR_max} iterations')
+            nitr = itr
+            nitr_c = itr
+
+        print(nitr, nitr_c)
+
+        if savenametail is not None:  
+            np.savez(fname,DeltaT=DeltaT, TMap=TMap[:nitr,...], pMap=pMap[:nitr,...], DeltaTMap=DeltaTMap[:nitr,...], DeltapMap=DeltapMap[:nitr,...], NormMap=NormMap[:nitr,...], lat=lat_m, lon=lon_m, nitr = nitr, n_convergence=nitr_c)
+            print(f'Map saved to {fname}')
+
+            fig, ax = plt.subplots(1, 1,figsize=(8,6))
+            ax.plot(np.arange(nitr),DT_avg,     '*',linewidth=5,color='blue', label='Mean: global') 
+            ax.plot(np.arange(nitr),DT_avg_ir,  '*',linewidth=5,color='red', label=f'Mean: lat <{lat_convergen_stats}') 
+            ax.plot(np.arange(nitr),DT_std,     'o',linewidth=5,color='blue', label='STD: global') 
+            ax.plot(np.arange(nitr),DT_std_ir,  'o',linewidth=5,color='red', label=f'STD: lat <{lat_convergen_stats}') 
+
+            # Updated number of expected measurement noise  0.1% based on Table 2 and Table 7 from Janssen et al. DOI 10.1007/s11214-017-0349-5
+            ax.set_ylabel(r'$\Delta T$ ')
+            ax.set_xlabel('Iteration')
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            ax.plot( [nitr_c-1, nitr_c-1],[np.min(DT_avg), np.max(DT_avg)],linestyle='--',color='gray')
+            ax.legend()
+        
+            plt.savefig(fpath+f'Figures/Statistics/Convergence_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(fpath+f'Figures/Statistics/Convergence_{savenametail}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            #plt.savefig(fpath+f'Statistics/Convergence'+'.eps', format='eps', transparent = True, dpi=500)
+
+
+        return TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT
+
+    
+
+    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, plotting=False, statplots=False, verbose=False, normalized=False ):
+        """
+        Convolve a single beam with an apriori map and obtain the difference 
+    
+        Convolve a given observation geometry with an apriori estimate and compare 
+        it to the actual observed brightness. Differences can be used to build up 
+        the deconvolved temperature maps.   
+
+        Note this code takes about 50% longer than running it all in a single for loop. 
+        Should be used for parrallelizing  
+        
+        Parameters
+        -------
+        T_obs : [1] float
+            [K] Beamconvolved temperature 
+        idx : [1] int
+            [-] Index of observation(s) 
+        channel : [1] int
+            [-] Channel number 
+        Maps : [2,3600,1800] float
+            [-] (T,p) A priori estimate for the Temperature and limb-darkening map 
+                      Size is controlled by mapstep 
+
+
+        Returns
+        ----------
+        GMap [3600,1800] float 
+            [-]: Contribution from the beam element 
+        TMap [3600,1800] float 
+            [-]: Temperature differential map 
+        pMap [3600,1800] float 
+            [-]: Limb-darkening differential map 
+        DeltaT [1] float 
+            [-]: Difference between model map and actual observation 
+
+        Keywords
+        ----------
+        ld_strategy : [ ] str 
+            [-]: Strategy for dealing with the correlation between T and p 
+                'local' Use the limb-darkening at the beam center to correct 
+                        update measurements 
+                'correlation' Find correlation between T and p based on all observations 
+                        in the region defined by the beam 
+                'global' Find a globalc correlation between T and p  
+        beamscaling : [1] float
+            [-]: Scaling of the size of the gaussian to add back. 
+                 It could be as small as point source convolved by the beam or as 
+                 as large the full beam 
+        hpbwscale : [1] float
+            [-]: Integration region for the beam-convolution. 
+                1 corresponds to integrating to one hpbw region 
+        plotting: [] boolean  
+            [-]: If plots of the limb-darkening and the convolution should be made 
+        asampling : [1] int
+            [-]: Azimuths sampling to subsample the beam. 
+                 Nominally there aer 360 azimuth region  
+        statplots: [] str
+            [-]: Str to append to filename for statistics plots 
+
+        Example
+        -------
+        import pyPR.JunoTools as jt 
+        import numpy as np 
+        import time 
+
+        pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
+
+       
+        PJnumber = 4
+        PJ = jt.PJ(PJnumber)
+        PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
+        
+        lat_range = [-20,20] 
+        for channel in [5]:
+            idxplf = PJ.lat2ind(lat_range,channel,filter=False)
+    
+            # How to deal with NaNs 
+            T_z = eval(f'PJ.C{channel}.T_n') # Zonal temperature 
+            p_z = eval(f'PJ.C{channel}.p') # Zonal limb-darkening  
+            lat_z = eval(f'PJ.C{channel}.lat_c_i') 
+
+            mapstep = 0.1
+            lat_m = np.arange(-90,90,mapstep) # (deg) Latitude model 
+            lon_m = np.arange(0,360,mapstep) # (deg) Longitude model 
+            
+
+            idx_obs = np.isfinite(T_z)
+            T_ap  = np.interp(lat_m,lat_z[idx_obs],T_z[idx_obs])
+            p_ap  = np.interp(lat_m,lat_z[idx_obs],p_z[idx_obs])
+
+            # Make a 2D map based on the 1D zonal average 
+            T_m = np.tile(T_ap,( len(lon_m),1)).T
+            p_m = np.tile(p_ap,( len(lon_m),1)).T
+
+            idx = idxplf[len(idxplf)//2]
+
+
+            beamscaling = 1; hpbwscale=2; asampling=10
+            statplots=None#f'_bs{beamscaling}_hs{hpbwscale}_as{asampling}'  
+
+            t_0 = time.time() 
+            DT,DP,dT,G = PJ.BeamDeconvolution(idxplf[2303], channel, [T_m,p_m], ld_strategy='correlation', statplots=statplots,  beamscaling = beamscaling, hpbwscale=hpbwscale,  asampling=asampling, plotting=True,  verbose = False, normalized=False )
+            print(f' Elapsed time {(time.time() - t_0)/60:2.2f}min')
+
+            # Updates the models: 
+            T_m +=  DT 
+            p_m +=  DP 
+
+            # Plot the results
+            # ---------------------------------------------------------- 
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            import matplotlib.colors as colors
+            import matplotlib.pyplot as plt
+
+            fig, ax = plt.subplots(1, 1,figsize=(16,8))
+            ax.set_title(rf'$\Delta$ T: Channel {channel} - Itr {itr}')
+            cs = ax.contourf(360-np.flipud(lon_m),lat_m,DT,15,alpha=0.3,cmap='coolwarm') 
+
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="2%", pad=0.05)
+            cb = plt.colorbar(cs,label=r'$\Delta$ T (deg)',cax= cax) 
+            ax.set_ylim([-27.5,0])
+            ax.set_xlim([308,252])
+            ax.set_ylabel('Latitude (deg)')
+            ax.set_xlabel('Longitude (deg)')
+
+            fname = self.datapath + f'Deconvolution/C{channel}/Figures/Statistics/'
+            os.makedirs(os.path.dirname(fname), exist_ok=True)  
+            plt.savefig(fname+f'Tmap_{statplots}'+'.png', format='png', transparent = True, dpi=500)
+            plt.savefig(fname+f'Tmap_{statplots}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            
+
+
+        Warnings
+        -------
+
+        References
+        ------------
+
+        Notes
+        -------
+        5/28/2023 CM, Initial Commit
+        """
+
+        from   scipy.stats import multivariate_normal
+        import time 
+        from matplotlib.patches import Ellipse
+        from glob import glob
+        from tqdm import tqdm
+
+
+
+        if np.size(idxs) == 1: idxs = [idxs]
+
+
+        # Unpack variables 
+        # ------------------------------------------------------------------
+        T_m, p_m = Maps 
+
+
+        # Load in the beam 
+        # ------------------------------------------------------------------
+        t0 = time.time() 
+        path_B = path_J + 'Beam/'
+        G_raw,t,p, hpbw   = readJunoBeam(path_B,channel,normalized=normalized) 
+        G = 10**(0.1*G_raw)
+        if verbose: print(f'Reading beam {time.time() -t0:2.5f}')
+        # Using linspace so that the endpoint of 360 is included...
+        elevation  = np.degrees(t) #theta -> outwards radial component 
+        azimuths = np.degrees(p) # phi -> contours around the beam
+        
+        # Set the extent over which we integrate 
+        # ------------------------------------------------------------------
+        hpbw = eval(f'self.C{channel}.hpbw')
+        radialextent = hpbw/2*hpbwscale 
+
+        # Pre-allocate arrays 
+        # ------------------------------------------------------------------
+        N = np.size(idxs) 
+        M = int(np.ceil(radialextent )) # Elevation, Integration regions for convolution 
+        O = int(len(azimuths)/asampling) # Azimuth Resolution for azimuths 
+
+        mu_i = np.zeros((M,O))  # Emission angle for a given beam element 
+        fp_i = np.zeros((M,O,2)) # elevation, Longitude , Latitude 
+        beamshape = np.zeros(5) # Beamshape (center, axis, angle)
+        fp_gb  = np.zeros((O,2)) # Longitude , Latitude 
+
+        # Build output maps 
+        mapstep = 360/np.max( np.shape(T_m))
+        lat_m = np.arange(-90,90,mapstep) # (deg) Latitude model 
+        lon_m = np.arange(0,360,mapstep) # (deg) Longitude model 
+        
+        GMap = np.zeros_like(T_m)
+        TMap = np.zeros_like(T_m)
+        pMap = np.zeros_like(T_m)
+
+        assert T_m.shape == (len(lat_m),len(lon_m))
+
+
+        # Matrix containing the indices (lon, lat) that correspond to each beam element 
+        IDXmap = np.zeros((M,O,2)).astype(int)
+
+        DeltaT = np.zeros(N)
+
+        n = 0;     
+        idx_remove = []    
+        for idx in tqdm(idxs): 
+            # Read in the observation geometry for selected observation 
+            # ------------------------------------------------------------------
+            beam = [np.radians(eval(f'self.C{channel}.lon[idx]')), np.radians(eval(f'self.C{channel}.lat_c[idx]')) ]
+            obs  = [np.radians(self.ob_lon[idx]), np.radians(self.ob_lat_c[idx]) ]
+            dist =  self.range[idx]*1e3
+
+            if verbose: print(f'Initializing {time.time() -t0:2.5f}')
+            # Compute the beam statistics 
+            # ------------------------------------------------------------------
+            for m in range(0,M):
+                # Local radius 
+                r_s = local_radius(beam[0],beam[1],np.array([71492000., 71492000., 66854000.]))
+                [lon_fp,lat_fp],horizon,eangle = ProjectedFootprint2([ r_s, beam[0], beam[1]],[dist, obs[0], obs[1]],azimuths[m], n = int(len(azimuths)/asampling))
+
+                # If a beam element is off the planet 
+                if np.sum(np.isnan(lon_fp))>1: 
+                    #print(f'{idx} We are far above the sea @ {m} deg')
+                    mu_i[m,:] = np.ones(O)*np.nan  
+                    fp_i[m,:,:] = np.ones((O,2))*np.nan 
+                    idx_remove.append(n)
+                    break  
+
+                # This needs to be checked, but probably due to East longitude convention 
+                #lon_fp = 2*np.pi - lon_fp  
+                lon_fp = np.mod(-lon_fp,2*np.pi)
+
+                # Save all the values into pre-allocated array 
+                mu_i[m,:] = eangle 
+                fp_i[m,:,:] = np.array([lon_fp,lat_fp]).T 
+
+                # Find the closest index for each footprint 
+                IDXmap[m,:,:] =  np.array([np.mod(np.round(lon_fp/np.radians(mapstep)),360/mapstep-1),np.round(lat_fp/np.radians(mapstep) + len(lat_m)//2)]).T.astype('int')
+
+                # Test if mapping works out 
+                # [np.argmin(np.abs(x-np.radians(lon_m))) for x in lon_fp ] - np.round(lon_fp/np.radians(0.1)).astype(int)
+                # [np.argmin(np.abs(x-np.radians(lat_m))) for x in lat_fp ] - np.round(lat_fp/np.radians(0.1) + len(lat_m)//2).astype(int)
+
+            # if there is a problem for a given footprint just skip the rest of the loop. 
+            if np.any(np.isnan(mu_i)): continue  
+            if verbose: print(f'Geometry {time.time() -t0:2.5f}')
+
+
+            # Compute the size and location of the beamshape 
+            # ------------------------------------------------------------------
+            fp_gb[:,0] = fp_i[int(hpbw/2*beamscaling),:,0]
+            fp_gb[:,1] = fp_i[int(hpbw/2*beamscaling),:,1]
+
+            C,A,a = fitting_ellipse(fp_gb[:,0],fp_gb[:,1] ,plotting=False) # Orientation of the mean beam 
+            beamshape[:2] = C; beamshape[2:4] = A; beamshape[4] = a
+
+            # 2D gaussian defined by the beam shape 
+            # ------------------------------------------------------------------
+            # Create Covariance matrix: Diagonal elements are the axis  
+            Sigma = np.array([[np.degrees(beamshape[2])**2,0],[0,np.degrees(beamshape[3])**2]])
+
+            # Create off-diagonal elements 
+            alpha =  np.mod(beamshape[4],2*np.pi) 
+            c, s = np.cos(alpha), np.sin(alpha)
+            Rot = np.array([[c, -s], [s, c]])
+
+            # Transformation matrix
+            if Rot[0,0]<0:
+                COV = -Rot@Sigma@-Rot.T
+            else: 
+                COV = Rot@Sigma@Rot.T
+
+            try:    
+                # Speed up by subsampling 
+                # lat_ms = np.arange(np.round(np.min(np.degrees(fp_gb[:,1])),1),np.round(np.max(np.degrees(fp_gb[:,1])),1),0.1)
+                # lon_ms = np.arange(np.round(np.min(np.degrees(fp_gb[:,0])),1),np.round(np.max(np.degrees(fp_gb[:,0])),1),0.1) 
+                
+                lat_ms = np.arange(np.round(np.min(np.degrees(fp_i[-1,:,1])),1),np.round(np.max(np.degrees(fp_i[-1,:,1])),1),0.1)
+                lon_ms = np.arange(np.round(np.min(np.degrees(fp_i[-1,:,0])),1),np.round(np.max(np.degrees(fp_i[-1,:,0])),1),0.1) 
+                
+                x, y = np.meshgrid(lon_ms, lat_ms)
+                poss= np.dstack((x, y))
+                # https://datascienceplus.com/understanding-the-covariance-matrix/ 
+                Gbeam = multivariate_normal([np.degrees(beamshape[0]),np.degrees(beamshape[1])], COV, allow_singular=True).pdf(poss) 
+
+                # Ignore small numbers. Normally not a problem because the Gaussian hasn't converged to those small numbers 
+                Gbeam[Gbeam<1e-3] = 0 
+
+                if np.sum(np.isnan(Gbeam))>1: 
+                    print('Gaussian contains NAN')
+                    print(f'Channel {channel}, idx {idx}')  
+
+            except: 
+                print('Something went wrong with the beam projection')
+                print(alpha*57.3)
+                print(COV)
+                idx_remove.append(n)
+                continue   
+
+            if verbose: print(f'Gaussian {time.time() - t0:2.5f}')
+
+            if plotting: 
+                # Plot the Gaussian onto the beam shape 
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                ax.set_aspect('equal')
+                cs = ax.contour(lon_ms,lat_ms,Gbeam,10 ) 
+                cs = ax.contourf(lon_m,lat_m,T_m, cmap=cm.coolwarm )
+                ellipse = Ellipse(xy=(np.degrees(beamshape[0]),np.degrees(beamshape[1])), width=np.degrees(beamshape[2])*2, height=np.degrees(beamshape[3])*2, 
+                                        edgecolor='black', fc='None', lw=2, angle=np.degrees(alpha))
+                ax.plot(np.degrees(fp_gb[:,0]),np.degrees(fp_gb[:,1]))
+                ax.set_title('Sigma/2')
+                ax.add_patch(ellipse) 
+                ax.invert_xaxis() 
+                # ax.set_ylim([-25,0])
+                # ax.set_xlim([286,265])
+                cb = plt.colorbar(cs)  # using the colorbar info I got from contourf
+
+                plt.figure(1) 
+                plt.plot(lon_ms,Gbeam[np.argmin(np.abs(lat_ms-24.3)),:],label=f'{alpha*57.3}')
+
+            #--------------------- Limb-darkening approach ---------------------------------
+            # How to deal with the limb-darkening. Each observations has to be corrected for the limb-darkening for each beam element. 
+            # Option 1: Use local limb-darkening for the given latitude 
+            # Option 2: Use mission averaged limb-darkening parameter 
+            # Option 3: Normalize around lat and Find correlation for p vs T (local) 
+
+
+            # Tvp_c 1st order polynominal fit for correlation between nadir temperature and limb-darkening. 
+
+            if ld_strategy == 'local': 
+                # Use limb-darkening at a given location: 
+                Tvp_c = [0,0] # In this case the limb-darkeing map is never updated 
+
+            elif ld_strategy == 'global': 
+                # Use limb-darkening correlation between temperature and limb-darkening from the first 12 perijoves 
+                raise AttributeError('Not yet implemented') 
+                Tvp_c = [0,0] # In this case the limb-darkeing map is never updated 
+              
+                # Can you derive a relationship between the T and p? 
+
+            elif ld_strategy == 'correlation': 
+
+                T_z = eval(f'self.C{channel}.T_n') # Zonal temperature 
+                p_z = eval(f'self.C{channel}.p') # Zonal limb-darkening  
+                lat_z = eval(f'self.C{channel}.lat_c_i') 
+
+
+                # Use the width of the gaussian beam as an indication for the region to cover 
+                # Start with Gaussian beam width, anything larger just doens't matter too much 
+
+                # Local expansion around the 1 hpbw contour 
+                llim = np.where(lat_z>np.min(np.degrees(fp_gb[:,1])))[0][0]
+                ulim = np.where(lat_z<np.max(np.degrees(fp_gb[:,1])))[0][-1]
+
+                # Alternative to use more of the beam 
+                # llim = np.where(lat_z>np.min(np.degrees(fp_i[-1][:,1])))[0][0] 
+                # ulim = np.where(lat_z<np.max(np.degrees(fp_i[-1][:,1])))[0][-1]
+
+
+                # # Find a rough correlation between T and p for the given region 
+                # Note this will only work if there are no NaNs in there 
+                if np.any(np.isnan(T_z[llim:ulim])) or np.any(np.isnan(p_z[llim:ulim])):
+                    print(f'NaNs encountered at {lat_z[ulim]:2.2f}-{lat_z[llim]:2.2f} deg. Attempting to ignore the NaN values and continue')
+                    idxT = np.isfinite(T_z[llim:ulim])
+                    idxp = np.isfinite(p_z[llim:ulim])
+                    Tvp_c = np.polyfit(T_z[llim:ulim][idxT*idxp],p_z[llim:ulim][idxT*idxp],1)
+                else: 
+                    Tvp_c = np.polyfit(T_z[llim:ulim],p_z[llim:ulim],1)
+
+                if plotting: 
+                    T_c = np.arange(np.floor(np.nanmin(T_z[llim:ulim])),np.ceil(np.nanmax(T_z[llim:ulim])),1)
+                    Tvp = T_c*Tvp_c[0] + Tvp_c[1] 
+
+                    fig, axs = plt.subplots(1, 1,figsize=(8,8))
+                    Z = [[0,0],[0,0]]
+                    levels = range(int(np.floor(lat_z[llim])),int(np.ceil(lat_z[ulim])),1)
+                    CS3 = axs.contourf(Z, levels, cmap=cm.magma )
+                    for coll in CS3.collections:
+                        coll.remove()
+
+                    cs = axs.scatter(T_z[llim:ulim],p_z[llim:ulim],c=cmap((lat_z[llim:ulim] - lat_z[llim])/(lat_z[ulim]-lat_z[llim])))
+                    axs.plot(T_c,Tvp,linewidth=4,linestyle='--',color='gray')
+                    axs.set_ylim([Tvp[0]*0.9,Tvp[-1]*1.1])
+                    axs.set_xlim(T_c[0],T_c[-1])
+                    axs.set_ylabel('Limb darkening ')
+                    axs.set_xlabel('Temperature (K) ')
+
+                    plt.colorbar(CS3,label='lat (deg)')  
+            
+            if verbose: print(f'LD {time.time() - t0:2.5f}')
+
+            #--------------------- Convolution ---------------------------------
+            # Obtain the temperature and ld for each beam 
+            T_b = T_m[IDXmap[:,:,1],IDXmap[:,:,0]]
+            p_b = p_m[IDXmap[:,:,1],IDXmap[:,:,0]]
+
+            # Convolve the beam sensitivity with model temperature and limb-darkening parameters 
+            T_beam = np.sum(          (G[0:M,::asampling])*T_b*np.cos(mu_i)**p_b )/np.sum(          (G[0:M,::asampling]))
+
+            
+            '''
+            # Effect of beam rotation is 1e-5 
+            # To study the effect of beam rotation 
+            print(np.degrees(beamshape))
+            Beam1 = np.sum( np.flipud(G[0:M,::asampling])*T_b*np.cos(mu_i)**p_b )/np.sum( np.flipud(G[0:M,::asampling])) 
+            Beam2 = np.sum(           (G[0:M,::asampling])*T_b*np.cos(mu_i)**p_b )/np.sum(         (G[0:M,::asampling]))
+            Beam3 =  np.sum(          (G[0:M,::-asampling])*T_b*np.cos(mu_i)**p_b )/np.sum(        (G[0:M,::-asampling]))
+            Beam4 =  np.sum( np.flipud(G[0:M,::-asampling])*T_b*np.cos(mu_i)**p_b )/np.sum(np.flipud(G[0:M,::-asampling]))
+            
+            print(Beam1,Beam2,Beam3,Beam4) 
+
+            '''
+
+            if np.isnan(T_beam):
+                print(idx)
+                idx_remove.append(n)
+                continue 
+            else: 
+                DeltaT[n] = eval(f'self.C{channel}.T_a[idx]')  - T_beam
+
+            if verbose: print(f'Beam Conv {time.time() - t0:2.5f}')
+
+
+            # Add back a gaussian with the same integrated temperature signal as the difference 
+
+            # We add it back into total map 
+            idx_lat_gb = np.argmin(np.abs(lat_m -lat_ms[0] ))
+            idx_lon_gb = np.argmin(np.abs(lon_m -lon_ms[0] ))
+
+            # Instead of building up a map of N, let's preserve memory and just add it 
+            GMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam
+
+            #  Normalize so that the Gaussian is peaked at 1 
+            # Add the beam to the temperature map for the indicated subsampling region 
+            TMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]
+            pMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]*Tvp_c[0]
+
+            n += 1
+
+
+
+            if verbose: print(f'Assigning {time.time() - t0:2.5f}')
+
+        # Compute the normalization map. Regions where we have no information are heavily downweighted  
+        NormMap = GMap  
+        NormMap[GMap<1] = 1/GMap[GMap<1]
+
+
+        # Update the model map 
+        DeltaTMap   = TMap/NormMap # Normalize the map by number of beams 
+        DeltapMap   = pMap/NormMap # Normalize the map by number of beams 
+        DeltaTMap[np.isnan(DeltaTMap)] = 0   
+        DeltapMap[np.isnan(DeltapMap)] = 0   
+
+        # Remove 
+        idxs = np.delete(idxs, idx_remove,axis=0)
+        if len(idx_remove) > 0:
+            print(f'Remove the following idx because they had beam elements off the limb:\n {idxs[idx_remove]}')
+
+
+        if statplots is not None: 
+            # Delta T 
+            if len(idxs) == len(DeltaT):
+                fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                cs = ax.scatter( eval(f'self.C{channel}.lat_c[idxs]'), DeltaT, s=1 ,c=eval(f'self.C{channel}.eangle[idxs]') )
+                plt.ylabel(r'$\Delta$ T (K)') 
+                plt.xlabel('Latitude (deg)')
+                plt.colorbar(cs, label='Emission angle')
+                plt.title(f'C{channel} - Iteration: {statplots[-1]} ')
+                fname = self.datapath + f'Deconvolution/C{channel}/Figures/Statistics/'
+
+                os.makedirs(os.path.dirname(fname), exist_ok=True)
+
+                plt.savefig(fname+f'DTvslat_{statplots}'+'.png', format='png', transparent = True, dpi=500)
+                plt.savefig(fname+f'DTvslat_{statplots}'+'.pdf', format='pdf', transparent = True, dpi=500)
+            else: 
+                XKCD
+                print('Stats plotting failed')
+        return DeltaTMap, DeltapMap, DeltaT, NormMap 
+
+
 
 
     def DeconvolveBeams(self, lat_range, channel, fltr=True, sampling=10, I_max = 6, beamscaling = 0.5, verbose=False, plotting=False, path2map=None, path2save=None, savedata=True): 
         ''' Deconvolve Juno beams and get sub beam resolution 
 
-
+    
         import pyPR.JunoTools as jt 
-        PJnumber = 4; 
+        import gc 
+        
+        # for PJnumber in [1]:
+        PJnumber = 1
 
-        lats = [-13]; latlim = 10
-        lat_range = [lats[0]-10,lats[0]+10]
+        lats = [10]; latlim = 12
+
+        lat_range = [-25,25] # lat_range = [-20,8]
         PJ = jt.PJ(PJnumber)
-        pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
+        pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
         PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
         for channel in [4]:
         
             path2save = pathJ + f'PJ{PJnumber}/Deconvolution/C{channel}/'
 
             path2maps = f'PJ{PJnumber}/HST/'
-            path2map = pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
+            path2map = None # pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
 
-            T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap, _ = PJ.DeconvolveBeams(lat_range,channel,plotting=True,path2map=path2map,path2save=path2save) 
+            T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap, _ = PJ.DeconvolveBeams(lat_range,channel,sampling=20, plotting=True,path2map=path2map,path2save=path2save) 
             
-            del T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap, GMap
-            plt.close('all')
-
+            del T_0, p_0, Res, DeltaT, DeltaTMap, DeltapMap, NormMap
+            gc.collect() 
+            
 
 
         '''
@@ -1832,7 +2858,10 @@ class PJ:
 
 
         from   scipy.stats import multivariate_normal
+        from matplotlib.patches import Ellipse
         import time 
+
+
   
 
         #--------------------- Observations ---------------------------
@@ -2007,7 +3036,14 @@ class PJ:
  
         # # Find a rough correlation between T and p for the given region 
         T_c = np.arange(np.floor(np.nanmin(T_z)),np.ceil(np.nanmax(T_z)),1)
-        Tvp_c = np.polyfit(T_z[llim:ulim],p_z[llim:ulim],1)
+        # Note this will only work if there are no NaNs in there 
+        if np.any(np.isnan(T_z[llim:ulim])) or np.any(np.isnan(p_z[llim:ulim])):
+            print('NaNs encountered in the reduced data. Attempting to ignore the NaN values and continue')
+            idxT = np.isfinite(T_z[llim:ulim])
+            idxp = np.isfinite(p_z[llim:ulim])
+            Tvp_c = np.polyfit(T_z[llim:ulim][idxT*idxp],p_z[llim:ulim][idxT*idxp],1)
+        else: 
+            Tvp_c = np.polyfit(T_z[llim:ulim],p_z[llim:ulim],1)
         Tvp = T_c*Tvp_c[0] + Tvp_c[1] 
 
 
@@ -2175,6 +3211,9 @@ class PJ:
 
         path2save = path_J + f'PJ{PJnumber}/Deconvolution/C{channel}/'
 
+
+
+
         '''
 
     
@@ -2208,7 +3247,7 @@ class PJ:
         # ---------------------------------------------------------- 
 
         fig, ax = plt.subplots(1, 1,figsize=(8,6))
-        ax.plot(np.arange(I),Res/(N*0.5)*100,'*',linewidth=5) 
+        ax.plot(np.arange(I),Res/(N*2*np.nanmax(T_0)*0.1/100)*100,'*',linewidth=5) 
         # Updated number of expected measurement noise  0.1% based on Table 2 and Table 7 from Janssen et al. DOI 10.1007/s11214-017-0349-5
         ax.plot(np.arange(I),np.ones(I)*100,color='gray',linestyle='--',linewidth=2)
         ax.set_ylabel('Residual (%)')
@@ -2634,7 +3673,7 @@ class PJ:
         '''
 
         import pyPR.JunoTools as jt 
-        PJnumber = 3
+        PJnumber = 1
         PJ = jt.PJ(PJnumber)
         pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
         PJ.readdata(pathJ,load=True) 
@@ -3263,6 +4302,7 @@ class PJ:
         PJnumber = 1
         PJ = jt.PJ(PJnumber)
         pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
+        pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
         PJ.readdata(pathJ,quicklook=False, load = True)
         n = 100
         T_n_i, p_i, lat_i, w_i, sig_T_i, sig_p_i = PJ.zonalaverage(2,plotting=False,window=n)
@@ -4196,14 +5236,17 @@ class PJ:
             ---------
 
             import pyPR.JunoTools as jt 
+            import numpy as np 
+            import matplotlib.pyplot as plt 
+
             PJnumber = 1
             PJ = jt.PJ(PJnumber)
-            pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
+            pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
             PJ.readdata(pathJ,load=True,dataversion=1) 
 
 
             rotnum = -30
-            channel = 5
+            channel = 2
             # plt.close('BeamConvolved')
             # fig, axs = plt.subplots(1, 1,figsize=(8,8),num='BeamConvolved')
 
@@ -7091,6 +8134,7 @@ def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False,
     Example
     -------
     import pyPR.JunoTools as jt
+    import numpy as np 
 
     # PJ 4, Rotation -10, Channel 2, ind_pl[3] 
     beam = ([1.53903133, 0.35227726])
@@ -7102,16 +8146,17 @@ def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False,
     channel = 2 
 
 
-
-    ea1 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=True,sampling=1,plotting=True)
-    ea2 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=True,sampling=2,plotting=True)
-    ea4 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=True,sampling=4,plotting=True)
-    ea10= jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=True,sampling=10,plotting=True)
+    normalized = True; plotting = False 
+    ea1 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=1,plotting=plotting)
+    ea2 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=2,plotting=plotting)
+    ea4 = jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=4,plotting=plotting)
+    ea10= jt.BeamConvolvedEmission2(beam,obs,dist,channel,radialextent,normalized=normalized,sampling=10,plotting=plotting)
 
     print(np.degrees(ea1),np.degrees(ea2),np.degrees(ea4),np.degrees(ea10)) 
-    print(f'2 deg step: Difference in deg {np.degrees(ea2-ea1)}, Difference in percent {(ea2-ea1)/ea1*100}')
-    print(f'4 deg step: Difference in deg {np.degrees(ea4-ea1)}, Difference in percent {(ea4-ea1)/ea1*100}')
-    print(f'10 deg step: Difference in deg {np.degrees(ea10-ea1)}, Difference in percent {(ea10-ea1)/ea1*100}')
+
+    # print(f'2 deg step: Difference in deg {np.degrees(ea2-ea1)}, Difference in percent {(ea2-ea1)/ea1*100}')
+    # print(f'4 deg step: Difference in deg {np.degrees(ea4-ea1)}, Difference in percent {(ea4-ea1)/ea1*100}')
+    # print(f'10 deg step: Difference in deg {np.degrees(ea10-ea1)}, Difference in percent {(ea10-ea1)/ea1*100}')
 
     '''
     from astropy.convolution import Gaussian1DKernel, interpolate_replace_nans 
@@ -7121,7 +8166,14 @@ def BeamConvolvedEmission2(beam,obs,dist,channel,radialextent, normalized=False,
 
     #path_B = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/Beam/'
     path_B = path_J + 'Beam/'
-    G,p,t, hpbw   = jt.readJunoBeam(path_B,channel,normalized=normalized) 
+    
+    # # This is probably not correct 
+    # G,p,t, hpbw   = jt.readJunoBeam(path_B,channel,normalized=normalized) 
+
+    # # This is correct 
+    G_raw,p,t, hpbw   = jt.readJunoBeam(path_B,channel,normalized=normalized) 
+    G = 10**(0.1*G_raw)
+    # print('Updated G')
 
 
     #-- Generate Data -----------------------------------------

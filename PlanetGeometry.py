@@ -1812,7 +1812,33 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     ob_lat_d = np.radians(46.259246) 
     ob_lon = np.radians(228.132784)
     axis , center = pg.rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
-    
+        
+    import pyPR.PlanetGeometry as pg 
+    area = np.zeros((2,181))
+    lat_a = np.array([31,46])
+    lon_a = np.arange(0,181,1)
+    for i in range(len(lat_a)): 
+        for j in range(len(lon_a) ): 
+            # Example for Uranian moons 
+            R = np.array([12,3.5,6])
+            ob_range =  18.8324879927471*149
+            ob_lat_d = np.radians(lat_a[i]) 
+            ob_lon = np.radians(lon_a[j])
+            axis , center = pg.rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range)
+            area[i,j] = axis[0]*axis[1]
+            #print(f'Lat {lat:2.1f}, Lon {lon:2.1f}, Area {area:2.0f}')
+
+    plt.figure() 
+    plt.plot(lon_a-90, area[0],label=f'lat_so: {lat_a[0]} deg' ) 
+    plt.plot(lon_a-90, area[1],label=f'lat_so: {lat_a[1]} deg' ) 
+    plt.title('a = 12, b = 6, c = 3.5')
+    plt.ylabel('Area (km**2)')
+    plt.xlabel('Longitude')
+    plt.legend() 
+
+
+
+
     # Expected return array([59082.54146921, 37395.41267873])
 
     Warnings
@@ -1852,11 +1878,11 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     # Obtain the coordinates of the observer in an Jovian-centered frame 
     r_J = geo2eci(ob_range+r_s,ob_lon,ob_lat_c).reshape(3,1)
     # Normalized vector to define projection plane 
-    n = -r_J/npl.norm(r_J) 
+    n = r_J/npl.norm(r_J) 
 
     # A plane is defined by a point and a normal (Use the y intercept with the body 
     # Plane not going through origin, but through point x_s 
-    x_s = np.array([0,0,0]) 
+    x_s = np.array([1,1,1]) 
     lam = np.dot(n.T,x_s)
 
     # Ellipsoid is defined as x.T*A*x + b*x + c = 0 

@@ -10,7 +10,7 @@ import sys, os, warnings
 import numpy as np
 
 # Debug 
-import warnings
+import warning539752s
 import IPython
 
 
@@ -947,7 +947,7 @@ def parrallel_Miriad_script(m_ncore, uvfits, latrange, latint, cell,
             fo.write('$maxlat = {:2.10f};       # Max latitude\n'.format(lat_upper))
             fo.write('$minlon = 0;        # Min longitude (degrees)\n')
             fo.write('$maxlon = 360;      # Max longitude\n')
-            fo.write('$latint = {:2.1f};      # Increment in latitude for facets, in degrees.\n'.format(latint))
+            fo.write('$latint = {:2.0f};      # Increment in latitude for facets, in degrees.\n'.format(latint))
             fo.write('$imsize = 150;          # Facet pixel size.\n')
             if fwhm is None:
                 fo.write('#$fwhm_km = 3200;       # Optional extra smoothing function.\n')
