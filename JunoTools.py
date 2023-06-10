@@ -982,7 +982,7 @@ class PJ:
             self.C4.eea = np.zeros_like(self.C4.eangle)*np.nan
             self.C4.beamcutoff =  self.beamoffset
             for j in self.C4.indices_planet: 
-                self.C4.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C4.lon[j],self.C4.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C4.hpbw*self.C4.beamcutoff,sampling=self.beamsampling ))
+                self.C4.eea[j] = np.degrees(BeamConvolvedEmission2(np.radians([self.C4.lon[j],self.C4.lat_c[j]]),np.radians([self.ob_lon[j],self.ob_lat_c[j]]),self.range[j]*1e3,chn,self.C4.hpbw*self.C4.beamcutoff, self.path+'Beam/',sampling=self.beamsampling ))
             self.C4.indices_planet = self.indices[np.where(np.isfinite(self.C4.eea))].astype(int)
 
         # Compute the uncleaned zonal average
