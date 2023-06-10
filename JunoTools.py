@@ -3949,8 +3949,7 @@ class PJ:
         import matplotlib.pyplot as plt 
 
         PJ = jt.PJ(3)
-        pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
-        PJ.readdata(pathJ) 
+        PJ.readdata(self.path) 
 
 
         self = PJ
@@ -4086,8 +4085,7 @@ class PJ:
         import matplotlib.pyplot as plt 
 
         PJ = jt.PJ(3)
-        pathJ = '/Users/chris/GDrive-UCB/Berkeley/Research/Juno/'
-        PJ.readdata(pathJ) 
+        PJ.readdata(self.path) 
 
 
         self = PJ
@@ -4853,8 +4851,8 @@ class PJ:
 
         # Find mean and std (if possible read in unbiased orbit mean) 
         PJmean = '1-12'
-        if glob.glob(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz'): 
-            p_mean   = np.interp(lat_fit,np.load(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz')['lat'],np.load(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz')['p_bf'][channel-1,:])
+        if glob.glob(self.path+f'PJ{PJmean}/PJ{PJmean}_v03.npz'): 
+            p_mean   = np.interp(lat_fit,np.load(self.path+f'PJ{PJmean}/PJ{PJmean}_v03.npz')['lat'],np.load(self.path+f'PJ{PJmean}/PJ{PJmean}_v03.npz')['p_bf'][channel-1,:])
         else: 
             p_mean = np.nanmean(p[ind_mean])*np.ones_like(lat_fit)
         
@@ -5196,7 +5194,7 @@ class PJ:
         # if orbit mean data are available process the output
         # Find mean and std (if possible read in unbiased orbit mean) 
         PJmean = '1-12'
-        if glob.glob(pathJ+f'PJ{PJmean}/PJ{PJmean}_v03.npz'): 
+        if glob.glob(self.path+f'PJ{PJmean}/PJ{PJmean}_v03.npz'): 
 
             print('Updated individual PJs here')
             # Use C1 median of the mission 
@@ -5778,7 +5776,7 @@ def ProcessPJ(path, dataversion = 3  ):
     # Orbit average 
     # ---------------------------------------------------------------------- 
     PJnumber = '1-12' 
-    temp = np.load(pathJ+f'PJ{PJnumber}/PJ{PJnumber}_v03.npz')
+    temp = np.load(path+f'PJ{PJnumber}/PJ{PJnumber}_v03.npz')
     lat = temp['lat']
     T = temp['T']
     Tsig = temp['Tsig']
@@ -6413,7 +6411,7 @@ def PlotZonalAverage(path, pjmin=1, pjmax = 12, latlim=[-75,75],savefig = False)
 
     return 
 
-def PlotPJ(PJnumber, xlim=[-40,40], mean = True, verification=False,dataversion=3): 
+def PlotPJ(PJnumber, path, xlim=[-40,40], mean = True, verification=False, dataversion=3): 
     '''
     Plot the most important graphics for a given PJ and compare them to the orbit mean 
         
@@ -6426,7 +6424,7 @@ def PlotPJ(PJnumber, xlim=[-40,40], mean = True, verification=False,dataversion=
 
 
     # Version 2
-    temp = np.load(pathJ+f'PJ{PJnumber}/PJ{PJnumber}_v0{dataversion}.npz')
+    temp = np.load(path+f'PJ{PJnumber}/PJ{PJnumber}_v0{dataversion}.npz')
     lat = temp['lat']
     T = temp['T']
     Tsig = temp['Tsig']
@@ -6435,7 +6433,7 @@ def PlotPJ(PJnumber, xlim=[-40,40], mean = True, verification=False,dataversion=
 
     if mean: 
         PJmean = '1-12'
-        temp = np.load(pathJ+f'PJ{PJmean}/PJ{PJmean}_v04.npz')
+        temp = np.load(path+f'PJ{PJmean}/PJ{PJmean}_v04.npz')
         lat_avg = temp['lat']
         Tmean = temp['Tmean']
         Tsig_avg= temp['Tstd']
