@@ -596,6 +596,7 @@ class PJ:
             filehandler = open( pathJ + f'PJ{self.PJnumber}/' + f'PJ{self.PJnumber}_v{dataversion}.obj','rb' )
             self.__dict__.update(pickle.load(filehandler).__dict__)      
             self.datapath=pathJ+f'PJ{self.PJnumber}/'
+            self.path = pathJ
             return 
         self.path = pathJ
         self.datapath=pathJ+f'PJ{self.PJnumber}/'
@@ -2166,7 +2167,7 @@ class PJ:
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
 
 
-        PJnumber = 4
+        PJnumber = 1
         PJ = jt.PJ(PJnumber)
         PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
 
@@ -2175,16 +2176,16 @@ class PJ:
        
         savenametail='v3'
         lat_range = [-60,60]; 
-        # for channel in [1,2,3]:
-        #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=20, lat_convergen_stats=20 )
-        #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
-        #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
- 
-        for channel in [4,5,6]:
-            #TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False,ITR_max=10)
+        for channel in [1]:
+            PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=20, lat_convergen_stats=20 )
             path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
-            #path2save = None 
             PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
+ 
+        # for channel in [4,5,6]:
+        #     #TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False,ITR_max=10)
+        #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+        #     #path2save = None 
+        #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
 
 
         '''
@@ -2801,8 +2802,8 @@ class PJ:
                 plt.savefig(fname+f'DTvslat_{statplots}'+'.png', format='png', transparent = True, dpi=500)
                 plt.savefig(fname+f'DTvslat_{statplots}'+'.pdf', format='pdf', transparent = True, dpi=500)
             else: 
-                XKCD
-                print('Stats plotting failed')
+                
+                print(f'PJ{self.pj}: Stats plotting failed for {channel}. Len idx {len(idxs)}, len Dt {len(DeltaT)}')
         return DeltaTMap, DeltapMap, DeltaT, NormMap 
 
 
