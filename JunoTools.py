@@ -614,7 +614,7 @@ class PJ:
         pj = ReadPDSProducts(file_I,file_G)
 
 
-        self.pj = pj 
+        #self.pj = pj 
         # pj['t_utc_doy'].apply(datetime.strptime, args=['%Y-%jT%H:%M:%S.%f'])
 
 
@@ -2163,7 +2163,7 @@ class PJ:
     def ProduceDeconvolvedMaps(self, channel, lat_range,  filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 10): 
         ''' 
 
-        import pyPR.JunoTools as jt 
+        import pyPR.JunoTools ass jt 
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
 
 
@@ -2619,7 +2619,7 @@ class PJ:
                     print(f'Channel {channel}, idx {idx}')  
 
             except: 
-                print(f'PJ{self.pj} - Channel {channel} - idx {idx} Something went wrong with the beam projection')
+                print(f'PJ{self.PJnumber} - Channel {channel} - idx {idx} Something went wrong with the beam projection')
                 print(alpha*57.3)
                 print(COV)
                 idx_remove.append(n)
@@ -2803,7 +2803,7 @@ class PJ:
                 plt.savefig(fname+f'DTvslat_{statplots}'+'.pdf', format='pdf', transparent = True, dpi=500)
             else: 
                 
-                print(f'PJ{self.pj}: Stats plotting failed for {channel}. Len idx {len(idxs)}, len Dt {len(DeltaT)}')
+                print(f'PJ{self.PJnumber}: Stats plotting failed for {channel}. Len idx {len(idxs)}, len Dt {len(DeltaT)}')
         return DeltaTMap, DeltapMap, DeltaT, NormMap 
 
 
