@@ -2163,11 +2163,11 @@ class PJ:
     def ProduceDeconvolvedMaps(self, channel, lat_range,  filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 10): 
         ''' 
 
-        import pyPR.JunoTools ass jt 
+        import pyPR.JunoTools as jt 
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
 
 
-        PJnumber = 1
+        PJnumber = 3
         PJ = jt.PJ(PJnumber)
         PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
 
@@ -2177,7 +2177,7 @@ class PJ:
         savenametail='v3'
         lat_range = [-60,60]; 
         for channel in [1]:
-            PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=20, lat_convergen_stats=20 )
+            PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=25, lat_convergen_stats=20 )
             path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
             PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
  
@@ -2325,7 +2325,7 @@ class PJ:
 
     
 
-    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, plotting=False, statplots=False, verbose=False, normalized=False ):
+    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, plotting=False, statplots=False, pltca=True, verbose=False, normalized=False ):
         """
         Convolve a single beam with an apriori map and obtain the difference 
     
@@ -2530,8 +2530,9 @@ class PJ:
         DeltaT = np.zeros(N)
 
         n = 0;     
-        idx_remove = []    
-        for idx in tqdm(idxs): 
+        # idx_remove = []    
+        for n in tqdm(range(N)): 
+            idx = idxs[n]
             # Read in the observation geometry for selected observation 
             # ------------------------------------------------------------------
             beam = [np.radians(eval(f'self.C{channel}.lon[idx]')), np.radians(eval(f'self.C{channel}.lat_c[idx]')) ]
@@ -2551,7 +2552,6 @@ class PJ:
                     #print(f'{idx} We are far above the sea @ {m} deg')
                     mu_i[m,:] = np.ones(O)*np.nan  
                     fp_i[m,:,:] = np.ones((O,2))*np.nan 
-                    idx_remove.append(n)
                     break  
 
                 # This needs to be checked, but probably due to East longitude convention 
@@ -2589,6 +2589,7 @@ class PJ:
 
             # Create off-diagonal elements 
             alpha =  np.mod(beamshape[4],2*np.pi) 
+            if (1-np.mod(alpha/np.pi,1)) < 1e-4: alpha = 0 # For very small angles, numerical problem  
             c, s = np.cos(alpha), np.sin(alpha)
             Rot = np.array([[c, -s], [s, c]])
 
@@ -2622,7 +2623,6 @@ class PJ:
                 print(f'PJ{self.PJnumber} - Channel {channel} - idx {idx} Something went wrong with the beam projection')
                 print(alpha*57.3)
                 print(COV)
-                idx_remove.append(n)
                 continue   
 
             if verbose: print(f'Gaussian {time.time() - t0:2.5f}')
@@ -2688,7 +2688,7 @@ class PJ:
                 # # Find a rough correlation between T and p for the given region 
                 # Note this will only work if there are no NaNs in there 
                 if np.any(np.isnan(T_z[llim:ulim])) or np.any(np.isnan(p_z[llim:ulim])):
-                    print(f'NaNs encountered at {lat_z[ulim]:2.2f}-{lat_z[llim]:2.2f} deg. Attempting to ignore the NaN values and continue')
+                    print(f'PJ{self.PJnumber}: NaNs encountered at {lat_z[ulim]:2.2f}-{lat_z[llim]:2.2f} deg. Attempting to ignore the NaN values and continue')
                     idxT = np.isfinite(T_z[llim:ulim])
                     idxp = np.isfinite(p_z[llim:ulim])
                     Tvp_c = np.polyfit(T_z[llim:ulim][idxT*idxp],p_z[llim:ulim][idxT*idxp],1)
@@ -2740,8 +2740,8 @@ class PJ:
             '''
 
             if np.isnan(T_beam):
+                print(f'PJ{self.PJnumber}: Beam convolution returned Nan')
                 print(idx)
-                idx_remove.append(n)
                 continue 
             else: 
                 DeltaT[n] = eval(f'self.C{channel}.T_a[idx]')  - T_beam
@@ -2763,7 +2763,6 @@ class PJ:
             TMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]
             pMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]*Tvp_c[0]
 
-            n += 1
 
 
 
@@ -2781,9 +2780,11 @@ class PJ:
         DeltapMap[np.isnan(DeltapMap)] = 0   
 
         # Remove 
-        idxs = np.delete(idxs, idx_remove,axis=0)
-        if len(idx_remove) > 0:
-            print(f'Remove the following idx because they had beam elements off the limb:\n {idxs[idx_remove]}')
+        # idxs = np.delete(idxs, idx_remove,axis=0)
+        # DeltaT = np.delete(DeltaT, idx_remove,axis=0)
+
+        # if len(idx_remove) > 0:
+        #     print(f'Remove the following idx because they had beam elements off the limb:\n {idxs[idx_remove]}')
 
 
         if statplots is not None: 
@@ -2801,9 +2802,10 @@ class PJ:
 
                 plt.savefig(fname+f'DTvslat_{statplots}'+'.png', format='png', transparent = True, dpi=500)
                 plt.savefig(fname+f'DTvslat_{statplots}'+'.pdf', format='pdf', transparent = True, dpi=500)
-            else: 
-                
+                if pltca: plt.close()
+            else:  
                 print(f'PJ{self.PJnumber}: Stats plotting failed for {channel}. Len idx {len(idxs)}, len Dt {len(DeltaT)}')
+        
         return DeltaTMap, DeltapMap, DeltaT, NormMap 
 
 
