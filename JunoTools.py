@@ -1819,7 +1819,7 @@ class PJ:
         return [T_m,p_m], [lon_m,lat_m]
 
 
-    def PlotDeconvolvedMaps(self, channel, dTstep=2, alpha=0.5, savenametail='v2', path2save=None, path2map=None, plotitr=False, xlim=None, ylim=[-30,30]): 
+    def PlotDeconvolvedMaps(self, channel, dTstep=2, alpha=0.5, savenametail='v2', path2save=None, path2map=None, plotitr=False, xlim=None, ylim=[-30,30],pltca=True): 
         ''' 
         Plot the results of the Deconvolution 
 
@@ -2152,7 +2152,7 @@ class PJ:
             #plt.savefig(path2save+f'Final_pMap_itr{itr_c}'+'.eps', format='eps', transparent = True, dpi=500)
 
 
-
+        if pltca: plt.close('all')
 
         return 
 
@@ -2619,7 +2619,7 @@ class PJ:
                     print(f'Channel {channel}, idx {idx}')  
 
             except: 
-                print('Something went wrong with the beam projection')
+                print(f'PJ{self.pj} - Channel {channel} - idx {idx} Something went wrong with the beam projection')
                 print(alpha*57.3)
                 print(COV)
                 idx_remove.append(n)
