@@ -2487,7 +2487,7 @@ class PJ:
         # Load in the beam 
         # ------------------------------------------------------------------
         t0 = time.time() 
-        path_B = path_J + 'Beam/'
+        path_B = self.path + 'Beam/'
         G_raw,t,p, hpbw   = readJunoBeam(path_B,channel,normalized=normalized) 
         G = 10**(0.1*G_raw)
         if verbose: print(f'Reading beam {time.time() -t0:2.5f}')
