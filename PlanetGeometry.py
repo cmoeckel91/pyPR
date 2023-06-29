@@ -1757,6 +1757,93 @@ def rotateprincipalaxis(R, ob_lat):
 
     return [a,b]
 
+
+def ellipsoid_intersection(axes,n, q= np.array([0,0,0]) ): 
+    """Obtain the intersection of an ellipsoid with a plane defined by a normal vector
+
+    Viewing a non-spherical body for different geometries changes 
+    the projected area as seen by the observer. By computing the 
+    ellipse that is defined by the intersection of a plane with 
+    an ellipsoid we can obtain the projected area. This function 
+    takes a normal vector (normally defined by the vector from the body 
+    to the observer) and the axes of the ellipsoids and returns the 
+    semi-major and semi-minor axes of the ellipse. 
+
+    
+    Parameters
+    -------
+    axes : [3x1] float
+        [m] Principal axes of the ellipsoid (equator, pole, third axis)
+    n : [3x1]  float
+        [-] Normal vector for the plane, best defined by the vector pointing 
+            the moon to earth. Uses distance, longitude and latitude.  
+
+
+    Returns
+    ----------
+    a,b: [2x1] float 
+        [m]: Semi-major and semi-minor axis of the projected ellipse 
+
+    Keywords
+    ----------
+    
+    q : [3x1]  random point that is on the planet
+        [-] Nominally set to the origin, but can be any point on the plane 
+        defined by n but interior to the ellipsoid. 
+
+    Example
+    -------
+    axes = np.array([4,8,16]) 
+    n = np.array([0,1,0])
+    axes, center = ellipsoid_intersection(axes,n,)
+    print(axes) # 
+
+    Warnings
+    -------
+    It might be avisable to scale the distances.  Test first unscaled 
+
+    References
+    ------------
+    https://www.geometrictools.com/Documentation/PerspectiveProjectionEllipsoid.pdf
+    https://math.stackexchange.com/questions/2243974/perspective-projection-of-ellipsoid-to-ellipse-solving-for-standard-form-ellips 
+    
+    Notes
+    -------
+    12/10/2018 CM, Initial Commit
+    """ 
+
+    import numpy.linalg as npl
+
+    # Chose a random point on the plane. Take a point that is orthogonal to the normal vector 
+    q = np.array([0,0,0]) 
+    #q = np.array([n[0], n[1], -n[0] - n[1]])
+
+
+    kap = np.dot(q,n)/npl.norm(n)  
+
+    d = kap**2*npl.norm(n)**2/np.dot(axes**2,n**2) 
+
+    # Compute the roots to the quadratic equation 
+    coeff = np.zeros(3) 
+    coeff[0] = npl.norm(n)**2 
+    coeff[1] = -(n[0]**2*(1/axes[1]**2 + 1/axes[2]**2) 
+                +n[1]**2*(1/axes[0]**2 + 1/axes[2]**2)
+                +n[2]**2*(1/axes[0]**2 + 1/axes[1]**2)) 
+    coeff[2] = ( n[0]**2/(axes[1]**2*axes[2]**2)  
+                +n[1]**2/(axes[0]**2*axes[2]**2)
+                +n[2]**2/(axes[0]**2*axes[1]**2)) 
+
+    beta = np.roots(coeff)
+
+    a = np.sqrt((1-d)/beta[0])
+    b = np.sqrt((1-d)/beta[1])
+
+    # Compute the center of the ellipse 
+
+    m = kap*npl.norm(n)**2/(np.dot(axes**2,n**2)*npl.norm(n))*np.array([axes[0]**2*n[0],axes[1]**2*n[1],axes[2]**2*n[2] ] )
+
+    return np.array([a,b]), m 
+
 def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range): 
     """Obtain the principal axis of an ellopsoid seen at an angle. 
     Applicable for a 3D body 
@@ -1820,7 +1907,7 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
     for i in range(len(lat_a)): 
         for j in range(len(lon_a) ): 
             # Example for Uranian moons 
-            R = np.array([12,3.5,6])
+            R = np.array([12,6,3.5])
             ob_range =  18.8324879927471*149
             ob_lat_d = np.radians(lat_a[i]) 
             ob_lon = np.radians(lon_a[j])
@@ -1901,7 +1988,7 @@ def rotateprincipalaxis_3D(R, ob_lat_d, ob_lon, ob_range):
 
     # Use temporary variables in the view plane to convert to a standard ellipse 
     # r_J_hat is normal vector of the viewing plane. In this case the viewing plane 
-    # is aligned 
+    # is aligned e
     # u,v, and n build a orthonormal basis 
     # make a random vector, find the perpendicular part to n and scale it to 1 
     u = np.random.randn(3)

@@ -598,6 +598,7 @@ class PJ:
             self.datapath=pathJ+f'PJ{self.PJnumber}/'
             self.path = pathJ
             return 
+
         self.path = pathJ
         self.datapath=pathJ+f'PJ{self.PJnumber}/'
 
@@ -1909,6 +1910,7 @@ class PJ:
         if xlim is None: 
             # Find region where we have information by summing over all 
             lon_data = np.where(np.sum(np.sum(DeltaTMap,axis=0),axis=0)>0)[0]
+            if len(lon_data) < 2: sys.exit('No Data in the map to plot')
             xlim = np.array([lon_m[lon_data[-1]],lon_m[lon_data[0] ]])
         
         # Dynamically set the contour plots and colorbars 
@@ -2160,33 +2162,32 @@ class PJ:
 
 
 
-    def ProduceDeconvolvedMaps(self, channel, lat_range,  filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 10): 
+    def ProduceDeconvolvedMaps(self, channel, lat_range, hpbwscale=2, filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 10, restart=True): 
         ''' 
 
         import pyPR.JunoTools as jt 
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
 
-
         PJnumber = 3
         PJ = jt.PJ(PJnumber)
         PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
-
+        
         path2maps = f'PJ{PJnumber}/HST/'
-        path2map = pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
+        path2map = None #pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
        
-        savenametail='v3'
+        savenametail='v6'
         lat_range = [-60,60]; 
-        for channel in [1]:
-            PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=25, lat_convergen_stats=20 )
-            path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
-            PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
- 
-        # for channel in [4,5,6]:
-        #     #TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False,ITR_max=10)
-        #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
-        #     #path2save = None 
-        #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=True)
 
+        for channel in [5]:
+            TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False, ITR_max=15, restart=True, lat_convergen_stats=45)
+            path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+            PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
+        
+        # for channel in [1,2,3]:
+        #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=25, lat_convergen_stats=20 )
+        #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+        #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
+ 
 
         '''
         from glob import glob
@@ -2200,7 +2201,6 @@ class PJ:
         if savenametail is not None: 
             fpath = self.datapath + f'Deconvolution/C{channel}/'
             os.makedirs(os.path.dirname(fpath+f'Statistics'), exist_ok=True)
-
             fname = fpath + f'Map_C{channel}_{savenametail}.npz'
             if glob(fname): 
                 print(f'Warning: Archive Map_C{channel}_{savenametail} exists and will be overwritten')
@@ -2216,7 +2216,16 @@ class PJ:
         idxplf = np.delete(idxplf, idx_remove,axis=0)
 
         # Produce a map based on the zonally averaged quantaties 
-        [T_m,p_m],[lon_m,lat_m] = self.ZonalModelMap(channel)
+        if restart: 
+            [T_m,p_m],[lon_m,lat_m] = self.ZonalModelMap(channel)
+            itr_0 = 0 
+
+        else: 
+            temp = np.load(fname)
+            [T_m,p_m],[lon_m,lat_m] = [temp['TMap'][-1,...], temp['pMap'][-1,...]],[ temp['lon'], temp['lat']]
+            #np.savez(fname,DeltaT=DeltaT, TMap=TMap[:nitr,...], pMap=pMap[:nitr,...], DeltaTMap=DeltaTMap[:nitr,...], DeltapMap=DeltapMap[:nitr,...], NormMap=NormMap[:nitr,...], lat=lat_m, lon=lon_m, nitr = nitr, n_convergence=nitr_c)
+            itr_0 = temp['nitr'] 
+
 
         # Pre-allicate arrays to save 
         TMap = np.zeros((ITR_max+1,len(lat_m),len(lon_m)))
@@ -2231,11 +2240,11 @@ class PJ:
         DT_avg,DT_std,DT_avg_ir, DT_std_ir  = np.zeros(ITR_max), np.zeros(ITR_max), np.zeros(ITR_max), np.zeros(ITR_max) 
         
         convergence = False 
-
-        TMap[0,...] = T_m 
-        pMap[0,...] = p_m 
-
-        itr = 0
+        
+        itr = 0 
+        TMap[itr,...] = T_m 
+        pMap[itr,...] = p_m 
+       
         while not convergence and itr<ITR_max:  
             itr += 1 
             t_0 = time.time() 
@@ -2243,7 +2252,7 @@ class PJ:
                 statplots = f'{savenametail}_i{itr}' 
             else: 
                 statplots = savenametail 
-            DTMap,DpMap,dT,G = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], ld_strategy='correlation',  beamscaling = 1, hpbwscale=2.5,  asampling=10, statplots=f'{savenametail}_i{itr}', plotting=False,  verbose = False, normalized=False )
+            DTMap,DpMap,dT,G = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], ld_strategy='correlation',  beamscaling = hpbwscale, hpbwscale=hpbwscale,  asampling=10, statplots=f'{savenametail}_i{itr+itr_0}', plotting=False,  verbose = False, normalized=False )
 
             # Updates the models: 
             T_m +=  DTMap 
@@ -2261,7 +2270,7 @@ class PJ:
             # Converge diagnostic
             # ---------------------------------------------------------- 
 
-            DT_avg[itr-1] = np.mean(np.abs(dT)) 
+            DT_avg[itr-1] = np.mean(dT) 
             DT_std[itr-1] = np.std(dT) 
             
             # Compute statistics only for inner 20 degree 
@@ -2273,20 +2282,20 @@ class PJ:
                 DT_avg_ir[itr-1] = 0 
                 DT_std_ir[itr-1] = 0 
             else: 
-                DT_avg_ir[itr-1] = np.mean(np.abs(dT[idx_ir]))
+                DT_avg_ir[itr-1] = np.mean(dT[idx_ir])
                 DT_std_ir[itr-1] = np.std(dT[idx_ir])
 
-            print(f'Iteration {itr}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
+            print(f'Iteration {itr+itr_0}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
 
             # Compute the 
             if itr > 1: 
                 if lat_convergen_stats < 90: 
-                    if DT_avg_ir[itr-2] < DT_avg_ir[itr-1]: 
+                    if DT_std_ir[itr-2] < 1.01*DT_std_ir[itr-1]: 
                         convergence = True 
                         nitr = itr-1
                         nitr_c = itr-2
                 else: 
-                    if DT_avg[itr-2] < DT_avg[itr-1]: 
+                    if DT_std[itr-2] <  1.01*DT_std[itr-1]: 
                         convergence = True 
                         nitr = itr-1
                         nitr_c = itr-2
@@ -2300,20 +2309,49 @@ class PJ:
         print(nitr, nitr_c)
 
         if savenametail is not None:  
-            np.savez(fname,DeltaT=DeltaT, TMap=TMap[:nitr,...], pMap=pMap[:nitr,...], DeltaTMap=DeltaTMap[:nitr,...], DeltapMap=DeltapMap[:nitr,...], NormMap=NormMap[:nitr,...], lat=lat_m, lon=lon_m, nitr = nitr, n_convergence=nitr_c)
-            print(f'Map saved to {fname}')
+            if restart: 
+                np.savez(fname, DeltaT=DeltaT, 
+                                TMap=TMap[:nitr,...], 
+                                pMap=pMap[:nitr,...], 
+                                DeltaTMap=DeltaTMap[:nitr,...], 
+                                DeltapMap=DeltapMap[:nitr,...], 
+                                NormMap=NormMap[:nitr,...], 
+                                lat=lat_m, 
+                                lon=lon_m, 
+                                nitr = nitr, 
+                                n_convergence=nitr_c)
+            else: 
+                try: 
+                    np.savez(fname, DeltaT=np.append(temp['DeltaT'],DeltaT,axis=0), 
+                                    TMap=np.append(temp['TMap'],TMap[:nitr,...],axis=0),    
+                                    pMap=np.append(temp['pMap'],pMap[:nitr,...],axis=0), 
+                                    DeltaTMap=np.append(temp['DeltaTMap'], DeltaTMap[:nitr,...],axis=0), 
+                                    DeltapMap=np.append(temp['DeltapMap'], DeltapMap[:nitr,...],axis=0), 
+                                    NormMap=np.append(temp['NormMap'], NormMap[:nitr,...],axis=0), 
+                                    lat=lat_m, 
+                                    lon=lon_m, 
+                                    nitr = nitr+itr_0, 
+                                    n_convergence=nitr_c+itr_0)
+
+                except: 
+                    print('Something went wrong with appending. Saving results')
+                    fpath + f'Map_C{channel}_{savenametail}_itr{itr_0+itr}.npz'
+                    np.savez(fname,DeltaT=DeltaT, TMap=TMap[:nitr,...], pMap=pMap[:nitr,...], DeltaTMap=DeltaTMap[:nitr,...], DeltapMap=DeltapMap[:nitr,...], NormMap=NormMap[:nitr,...], lat=lat_m, lon=lon_m, nitr = nitr, n_convergence=nitr_c)
+                print(f'Map saved to {fname}')
+
 
             fig, ax = plt.subplots(1, 1,figsize=(8,6))
-            ax.plot(np.arange(nitr),DT_avg,     '*',linewidth=5,color='blue', label='Mean: global') 
-            ax.plot(np.arange(nitr),DT_avg_ir,  '*',linewidth=5,color='red', label=f'Mean: lat <{lat_convergen_stats}') 
-            ax.plot(np.arange(nitr),DT_std,     'o',linewidth=5,color='blue', label='STD: global') 
-            ax.plot(np.arange(nitr),DT_std_ir,  'o',linewidth=5,color='red', label=f'STD: lat <{lat_convergen_stats}') 
+            ax.plot(np.arange(nitr),DT_avg[:nitr+1],     '*',linewidth=5,color='blue', label='Mean: global') 
+            ax.plot(np.arange(nitr),DT_avg_ir[:nitr+1],  '*',linewidth=5,color='red', label=f'Mean: lat <{lat_convergen_stats}') 
+            ax.plot(np.arange(nitr),DT_std[:nitr+1],     'o',linewidth=5,color='blue', label='STD: global') 
+            ax.plot(np.arange(nitr),DT_std_ir[:nitr+1],  'o',linewidth=5,color='red', label=f'STD: lat <{lat_convergen_stats}') 
 
             # Updated number of expected measurement noise  0.1% based on Table 2 and Table 7 from Janssen et al. DOI 10.1007/s11214-017-0349-5
             ax.set_ylabel(r'$\Delta T$ ')
             ax.set_xlabel('Iteration')
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             ax.plot( [nitr_c-1, nitr_c-1],[np.min(DT_avg), np.max(DT_avg)],linestyle='--',color='gray')
+            ax.plot([0, nitr],[np.mean(TMap)*1e-3, np.mean(TMap)*1e-3])
             ax.legend()
         
             plt.savefig(fpath+f'Figures/Statistics/Convergence_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
@@ -2325,7 +2363,7 @@ class PJ:
 
     
 
-    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, plotting=False, statplots=False, pltca=True, verbose=False, normalized=False ):
+    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, sidelobesupression=2, plotting=False, gaussian=False, statplots=False, pltca=True, verbose=False, normalized=True ):
         """
         Convolve a single beam with an apriori map and obtain the difference 
     
@@ -2474,7 +2512,7 @@ class PJ:
         from matplotlib.patches import Ellipse
         from glob import glob
         from tqdm import tqdm
-
+        import scipy 
 
 
         if np.size(idxs) == 1: idxs = [idxs]
@@ -2491,6 +2529,9 @@ class PJ:
         path_B = self.path + 'Beam/'
         G_raw,t,p, hpbw   = readJunoBeam(path_B,channel,normalized=normalized) 
         G = 10**(0.1*G_raw)
+        # Get beam to be unity at center 
+        G /= np.max(G) 
+
         if verbose: print(f'Reading beam {time.time() -t0:2.5f}')
         # Using linspace so that the endpoint of 360 is included...
         elevation  = np.degrees(t) #theta -> outwards radial component 
@@ -2530,7 +2571,7 @@ class PJ:
         DeltaT = np.zeros(N)
 
         n = 0;     
-        # idx_remove = []    
+        idx_remove = []    
         for n in tqdm(range(N)): 
             idx = idxs[n]
             # Read in the observation geometry for selected observation 
@@ -2558,7 +2599,7 @@ class PJ:
                 #lon_fp = 2*np.pi - lon_fp  
                 lon_fp = np.mod(-lon_fp,2*np.pi)
 
-                # Save all the values into pre-allocated array 
+                # Save all the values indebug to pre-allocated array 
                 mu_i[m,:] = eangle 
                 fp_i[m,:,:] = np.array([lon_fp,lat_fp]).T 
 
@@ -2570,7 +2611,9 @@ class PJ:
                 # [np.argmin(np.abs(x-np.radians(lat_m))) for x in lat_fp ] - np.round(lat_fp/np.radians(0.1) + len(lat_m)//2).astype(int)
 
             # if there is a problem for a given footprint just skip the rest of the loop. 
-            if np.any(np.isnan(mu_i)): continue  
+            if np.any(np.isnan(mu_i)): 
+                idx_remove.append(idx)
+                continue  
             if verbose: print(f'Geometry {time.time() -t0:2.5f}')
 
 
@@ -2579,72 +2622,75 @@ class PJ:
             fp_gb[:,0] = fp_i[int(hpbw/2*beamscaling),:,0]
             fp_gb[:,1] = fp_i[int(hpbw/2*beamscaling),:,1]
 
-            C,A,a = fitting_ellipse(fp_gb[:,0],fp_gb[:,1] ,plotting=False) # Orientation of the mean beam 
-            beamshape[:2] = C; beamshape[2:4] = A; beamshape[4] = a
+            if gaussian: 
+                C,A,a = fitting_ellipse(fp_gb[:,0],fp_gb[:,1] ,plotting=False) # Orientation of the mean beam 
+                beamshape[:2] = C; beamshape[2:4] = A; beamshape[4] = a
 
-            # 2D gaussian defined by the beam shape 
-            # ------------------------------------------------------------------
-            # Create Covariance matrix: Diagonal elements are the axis  
-            Sigma = np.array([[np.degrees(beamshape[2])**2,0],[0,np.degrees(beamshape[3])**2]])
+                # 2D gaussian defined by the beam shape 
+                # ------------------------------------------------------------------
+                # Create Covariance matrix: Diagonal elements are the axis  
+                Sigma = np.array([[np.degrees(beamshape[2])**2,0],[0,np.degrees(beamshape[3])**2]])
 
-            # Create off-diagonal elements 
-            alpha =  np.mod(beamshape[4],2*np.pi) 
-            if (1-np.mod(alpha/np.pi,1)) < 1e-4: alpha = 0 # For very small angles, numerical problem  
-            c, s = np.cos(alpha), np.sin(alpha)
-            Rot = np.array([[c, -s], [s, c]])
+                # Create off-diagonal elements 
+                alpha =  np.mod(beamshape[4],2*np.pi) 
+                if (1-np.mod(alpha/np.pi,1)) < 1e-4: alpha = 0 # For very small angles, numerical problem  
+                c, s = np.cos(alpha), np.sin(alpha)
+                Rot = np.array([[c, -s], [s, c]])
 
-            # Transformation matrix
-            if Rot[0,0]<0:
-                COV = -Rot@Sigma@-Rot.T
-            else: 
-                COV = Rot@Sigma@Rot.T
+                # Transformation matrix
+                if Rot[0,0]<0:
+                    COV = -Rot@Sigma@-Rot.T
+                else: 
+                    COV = Rot@Sigma@Rot.T
 
-            try:    
-                # Speed up by subsampling 
-                # lat_ms = np.arange(np.round(np.min(np.degrees(fp_gb[:,1])),1),np.round(np.max(np.degrees(fp_gb[:,1])),1),0.1)
-                # lon_ms = np.arange(np.round(np.min(np.degrees(fp_gb[:,0])),1),np.round(np.max(np.degrees(fp_gb[:,0])),1),0.1) 
-                
-                lat_ms = np.arange(np.round(np.min(np.degrees(fp_i[-1,:,1])),1),np.round(np.max(np.degrees(fp_i[-1,:,1])),1),0.1)
-                lon_ms = np.arange(np.round(np.min(np.degrees(fp_i[-1,:,0])),1),np.round(np.max(np.degrees(fp_i[-1,:,0])),1),0.1) 
-                
-                x, y = np.meshgrid(lon_ms, lat_ms)
-                poss= np.dstack((x, y))
-                # https://datascienceplus.com/understanding-the-covariance-matrix/ 
-                Gbeam = multivariate_normal([np.degrees(beamshape[0]),np.degrees(beamshape[1])], COV, allow_singular=True).pdf(poss) 
+                try:    
+                    # Speed up by subsampling 
+                    # lat_ms = np.arange(np.round(np.min(np.degrees(fp_gb[:,1])),1),np.round(np.max(np.degrees(fp_gb[:,1])),1),0.1)
+                    # lon_ms = np.arange(np.round(np.min(np.degrees(fp_gb[:,0])),1),np.round(np.max(np.degrees(fp_gb[:,0])),1),0.1) 
+                    
+                    # 
 
-                # Ignore small numbers. Normally not a problem because the Gaussian hasn't converged to those small numbers 
-                Gbeam[Gbeam<1e-3] = 0 
+                    lat_ms = np.arange(np.round(np.min(np.degrees(fp_i[-1,:,1])),1),np.round(np.max(np.degrees(fp_i[-1,:,1])),1),0.1)
+                    lon_ms = np.arange(np.round(np.min(np.degrees(fp_i[-1,:,0])),1),np.round(np.max(np.degrees(fp_i[-1,:,0])),1),0.1) 
+                    
+                    x, y = np.meshgrid(lon_ms, lat_ms)
+                    poss= np.dstack((x, y))
+                    # https://datascienceplus.com/understanding-the-covariance-matrix/ 
+                    Gbeam = multivariate_normal([np.degrees(beamshape[0]),np.degrees(beamshape[1])], COV, allow_singular=True).pdf(poss) 
 
-                if np.sum(np.isnan(Gbeam))>1: 
-                    print('Gaussian contains NAN')
-                    print(f'Channel {channel}, idx {idx}')  
+                    # Ignore small numbers. Normally not a problem because the Gaussian hasn't converged to those small numbers 
+                    Gbeam[Gbeam<1e-3] = 0 
 
-            except: 
-                print(f'PJ{self.PJnumber} - Channel {channel} - idx {idx} Something went wrong with the beam projection')
-                print(alpha*57.3)
-                print(COV)
-                continue   
+                    if np.sum(np.isnan(Gbeam))>1: 
+                        print('Gaussian contains NAN')
+                        print(f'Channel {channel}, idx {idx}')  
 
-            if verbose: print(f'Gaussian {time.time() - t0:2.5f}')
+                except: 
+                    print(f'PJ{self.PJnumber} - Channel {channel} - idx {idx} Something went wrong with the beam projection')
+                    print(alpha*57.3)
+                    print(COV)
+                    continue   
 
-            if plotting: 
-                # Plot the Gaussian onto the beam shape 
-                fig, ax = plt.subplots(1, 1,figsize=(16,8))
-                ax.set_aspect('equal')
-                cs = ax.contour(lon_ms,lat_ms,Gbeam,10 ) 
-                cs = ax.contourf(lon_m,lat_m,T_m, cmap=cm.coolwarm )
-                ellipse = Ellipse(xy=(np.degrees(beamshape[0]),np.degrees(beamshape[1])), width=np.degrees(beamshape[2])*2, height=np.degrees(beamshape[3])*2, 
-                                        edgecolor='black', fc='None', lw=2, angle=np.degrees(alpha))
-                ax.plot(np.degrees(fp_gb[:,0]),np.degrees(fp_gb[:,1]))
-                ax.set_title('Sigma/2')
-                ax.add_patch(ellipse) 
-                ax.invert_xaxis() 
-                # ax.set_ylim([-25,0])
-                # ax.set_xlim([286,265])
-                cb = plt.colorbar(cs)  # using the colorbar info I got from contourf
+                if verbose: print(f'Gaussian {time.time() - t0:2.5f}')
 
-                plt.figure(1) 
-                plt.plot(lon_ms,Gbeam[np.argmin(np.abs(lat_ms-24.3)),:],label=f'{alpha*57.3}')
+                if plotting: 
+                    # Plot the Gaussian onto the beam shape 
+                    fig, ax = plt.subplots(1, 1,figsize=(16,8))
+                    ax.set_aspect('equal')
+                    cs = ax.contour(lon_ms,lat_ms,Gbeam,10 ) 
+                    cs = ax.contourf(lon_m,lat_m,T_m, cmap=cm.coolwarm )
+                    ellipse = Ellipse(xy=(np.degrees(beamshape[0]),np.degrees(beamshape[1])), width=np.degrees(beamshape[2])*2, height=np.degrees(beamshape[3])*2, 
+                                            edgecolor='black', fc='None', lw=2, angle=np.degrees(alpha))
+                    ax.plot(np.degrees(fp_gb[:,0]),np.degrees(fp_gb[:,1]))
+                    ax.set_title('Sigma/2')
+                    ax.add_patch(ellipse) 
+                    ax.invert_xaxis() 
+                    # ax.set_ylim([-25,0])
+                    # ax.set_xlim([286,265])
+                    cb = plt.colorbar(cs)  # using the colorbar info I got from contourf
+
+                    plt.figure(1) 
+                    plt.plot(lon_ms,Gbeam[np.argmin(np.abs(lat_ms-24.3)),:],label=f'{alpha*57.3}')
 
             #--------------------- Limb-darkening approach ---------------------------------
             # How to deal with the limb-darkening. Each observations has to be corrected for the limb-darkening for each beam element. 
@@ -2750,32 +2796,44 @@ class PJ:
 
 
             # Add back a gaussian with the same integrated temperature signal as the difference 
+            if gaussian: 
+                # We add it back into total map 
+                idx_lat_gb = np.argmin(np.abs(lat_m -lat_ms[0] ))
+                idx_lon_gb = np.argmin(np.abs(lon_m -lon_ms[0] ))
 
-            # We add it back into total map 
-            idx_lat_gb = np.argmin(np.abs(lat_m -lat_ms[0] ))
-            idx_lon_gb = np.argmin(np.abs(lon_m -lon_ms[0] ))
+                # Instead of building up a map of N, let's preserve memory and just add it 
+                GMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam
 
-            # Instead of building up a map of N, let's preserve memory and just add it 
-            GMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam
+                #  Normalize so that the Gaussian is peaked at 1 
+                # Add the beam to the temperature map for the indicated subsampling region 
+                TMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]
+                pMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]*Tvp_c[0]
+            else: 
+                Gbeam = (G[0:M,::asampling])
+                if np.sum(np.isinf(Gbeam)) > 1: 
+                    Gbeam[np.isinf(Gbeam)] = 0 
+                    print(f'Infinity encountered for {idx}')
 
-            #  Normalize so that the Gaussian is peaked at 1 
-            # Add the beam to the temperature map for the indicated subsampling region 
-            TMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]
-            pMap[idx_lat_gb:idx_lat_gb+len(lat_ms),idx_lon_gb:idx_lon_gb+len(lon_ms)] += Gbeam*DeltaT[n]*Tvp_c[0]
-
-
+                GMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam
+                TMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]
+                pMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]*Tvp_c[0]
 
 
             if verbose: print(f'Assigning {time.time() - t0:2.5f}')
 
         # Compute the normalization map. Regions where we have no information are heavily downweighted  
-        NormMap = GMap  
-        NormMap[GMap<1] = 1/GMap[GMap<1]
+        # Sidelobe suppression 
+
+        NormMap = np.copy(GMap) 
+        # Remove regions with little observations 
+        NormMap[NormMap<1] = 1e6
+        NormMap[NormMap<5] = NormMap[NormMap<5]**(sidelobesupression)
 
 
         # Update the model map 
-        DeltaTMap   = TMap/NormMap # Normalize the map by number of beams 
-        DeltapMap   = pMap/NormMap # Normalize the map by number of beams 
+        DeltaTMap   = scipy.ndimage.gaussian_filter(TMap/NormMap,0.1) # Normalize the map by number of beams 
+        DeltapMap   = scipy.ndimage.gaussian_filter(pMap/NormMap,0.1) # Normalize the map by number of beams 
+
         DeltaTMap[np.isnan(DeltaTMap)] = 0   
         DeltapMap[np.isnan(DeltapMap)] = 0   
 
@@ -2784,7 +2842,7 @@ class PJ:
         # DeltaT = np.delete(DeltaT, idx_remove,axis=0)
 
         # if len(idx_remove) > 0:
-        #     print(f'Remove the following idx because they had beam elements off the limb:\n {idxs[idx_remove]}')
+        #     print(f'Removed the following idx because they had beam elements off the limb:\n {idxs[idx_remove]}')
 
 
         if statplots is not None: 
