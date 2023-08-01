@@ -1857,7 +1857,7 @@ class PJ:
         ''' 
 
         # Load in the data 
-        fname = self.datapath + f'Deconvolution/C{channel}/Map_C{channel}_{savenametail}.npz'
+        fname = self.datapath + f'Deconvolution/C{channel}/PJ{self.PJnumber}_Map_C{channel}_{savenametail}.npz'
         try: temp = np.load(fname)
         except: sys.exit('Archive not found')
 
@@ -1909,7 +1909,7 @@ class PJ:
         # # Set the xlim for the observations 
         if xlim is None: 
             # Find region where we have information by summing over all 
-            lon_data = np.where(np.sum(np.sum(DeltaTMap,axis=0),axis=0)>0)[0]
+            lon_data = np.where(np.abs(np.sum(np.sum(DeltaTMap,axis=0),axis=0))>0)[0]
             if len(lon_data) < 2: sys.exit('No Data in the map to plot')
             xlim = np.array([lon_m[lon_data[-1]],lon_m[lon_data[0] ]])
         
@@ -1921,14 +1921,16 @@ class PJ:
             llim = 0 
             ulim = len(lat_m) 
 
+        # Plot the final Delta-T map  
+        # ---------------------------------------------------------- 
+
         DTr = np.ceil(np.nanmax(np.abs(np.sum(DeltaTMap[:idx_c,...],axis=0)[llim:ulim,:])/dTstep))*dTstep
         DTlevels = np.arange(-DTr,DTr+dTstep,dTstep)
 
         Dpr = np.round(np.nanmax(np.abs(np.sum(DeltapMap[:idx_c,...],axis=0)[llim:ulim,:])),3)
         Dplevels = np.linspace(-Dpr,Dpr,10)
 
-        # Plot the final Delta-T map  
-        # ---------------------------------------------------------- 
+
         fig, ax = plt.subplots(1, 1,figsize=(16,8))
 
         if path2map is not None: 
@@ -2161,33 +2163,37 @@ class PJ:
 
 
 
-
-    def ProduceDeconvolvedMaps(self, channel, lat_range, hpbwscale=2, filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 10, restart=True): 
+    def ProduceDeconvolvedMaps(self, channel, lat_range, hpbwscale=2, filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 15, restart=True): 
         ''' 
 
         import pyPR.JunoTools as jt 
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
-
-        PJnumber = 3
-        PJ = jt.PJ(PJnumber)
-        PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
         
-        path2maps = f'PJ{PJnumber}/HST/'
-        path2map = None #pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
-       
-        savenametail='v6'
-        lat_range = [-60,60]; 
-
-        for channel in [5]:
-            TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False, ITR_max=15, restart=True, lat_convergen_stats=45)
-            path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
-            PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
+        # Still needs 3 
         
-        # for channel in [1,2,3]:
-        #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=25, lat_convergen_stats=20 )
-        #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
-        #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
- 
+        # 
+
+        for PJnumber in [6,7,8,9,12]:
+            
+            PJ = jt.PJ(PJnumber)
+            PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
+            
+            path2maps = f'PJ{PJnumber}/HST/'
+            path2map = None #pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
+           
+            savenametail='v8'
+            lat_range = [-60,60]; 
+
+            for channel in [5]:
+                TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False, ITR_max=15, restart=True, lat_convergen_stats=45)
+                path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+                PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
+            
+            # for channel in [1,2]:
+            #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=25, lat_convergen_stats=20 )
+            #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
+            #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
+     
 
         '''
         from glob import glob
@@ -2201,7 +2207,7 @@ class PJ:
         if savenametail is not None: 
             fpath = self.datapath + f'Deconvolution/C{channel}/'
             os.makedirs(os.path.dirname(fpath+f'Statistics'), exist_ok=True)
-            fname = fpath + f'Map_C{channel}_{savenametail}.npz'
+            fname = fpath + f'PJ{self.PJnumber}_Map_C{channel}_{savenametail}.npz'
             if glob(fname): 
                 print(f'Warning: Archive Map_C{channel}_{savenametail} exists and will be overwritten')
 
@@ -2273,7 +2279,7 @@ class PJ:
             DT_avg[itr-1] = np.mean(dT) 
             DT_std[itr-1] = np.std(dT) 
             
-            # Compute statistics only for inner 20 degree 
+            # Compute statistics only for inner x degree 
             lat_c_center = eval(f'self.C{channel}.lat_c[idxplf]') 
             idx_ir = np.where(np.abs(lat_c_center)<lat_convergen_stats)[0]
 
@@ -2285,7 +2291,7 @@ class PJ:
                 DT_avg_ir[itr-1] = np.mean(dT[idx_ir])
                 DT_std_ir[itr-1] = np.std(dT[idx_ir])
 
-            print(f'Iteration {itr+itr_0}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
+            print(f'PJ{self.PJnumber} - Iteration {itr+itr_0}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
 
             # Compute the 
             if itr > 1: 
@@ -2295,7 +2301,7 @@ class PJ:
                         nitr = itr-1
                         nitr_c = itr-2
                 else: 
-                    if DT_std[itr-2] <  1.01*DT_std[itr-1]: 
+                    if DT_std[itr-2] <  1.03*DT_std[itr-1]: 
                         convergence = True 
                         nitr = itr-1
                         nitr_c = itr-2
@@ -2327,7 +2333,7 @@ class PJ:
                                     pMap=np.append(temp['pMap'],pMap[:nitr,...],axis=0), 
                                     DeltaTMap=np.append(temp['DeltaTMap'], DeltaTMap[:nitr,...],axis=0), 
                                     DeltapMap=np.append(temp['DeltapMap'], DeltapMap[:nitr,...],axis=0), 
-                                    NormMap=np.append(temp['NormMap'], NormMap[:nitr,...],axis=0), 
+                                    NormMap=np.append(temp['NormMap'], NormMap[nitr,...],axis=0), 
                                     lat=lat_m, 
                                     lon=lon_m, 
                                     nitr = nitr+itr_0, 
@@ -2335,16 +2341,16 @@ class PJ:
 
                 except: 
                     print('Something went wrong with appending. Saving results')
-                    fpath + f'Map_C{channel}_{savenametail}_itr{itr_0+itr}.npz'
+                    fpath + f'PJ{self.PJnumber}_Map_C{channel}_{savenametail}_itr{itr_0+itr}.npz'
                     np.savez(fname,DeltaT=DeltaT, TMap=TMap[:nitr,...], pMap=pMap[:nitr,...], DeltaTMap=DeltaTMap[:nitr,...], DeltapMap=DeltapMap[:nitr,...], NormMap=NormMap[:nitr,...], lat=lat_m, lon=lon_m, nitr = nitr, n_convergence=nitr_c)
                 print(f'Map saved to {fname}')
 
 
             fig, ax = plt.subplots(1, 1,figsize=(8,6))
-            ax.plot(np.arange(nitr),DT_avg[:nitr+1],     '*',linewidth=5,color='blue', label='Mean: global') 
-            ax.plot(np.arange(nitr),DT_avg_ir[:nitr+1],  '*',linewidth=5,color='red', label=f'Mean: lat <{lat_convergen_stats}') 
-            ax.plot(np.arange(nitr),DT_std[:nitr+1],     'o',linewidth=5,color='blue', label='STD: global') 
-            ax.plot(np.arange(nitr),DT_std_ir[:nitr+1],  'o',linewidth=5,color='red', label=f'STD: lat <{lat_convergen_stats}') 
+            ax.plot(np.arange(len(DT_avg[:nitr+1])),DT_avg[:nitr+1],     '*',linewidth=5,color='blue', label='Mean: global') 
+            ax.plot(np.arange(len(DT_avg_ir[:nitr+1])),DT_avg_ir[:nitr+1],  '*',linewidth=5,color='red', label=f'Mean: lat <{lat_convergen_stats}') 
+            ax.plot(np.arange(len(DT_std[:nitr+1])),DT_std[:nitr+1],     'o',linewidth=5,color='blue', label='STD: global') 
+            ax.plot(np.arange(len(DT_std_ir[:nitr+1])),DT_std_ir[:nitr+1],  'o',linewidth=5,color='red', label=f'STD: lat <{lat_convergen_stats}') 
 
             # Updated number of expected measurement noise  0.1% based on Table 2 and Table 7 from Janssen et al. DOI 10.1007/s11214-017-0349-5
             ax.set_ylabel(r'$\Delta T$ ')
@@ -2363,7 +2369,7 @@ class PJ:
 
     
 
-    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, sidelobesupression=2, plotting=False, gaussian=False, statplots=False, pltca=True, verbose=False, normalized=True ):
+    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, sidelobesupression=5, plotting=False, gaussian=False, statplots=False, pltca=True, verbose=False, normalized=True ):
         """
         Convolve a single beam with an apriori map and obtain the difference 
     
@@ -2826,13 +2832,15 @@ class PJ:
 
         NormMap = np.copy(GMap) 
         # Remove regions with little observations 
-        NormMap[NormMap<1] = 1e6
-        NormMap[NormMap<5] = NormMap[NormMap<5]**(sidelobesupression)
+        
+        NormMap[NormMap<=1] = np.nan
+        NormMap[NormMap<sidelobesupression] = sidelobesupression*np.log10(NormMap[NormMap<sidelobesupression])**(-1)
+
 
 
         # Update the model map 
-        DeltaTMap   = scipy.ndimage.gaussian_filter(TMap/NormMap,0.1) # Normalize the map by number of beams 
-        DeltapMap   = scipy.ndimage.gaussian_filter(pMap/NormMap,0.1) # Normalize the map by number of beams 
+        DeltaTMap   = scipy.ndimage.gaussian_filter(TMap/NormMap,1) # Normalize the map by number of beams 
+        DeltapMap   = scipy.ndimage.gaussian_filter(pMap/NormMap,1) # Normalize the map by number of beams 
 
         DeltaTMap[np.isnan(DeltaTMap)] = 0   
         DeltapMap[np.isnan(DeltapMap)] = 0   
@@ -5877,13 +5885,13 @@ def ProcessPJ(path, dataversion = 3  ):
 
 
 
-def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [None], reprocess=False, window=1, LBfilter=True): 
+def ProcessZonalAverage(path, dataversion = 2 ,saveversion = 2, pjmin = 1, pjmax = 9, pjexc = [None], reprocess=False, window=1, LBfilter=True): 
     '''
     
     import pyPR.JunoTools as jt 
-    path_GD='/Users/chris/GDrive-UCB/'
+    path_GD='/Users/chris/GoogleDrive/'
     path =  path_GD + 'Berkeley/Research/Juno/'
-    jt.ProcessZonalAverage(path, pjmin=21, pjmax=32,reprocess=False,dataversion=3,LBfilter=True)
+    jt.ProcessZonalAverage(path, pjmin=1, pjmax=12,reprocess=False,dataversion=3, saveversion = 4, LBfilter=True)
 
     '''
 
@@ -6025,7 +6033,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
 
 
     # Obtain relevant data 
-    (np.savez(path + fname + f'/PJ{pjmin}-{pjmax}_v{dataversion:02d}.npz',
+    (np.savez(path + fname + f'/PJ{pjmin}-{pjmax}_v{saveversion:02d}.npz',
                 data = data, lat     = lat, lat_g = lat_g, lat_c = lat_c, 
                 
                 # Brightness temperature 
@@ -6050,7 +6058,7 @@ def ProcessZonalAverage(path, dataversion = 2 ,pjmin = 1, pjmax = 9, pjexc = [No
                 psig     = p_sig, )) 
 
 
-    return path + fname + f'/PJ{pjmin}-{pjmax}_v{dataversion:02d}.npz'
+    return path + fname + f'/PJ{pjmin}-{pjmax}_v{saveversion:02d}.npz'
 
 
 
