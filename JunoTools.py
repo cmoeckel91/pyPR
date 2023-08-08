@@ -2169,11 +2169,8 @@ class PJ:
         import pyPR.JunoTools as jt 
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
         
-        # Still needs 3 
-        
-        # 
 
-        for PJnumber in [6,7,8,9,12]:
+        for PJnumber in [1,3,4,5]:
             
             PJ = jt.PJ(PJnumber)
             PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
@@ -2258,7 +2255,7 @@ class PJ:
                 statplots = f'{savenametail}_i{itr}' 
             else: 
                 statplots = savenametail 
-            DTMap,DpMap,dT,G = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], ld_strategy='correlation',  beamscaling = hpbwscale, hpbwscale=hpbwscale,  asampling=10, statplots=f'{savenametail}_i{itr+itr_0}', plotting=False,  verbose = False, normalized=False )
+            DTMap,DpMap,dT,G,CoverageMap = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], ld_strategy='correlation',  beamscaling = hpbwscale, hpbwscale=hpbwscale,  asampling=10, statplots=f'{savenametail}_i{itr+itr_0}', plotting=False,  verbose = False, normalized=False )
 
             # Updates the models: 
             T_m +=  DTMap 
@@ -2322,6 +2319,7 @@ class PJ:
                                 DeltaTMap=DeltaTMap[:nitr,...], 
                                 DeltapMap=DeltapMap[:nitr,...], 
                                 NormMap=NormMap[:nitr,...], 
+                                CoverageMap = CoverageMap,
                                 lat=lat_m, 
                                 lon=lon_m, 
                                 nitr = nitr, 
@@ -2334,6 +2332,7 @@ class PJ:
                                     DeltaTMap=np.append(temp['DeltaTMap'], DeltaTMap[:nitr,...],axis=0), 
                                     DeltapMap=np.append(temp['DeltapMap'], DeltapMap[:nitr,...],axis=0), 
                                     NormMap=np.append(temp['NormMap'], NormMap[nitr,...],axis=0), 
+                                    CoverageMap = CoverageMap,
                                     lat=lat_m, 
                                     lon=lon_m, 
                                     nitr = nitr+itr_0, 
@@ -2872,7 +2871,7 @@ class PJ:
             else:  
                 print(f'PJ{self.PJnumber}: Stats plotting failed for {channel}. Len idx {len(idxs)}, len Dt {len(DeltaT)}')
         
-        return DeltaTMap, DeltapMap, DeltaT, NormMap 
+        return DeltaTMap, DeltapMap, DeltaT, NormMap, GMap 
 
 
 
