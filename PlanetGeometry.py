@@ -4371,7 +4371,7 @@ class Model:
             # Create a limb darkened model at half the bandwidth away 
             TP.gen_casa(nu_l,self.T_da,self.limbdarkening, beamsize = self.beam, setimsize=self.imsize, plotting = False) 
             Bdata_l = TP.Bdata 
-            TP.gen_casa(nu_u,self.T_da,self.limbdarkening,beamsize = self.beam, setimsize=self.imsize, plotting = False) 
+            TP.gen_casa(nu_u,self.T_da,self.limbdarkening, beamsize = self.beam, setimsize=self.imsize, plotting = False) 
             Bdata_u = TP.Bdata 
 
             if hasattr(self, 'Bzonaldata') and self.name == 'Jupiter': 
