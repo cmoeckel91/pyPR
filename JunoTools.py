@@ -40,16 +40,16 @@ import warnings, sys
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-# path_GD='/Users/chris/GoogleDrive/'
-# path_radio = '/Users/chris/Documents/Research/Toolbox/radio/'
+path_GD='/Users/chris/GoogleDrive/'
+path_radio = '/Users/chris/Documents/Research/Toolbox/radio/'
 
-# if not glob.glob(path_GD): 
-#     path_GD = '/Volumes/casa/chris/Google Drive/' 
-#     path_radio = '/Users/chris.moeckel/Documents/Research/radio/'
+if not glob.glob(path_GD): 
+    path_GD = '/Volumes/casa/chris/Google Drive/' 
+    path_radio = '/Users/chris.moeckel/Documents/Research/radio/'
 
 
-# pathJ = path_GD + 'Berkeley/Research/Juno/'
-# path_J = pathJ
+pathJ = path_GD + 'Berkeley/Research/Juno/'
+path_J = pathJ
 
 # If you want to reload 
     # import pyPR.JunoTools as jt
@@ -410,7 +410,7 @@ def DownloadPDSdata(pathJ, PJnumber, dataversion=3, bracket=[-1,1]):
     Example
     -------
     import pyPR.JunoTools as jt
-    for PJnumber in range(20,21):
+    for PJnumber in [20]:
         dataversion = 3
         jt.DownloadPDSdata(jt.pathJ, PJnumber, dataversion,bracket=[-1,3])
 
@@ -476,17 +476,19 @@ def DownloadPDSdata(pathJ, PJnumber, dataversion=3, bracket=[-1,1]):
         # Instrument data 
         ti = requests.get(urli).text
         vn = f'V{dataversion:02d}'
-        pattern = r'>MWR+.+_' + vn + '.CSV'
+        pattern = r'MWR+.+_' + vn + '.CSV'
         tempi = re.findall(pattern, ti) 
         # remove > 
-        fnI = [t[1:] for t in tempi] 
+        #fnI = [t[1:] for t in tempi] 
+        fnI = tempi 
 
         # Geo data 
         tg = requests.get(urlg).text
         tempg = re.findall(pattern, tg) 
         # remove > 
-        fnG = [t[1:] for t in tempg] 
-
+        #fnG = [t[1:] for t in tempg] 
+        fnG = tempg 
+        
         # Download the data 
         fI = fnI[idx]; fG = fnG[idx] 
         if not glob.glob(pathJ + f'PJ{PJnumber}/PDS/' + fI):
@@ -817,7 +819,7 @@ class PJ:
         if quicklook: 
             self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p, self.C2.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=False)
         else:
-            self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p, self.C2.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,sigmafil=10, weight=1)
+            self.C2.T_n, self.C2.p, self.C2.lat_c_i, self.C2.w, self.C2.sig_T, self.C2.sig_p, self.C2.n_fit  = self.zonalaverage2(chn, window=self.windowbin, beamconv=True,sigmafil=5, weight=1)
 
         self.C2.lat_g_i = np.degrees(geoc2geod(np.radians(self.C2.lat_c_i))[0])
 
@@ -1850,8 +1852,8 @@ class PJ:
         import matplotlib.colors as colors
 
         '''
-        savenametail='v3'
-        fname = f'/Users/chris/GoogleDrive/Berkeley/Research/Juno/PJ4/Deconvolution/C{channel}/Map_C{channel}_{savenametail}.npz'
+        savenametail='v10'; channel = 2 
+        fname = f'/Users/chris/GoogleDrive/Berkeley/Research/Juno/PJ4/Deconvolution/C{channel}/PJ4_Map_C{channel}_{savenametail}.npz'
         temp = np.load(fname)
         dTstep=1; alpha=0.5;  path2save=None;  plotitr=False; xlim=None; ylim=[-60,60]
         ''' 
@@ -2170,7 +2172,7 @@ class PJ:
         pathJ = '/Users/chris/GoogleDrive/Berkeley/Research/Juno/'
         
 
-        for PJnumber in [1,3,4,5]:
+        for PJnumber in [4]:
             
             PJ = jt.PJ(PJnumber)
             PJ.readdata(pathJ,quicklook=False, load = True, dataversion=3)
@@ -2178,16 +2180,17 @@ class PJ:
             path2maps = f'PJ{PJnumber}/HST/'
             path2map = None #pathJ+path2maps+'HST_f395n-f502n-f631n_v1_rot2-globalmap.png'
            
-            savenametail='v8'
+            savenametail='v10' 
+            # v 10 corrects for emission angle when adding back structrure 
             lat_range = [-60,60]; 
 
-            for channel in [5]:
-                TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False, ITR_max=15, restart=True, lat_convergen_stats=45)
+            for channel in [2]:
+                TMap, pMap, DeltaTMap, DeltapMap, NormMap, lon_m, lat_m, DeltaT = PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, ITR_max=15, restart=True, lat_convergen_stats=45)
                 path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
                 PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
             
-            # for channel in [1,2]:
-            #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = True, eafilter=25, lat_convergen_stats=20 )
+            # for channel in [5]:
+            #     PJ.ProduceDeconvolvedMaps(channel, lat_range, savenametail=savenametail, filter = False, eafilter=90, lat_convergen_stats=20 )
             #     path2save = PJ.datapath + f'Deconvolution/C{channel}/Figures/Maps/' 
             #     PJ.PlotDeconvolvedMaps(channel,path2map=path2map,path2save=path2save,savenametail=savenametail,plotitr=False)
      
@@ -2288,21 +2291,35 @@ class PJ:
                 DT_avg_ir[itr-1] = np.mean(dT[idx_ir])
                 DT_std_ir[itr-1] = np.std(dT[idx_ir])
 
-            print(f'PJ{self.PJnumber} - Iteration {itr+itr_0}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
+            print(f'PJ{self.PJnumber} - C{channel} - Iteration {itr+itr_0}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
 
-            # Compute the 
+            # # Determmine convergence 
+            # if itr > 1: 
+            #     if lat_convergen_stats < 90: 
+            #         if DT_std_ir[itr-2] < 1.01*DT_std_ir[itr-1]: 
+            #             convergence = True 
+            #             nitr = itr-1
+            #             nitr_c = itr-2
+            #     else: 
+            #         if DT_std[itr-2] <  1.03*DT_std[itr-1]: 
+            #             convergence = True 
+            #             nitr = itr-1
+            #             nitr_c = itr-2
+            
+
+            # Determmine convergence 
             if itr > 1: 
                 if lat_convergen_stats < 90: 
+                    print(DT_std_ir[itr-2],1.01*DT_std_ir[itr-1])
                     if DT_std_ir[itr-2] < 1.01*DT_std_ir[itr-1]: 
                         convergence = True 
-                        nitr = itr-1
-                        nitr_c = itr-2
+                        nitr = itr
+                        nitr_c = itr-1
                 else: 
                     if DT_std[itr-2] <  1.03*DT_std[itr-1]: 
                         convergence = True 
-                        nitr = itr-1
-                        nitr_c = itr-2
-            
+                        nitr = itr
+                        nitr_c = itr-1
 
         if not convergence : 
             print(f'System did not converge in {ITR_max} iterations')
@@ -2346,6 +2363,7 @@ class PJ:
 
 
             fig, ax = plt.subplots(1, 1,figsize=(8,6))
+            ax.set_title(f'Deconvolution Convergence - C{channel}')
             ax.plot(np.arange(len(DT_avg[:nitr+1])),DT_avg[:nitr+1],     '*',linewidth=5,color='blue', label='Mean: global') 
             ax.plot(np.arange(len(DT_avg_ir[:nitr+1])),DT_avg_ir[:nitr+1],  '*',linewidth=5,color='red', label=f'Mean: lat <{lat_convergen_stats}') 
             ax.plot(np.arange(len(DT_std[:nitr+1])),DT_std[:nitr+1],     'o',linewidth=5,color='blue', label='STD: global') 
@@ -2357,6 +2375,7 @@ class PJ:
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             ax.plot( [nitr_c-1, nitr_c-1],[np.min(DT_avg), np.max(DT_avg)],linestyle='--',color='gray')
             ax.plot([0, nitr],[np.mean(TMap)*1e-3, np.mean(TMap)*1e-3])
+            ax.text(1,np.mean(TMap)*1e-3*1.1,'Expected observation error')
             ax.legend()
         
             plt.savefig(fpath+f'Figures/Statistics/Convergence_{savenametail}'+'.png', format='png', transparent = True, dpi=500)
@@ -2576,7 +2595,8 @@ class PJ:
         DeltaT = np.zeros(N)
 
         n = 0;     
-        idx_remove = []    
+        idx_remove = []   
+        ldNaNflag = []  
         for n in tqdm(range(N)): 
             idx = idxs[n]
             # Read in the observation geometry for selected observation 
@@ -2705,7 +2725,6 @@ class PJ:
 
 
             # Tvp_c 1st order polynominal fit for correlation between nadir temperature and limb-darkening. 
-
             if ld_strategy == 'local': 
                 # Use limb-darkening at a given location: 
                 Tvp_c = [0,0] # In this case the limb-darkeing map is never updated 
@@ -2739,7 +2758,8 @@ class PJ:
                 # # Find a rough correlation between T and p for the given region 
                 # Note this will only work if there are no NaNs in there 
                 if np.any(np.isnan(T_z[llim:ulim])) or np.any(np.isnan(p_z[llim:ulim])):
-                    print(f'PJ{self.PJnumber}: NaNs encountered at {lat_z[ulim]:2.2f}-{lat_z[llim]:2.2f} deg. Attempting to ignore the NaN values and continue')
+                    ldNaNflag.append(np.around(np.degrees(beam[1]),2)) 
+                    #print(f'PJ{self.PJnumber}: NaNs encountered at {lat_z[ulim]:2.2f}-{lat_z[llim]:2.2f} deg. Attempting to ignore the NaN values and continue')
                     idxT = np.isfinite(T_z[llim:ulim])
                     idxp = np.isfinite(p_z[llim:ulim])
                     Tvp_c = np.polyfit(T_z[llim:ulim][idxT*idxp],p_z[llim:ulim][idxT*idxp],1)
@@ -2821,6 +2841,7 @@ class PJ:
 
                 GMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam
                 TMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]
+                #TMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam/np.cos(mu_i)**p_b*DeltaT[n]
                 pMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]*Tvp_c[0]
 
 
@@ -2830,8 +2851,8 @@ class PJ:
         # Sidelobe suppression 
 
         NormMap = np.copy(GMap) 
-        # Remove regions with little observations 
         
+        # Remove regions with little observations 
         NormMap[NormMap<=1] = np.nan
         NormMap[NormMap<sidelobesupression] = sidelobesupression*np.log10(NormMap[NormMap<sidelobesupression])**(-1)
 
@@ -2851,6 +2872,10 @@ class PJ:
         # if len(idx_remove) > 0:
         #     print(f'Removed the following idx because they had beam elements off the limb:\n {idxs[idx_remove]}')
 
+        # Plot NaNs encountered when trying to fit ld 
+        print(f'PJ{self.PJnumber}: NaNs encountered at for beam boresight latitude {ldNaNflag}. Attempting to ignore the NaN values and continue')
+
+    
 
         if statplots is not None: 
             # Delta T 
@@ -3303,7 +3328,7 @@ class PJ:
 
 
         I = len(Res) 
-        itr_min = np.argmin(Res)
+        itr_min = np.argmin(np.mean(DeltaT,axis=1))
         N = np.shape(DeltaT)[1]
 
         n_lat, n_lon = np.shape(T_0)[0], np.shape(T_0)[1]
