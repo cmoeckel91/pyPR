@@ -3531,7 +3531,7 @@ class Map:
        
 
 
-    def read_deprojected(self, fitsfile, bandwidth = 0,fluxcal = 1, filtering=50): 
+    def read_deprojected(self, fitsfile, bandwidth = 0,fluxcal = 1, filtering=50, radius =[71492., 66854.]): 
         '''Read in deprojected map and navigate it
 
         Parameters
@@ -3620,10 +3620,11 @@ class Map:
         self.fluxcal    = fluxcal
         self.unit       = hdul_map[0].header['BUNIT']
         self.bandwidth  = bandwidth
-        self.d_th       = hdul_map[0].header['CDELT1']  # theta = longitud
-        self.d_phi      = hdul_map[0].header['CDELT2']  # phi = latitud
+        self.d_th       = hdul_map[0].header['CDELT1']  # theta = longitude
+        self.d_phi      = hdul_map[0].header['CDELT2']  # phi = latitude
         self.theta      = theta
         self.phi        = phi
+        self.phi_c      = np.degrees(geod2geoc3(np.radians(self.phi),radius[0],radius[-1])) 
 
         # Convert to centric 
 
@@ -3656,9 +3657,12 @@ class Map:
             print('Map file and axis are not the same length, trimming phi')
             self.theta = self.theta[:-1]
 
-    def display_deprojected(self, roll=0, cmap = 'gray', clim=[0,0], path2save='', tailstr='', title =  'Radio brightness residuals', figsize=None, xlim=None, ylim=None,  filtered=False, displaycolorbar=True): 
+    def display_deprojected(self, roll=0, cmap = 'Greys_r', clim=[0,0], path2save='', tailstr='', title =  'Radio brightness residuals', figsize=None, xlim=None, ylim=None,  filtered=False, displaycolorbar=True, graphic=True): 
 
         from matplotlib import rcParams
+        import scipy 
+
+
 
         # Setting plotting routine 
         rcParams.update({'figure.autolayout': True})
@@ -3673,58 +3677,74 @@ class Map:
             Tb_r = self.Tb_r
         
         if roll != 0: 
-            Tb_r = np.roll(Tb_r,int(roll/self.d_th))
+            Tb_r = scipy.ndimage.shift(Tb_r,(0,roll/360*self.n_x),order=1,mode='grid-wrap')
 
         if figsize == None: 
 
-            fig = plt.figure(figsize=(self.n_x/self.n_y*5,7)) 
+            fig, ax = plt.subplots(1, 1,figsize=(self.n_x/self.n_y*5,7))
         else: 
-            fig = plt.figure(figsize=(figsize[0],figsize[1])) 
+            fig, ax = plt.subplots(1, 1,figsize=(figsize[0],figsize[1]))
 
 
-        ax = fig.add_subplot(111)
-        plt.axes().set_aspect('equal')
+        ax.set_aspect('equal')
+        ax.minorticks_on() 
+
+        if graphic: 
+            lat = self.phi 
+        else: 
+            lat = self.phi_c
+
+            for i in range(self.n_x): 
+                Tb_r[:,i] = np.interp(self.phi,self.phi_c, Tb_r[:,i])
+
+
+
+
         if clim != [0,0]:
-            cs = plt.contourf(self.theta ,self.phi , np.clip(Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
+            cs = ax.contourf(self.theta ,lat , np.clip(Tb_r, clim[0], clim[1] ), 50 ,cmap = cmap) #cmap = 'Grey'
         else: 
-            cs = plt.contourf(self.theta ,self.phi ,Tb_r , 50 ,cmap = cmap) #cmap = 'Grey'
-        
-        plt.gca().invert_xaxis()
+            #cs = ax.contourf(self.theta ,self.phi ,Tb_r , 50 ,cmap = cmap) #cmap = 'Grays'
+            cs = ax.imshow(Tb_r, extent=[self.theta[0],self.theta[-1],lat[0],lat[-1]], cmap=cmap, origin='lower')
+
+        ax.invert_xaxis()
 
         if xlim: 
-            plt.xlim([xlim[0],xlim[1]])
+            ax.set_xlim([xlim[0],xlim[1]])
         else: 
-            plt.xlim([-180,180]) 
+            ax.set_xlim([-180,180]) 
 
         if ylim:  
-            plt.ylim([ylim[0],ylim[1]])
+            ax.set_ylim([ylim[0],ylim[1]])
         else: 
-            plt.ylim([-60,60])
+            ax.set_ylim([-60,60])
+        if graphic: 
+            ax.set_ylabel('Planetographic latitude  (deg)')
+        else: 
+            ax.set_ylabel('Planetocentric latitude  (deg)')
 
-        plt.ylabel('Latitude  [deg]')
-        plt.xlabel('Longitude  [deg]')
+        ax.set_xlabel('Longitude  (deg)')
         if title is not None:
-            plt.title(title + r', $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
+            ax.set_title(title + r', $\nu$ = {:2.1f} GHz, $\Delta\nu$ = {:2.1f} GHz'.format(self.nu[0]*1e-9,self.bandwidth))
 
-        if xlim: 
-            locs = np.linspace(xlim[0],xlim[-1],5)
-            labels = []  
-            for i in range(len(locs)): 
-                if locs[i]<=0: 
-                    labels.append(str(np.abs(locs[i]))) 
-                else: 
-                    labels.append(str(360 - locs[i])) 
+        # if xlim: 
+        #     locs = np.linspace(xlim[0],xlim[-1],5)
+        #     labels = []  
+        #     for i in range(len(locs)): 
+        #         if locs[i]<=0: 
+        #             labels.append(str(np.abs(locs[i]))) 
+        #         else: 
+        #             labels.append(str(360 - locs[i])) 
 
-        else:         
-            locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
-            labels=['150','120','90','60','30','0','330','300','270','240','210'] 
+        # else:         
+        #     locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
+        #     labels=['150','120','90','60','30','0','330','300','270','240','210'] 
 
-            if roll == 180: 
-                locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
-                labels=['330','300','270','240','180','150','210','120','90','60','30',] 
+        #     if roll == 180: 
+        #         locs = [-150,-120,-90,-60,-30,0,30,60,90,120,150] 
+        #         labels=['330','300','270','240','180','150','210','120','90','60','30',] 
+        #ax.set_xticks(locs, labels,)  
+        
 
-
-        plt.xticks(locs, labels,)  
         ax.set_rasterized(True)
 
         if displaycolorbar: 
@@ -3732,12 +3752,12 @@ class Map:
             if clim != [0,0]:
                 cbar = plt.colorbar(cs,ticks = [clim[0],clim[0]/2, 0, clim[1]/2, clim[1]], cax = cbaxes,orientation = 'horizontal')
                 #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.1f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
-                cbar.set_label('[K]')
+                cbar.set_label(r'$\Delta T_B$ (K)') 
             else: 
-                cbar = plt.colorbar(cs, cax = cbaxes,orientation = 'horizontal')
+                cbar = plt.colorbar(cs, cax = cbaxes, orientation = 'horizontal')
                 #cbar.ax.set_yticklabels(['< {:d}'.format(clim[0]),' {:2.1f}'.format(clim[0]/2), '0', '{:2.1f}'.format(clim[1]/2), '> {:d}'.format(clim[1])])  # vertically oriented colorbar
             
-            cbar.set_label('[K]') 
+            cbar.set_label(r'$\Delta T_B$ (K)') 
         plt.show()
 
 

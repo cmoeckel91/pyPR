@@ -705,7 +705,7 @@ class PJ:
         self.C1.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C1.skyandplanet    = (self.C1.sky  == False) & (self.C1.planet == False) 
         self.C1.indices_sandp   = self.indices[np.where(self.C1.skyandplanet==True)].astype(int) 
-        self.C1.synchrotron_filter = [1,89]
+        self.C1.synchrotron_filter = [45,89] # Used to be [1,89]
 
         # Antenna temperatures 
         self.C1.T_a   = np.mean([pj['R1_1TA'].values, pj['R1_2TA'].values],axis=0) 
@@ -800,7 +800,7 @@ class PJ:
         self.C2.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C2.skyandplanet    = (self.C2.sky  == False) & (self.C2.planet == False) 
         self.C2.indices_sandp   = self.indices[np.where(self.C2.skyandplanet==True)].astype(int) 
-        self.C2.synchrotron_filter = [10,89]
+        self.C2.synchrotron_filter = [45,89] # [10,89]
 
         # Antenna temperatures 
         self.C2.T_a   = np.mean([pj['R2_1TA'].values, pj['R2_2TA'].values],axis=0) 
@@ -891,7 +891,7 @@ class PJ:
         self.C3.indices_sky     = self.indices[np.where(self.C1.sky==True)].astype(int)   
         self.C3.skyandplanet    = (self.C3.sky  == False) & (self.C3.planet == False) 
         self.C3.indices_sandp   = self.indices[np.where(self.C3.skyandplanet==True)].astype(int) 
-        self.C3.synchrotron_filter = [10,75]
+        self.C3.synchrotron_filter = [45,75] # # [20,89]
 
         # Antenna temperatures
         self.C3.T_a   = pj['R3TA'].values 
@@ -2164,8 +2164,7 @@ class PJ:
 
 
 
-
-    def ProduceDeconvolvedMaps(self, channel, lat_range, hpbwscale=2, filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 15, restart=True): 
+    def ProduceDeconvolvedMaps(self, channel, lat_range, hpbwscale=2, filter=True, eafilter=90, lat_convergen_stats=90, savenametail = None, ITR_max = 15, runaway=1.2, restart=True): 
         ''' 
 
         import pyPR.JunoTools as jt 
@@ -2250,6 +2249,7 @@ class PJ:
         itr = 0 
         TMap[itr,...] = T_m 
         pMap[itr,...] = p_m 
+        dT = None # Pass in previous iteration to check for convergence. If for a given deconvolution, the amplitude is growing something is off
        
         while not convergence and itr<ITR_max:  
             itr += 1 
@@ -2258,7 +2258,8 @@ class PJ:
                 statplots = f'{savenametail}_i{itr}' 
             else: 
                 statplots = savenametail 
-            DTMap,DpMap,dT,G,CoverageMap = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], ld_strategy='correlation',  beamscaling = hpbwscale, hpbwscale=hpbwscale,  asampling=10, statplots=f'{savenametail}_i{itr+itr_0}', plotting=False,  verbose = False, normalized=False )
+            dT_prev = dT
+            DTMap,DpMap,dT,G,CoverageMap = self.BeamDeconvolution(idxplf, channel, [T_m,p_m], dT_prev_iter = dT, ld_strategy='correlation',  beamscaling = hpbwscale, hpbwscale=hpbwscale,  runaway=runaway, asampling=10, statplots=f'{savenametail}_i{itr+itr_0}', plotting=False,  verbose = False, normalized=False )
 
             # Updates the models: 
             T_m +=  DTMap 
@@ -2275,9 +2276,12 @@ class PJ:
 
             # Converge diagnostic
             # ---------------------------------------------------------- 
+            # Remove run away points for statistics since they have been removed 
 
-            DT_avg[itr-1] = np.mean(dT) 
-            DT_std[itr-1] = np.std(dT) 
+            if dT_prev is not None: dT[np.where(dT/dT_prev > runaway)] = np.nan
+
+            DT_avg[itr-1] = np.nanmean(dT) 
+            DT_std[itr-1] = np.nanstd(dT) 
             
             # Compute statistics only for inner x degree 
             lat_c_center = eval(f'self.C{channel}.lat_c[idxplf]') 
@@ -2288,8 +2292,8 @@ class PJ:
                 DT_avg_ir[itr-1] = 0 
                 DT_std_ir[itr-1] = 0 
             else: 
-                DT_avg_ir[itr-1] = np.mean(dT[idx_ir])
-                DT_std_ir[itr-1] = np.std(dT[idx_ir])
+                DT_avg_ir[itr-1] = np.nanmean(dT[idx_ir])
+                DT_std_ir[itr-1] = np.nanstd(dT[idx_ir])
 
             print(f'PJ{self.PJnumber} - C{channel} - Iteration {itr+itr_0}: Average,std DT (global) ({DT_avg[itr-1]:2.3f},{DT_std[itr-1]:2.3f}) (K), Average/std DT (<{lat_convergen_stats:2.0f}): ({DT_avg_ir[itr-1]:2.3f},{DT_std_ir[itr-1]:2.3f}) (K) ')
 
@@ -2307,11 +2311,11 @@ class PJ:
             #             nitr_c = itr-2
             
 
-            # Determmine convergence 
+            # Determmine convergence (changed to 3% and 5%, respectively)
             if itr > 1: 
                 if lat_convergen_stats < 90: 
-                    print(DT_std_ir[itr-2],1.01*DT_std_ir[itr-1])
-                    if DT_std_ir[itr-2] < 1.01*DT_std_ir[itr-1]: 
+                    print(DT_std_ir[itr-2],1.03*DT_std_ir[itr-1])
+                    if DT_std_ir[itr-2] < 1.03*DT_std_ir[itr-1]: 
                         convergence = True 
                         nitr = itr
                         nitr_c = itr-1
@@ -2387,7 +2391,7 @@ class PJ:
 
     
 
-    def BeamDeconvolution(self, idxs, channel, Maps, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2,  asampling=10, sidelobesupression=5, plotting=False, gaussian=False, statplots=False, pltca=True, verbose=False, normalized=True ):
+    def BeamDeconvolution(self, idxs, channel, Maps, dT_prev_iter = None, ld_strategy='correlation',  beamscaling = 1, hpbwscale=2, runaway=1.2,  asampling=10, sidelobesupression=5 , plotting=False, gaussian=False, statplots=False, pltca=True, verbose=False, normalized=True ):
         """
         Convolve a single beam with an apriori map and obtain the difference 
     
@@ -2537,6 +2541,8 @@ class PJ:
         from glob import glob
         from tqdm import tqdm
         import scipy 
+        from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans 
+
 
 
         if np.size(idxs) == 1: idxs = [idxs]
@@ -2814,9 +2820,15 @@ class PJ:
                 print(f'PJ{self.PJnumber}: Beam convolution returned Nan')
                 print(idx)
                 continue 
-            else: 
-                DeltaT[n] = eval(f'self.C{channel}.T_a[idx]')  - T_beam
+            
+            
+            DeltaT[n] = eval(f'self.C{channel}.T_a[idx]')  - T_beam
 
+
+
+
+            # Check if DeltaT is running away, if DeltaT is growing then something is very wrong. Observed specifically in PJ19 
+            if (dT_prev_iter is not None) and (np.abs(DeltaT[n]/dT_prev_iter[n])>runaway): continue 
             if verbose: print(f'Beam Conv {time.time() - t0:2.5f}')
 
 
@@ -2840,8 +2852,8 @@ class PJ:
                     print(f'Infinity encountered for {idx}')
 
                 GMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam
-                TMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]
-                #TMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam/np.cos(mu_i)**p_b*DeltaT[n]
+                #Map[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]
+                TMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam/(np.cos(mu_i)**p_b)*DeltaT[n]
                 pMap[IDXmap[:,:,1],IDXmap[:,:,0]] += Gbeam*DeltaT[n]*Tvp_c[0]
 
 
@@ -2857,10 +2869,28 @@ class PJ:
         NormMap[NormMap<sidelobesupression] = sidelobesupression*np.log10(NormMap[NormMap<sidelobesupression])**(-1)
 
 
+        # Intead of gaussian_filter use replace NaNs. This will deal with NaNs to the edge of the domain, and possibly even increase the domain.
+
+        # Update the model map This was used for for version 7 
+        DeltaTMap   = scipy.ndimage.gaussian_filter(TMap/NormMap,1) # kernel used to be 1, Normalize the map by number of beams 
+        DeltapMap   = scipy.ndimage.gaussian_filter(pMap/NormMap,1) # kernel used to be 1, Normalize the map by number of beams 
+
+        # Maps look better but less contrasts in structure 
+        # kernel = Gaussian2DKernel(x_stddev=1) # Was 0.33 for version 12 
+        # DeltaTMap   = interpolate_replace_nans(TMap/NormMap,kernel) # Normalize the map by number of beams 
+        # DeltapMap   = interpolate_replace_nans(pMap/NormMap,kernel) # Normalize the map by number of beams 
 
         # Update the model map 
-        DeltaTMap   = scipy.ndimage.gaussian_filter(TMap/NormMap,1) # Normalize the map by number of beams 
-        DeltapMap   = scipy.ndimage.gaussian_filter(pMap/NormMap,1) # Normalize the map by number of beams 
+        # DeltaTMap   = scipy.ndimage.gaussian_filter(TMap/NormMap,1) # kernel used to be 1, Normalize the map by number of beams 
+        # DeltapMap   = scipy.ndimage.gaussian_filter(pMap/NormMap,1) # kernel used to be 1, Normalize the map by number of beams 
+
+        # # Maps look better but less contrasts in structure  
+        # kernel = Gaussian2DKernel(x_stddev=1) # Was 0.33 for version 12 
+        # DeltaTMap   = scipy.ndimage.gaussian_filter(interpolate_replace_nans(TMap/NormMap,kernel),0.5) # Normalize the map by number of beams 
+        # DeltapMap   = scipy.ndimage.gaussian_filter(interpolate_replace_nans(pMap/NormMap,kernel),0.5) # Normalize the map by number of beams 
+
+
+
 
         DeltaTMap[np.isnan(DeltaTMap)] = 0   
         DeltapMap[np.isnan(DeltapMap)] = 0   
@@ -2902,7 +2932,7 @@ class PJ:
 
 
     def DeconvolveBeams(self, lat_range, channel, fltr=True, sampling=10, I_max = 6, beamscaling = 0.5, verbose=False, plotting=False, path2map=None, path2save=None, savedata=True): 
-        ''' Deconvolve Juno beams and get sub beam resolution 
+        ''' Deconvolve Juno beams and get sub beam resolution - Old methods 
 
     
         import pyPR.JunoTools as jt 
@@ -5498,7 +5528,7 @@ class PJ:
             # Find all the indicies where the observations are on the planet 
             idxpl = np.intersect1d(self.indices[idx] , eval(f'self.C{channel:d}.indices_planet') ).astype(int)
             
-            # Ideally load in indices_science but need to reun PJ1 
+            # Ideally load in indices_science but need to rerun PJ1 
             try: 
                 ind_sc = eval(f'self.C{channel:d}.indices_science') 
                 idxplf = ind_sc[np.logical_and((eval(f'self.C{channel:d}.lat_c[ind_sc]') > lat_llim), (eval(f'self.C{channel:d}.lat_c[ind_sc]') < lat_ulim))]
