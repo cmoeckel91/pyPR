@@ -253,7 +253,7 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
                 radii = radii.split('km')[0]
                 R = np.zeros(3) # Radius (km)
                 for j in range(3):
-                    R[j] = np.float(radii.split(',')[j])
+                    R[j] = float(radii.split(',')[j].strip())
             # get observatory lat, lon, alt for later
             if ephem[i].startswith('Center geodetic'):
                 l = ephem[i].split(':')[1]
@@ -508,7 +508,7 @@ def brightnessmap(R,r_pla, x,y,T_dab,p, conv = 0.01, verbose=False):
     # Avoid singularities 
     zv[zv==0] = float('nan')
     # Obtain the emission angle 
-    th = np.arccos((zv)/np.sqrt(np.float64(xv**2+yv**2+zv**2)))
+    th = np.arccos((zv)/np.sqrt(xv**2+yv**2+zv**2))
     
     # Where the value is nan, the model should be zero 
     th[~np.isfinite(th)] = np.pi/2.
@@ -1755,7 +1755,7 @@ def rotateprincipalaxis(R, ob_lat):
     b = (R[2]*np.cos(np.radians(ob_lat))**2 
             + R[1]*np.sin(np.radians(ob_lat))**2)
 
-    return [a,b]
+    return a[0],b[0]
 
 
 def ellipsoid_intersection(axes,n, q= np.array([0,0,0]) ): 
@@ -3006,7 +3006,7 @@ def align_projections(proj, normalize = False, refimage=0, xalign = True, scope 
         else: xp = x_c
             
 
-        offsets.append((np.float(xp-x_c),np.float(yp-y_c)))
+        offsets.append((float(xp-x_c),float(yp-y_c)))
 
 
 
@@ -4965,8 +4965,8 @@ class Model:
         hdu_out[0].header['NAXIS3'] = 1
         hdu_out[0].header['NAXIS4'] = 1
         hdu_out[0].header['BUNIT'] = units 
-        hdu_out[0].header['BMIN'] = np.float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
-        hdu_out[0].header['BMAJ'] = np.float(self.pixscale)/3600
+        hdu_out[0].header['BMIN'] = float(self.pixscale)/3600 #set beam size equal to one pixel so uvsub doesnt get confused
+        hdu_out[0].header['BMAJ'] = float(self.pixscale)/3600
         hdu_out[0].header['CRPIX1'] =hdu_out[0].data.shape[0]/2
         hdu_out[0].header['CDELT1']  =  -1*self.pixscale/360  
         hdu_out[0].header['CRPIX2'] =hdu_out[0].data.shape[1]/2
