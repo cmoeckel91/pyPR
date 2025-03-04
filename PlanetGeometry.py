@@ -201,6 +201,8 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
 
     from urllib.request import urlopen
     import urllib 
+    import ssl 
+
 
     # IF no end time is provided, simulate batch mode 
     try: 
@@ -239,8 +241,11 @@ def get_ephemerides(code, tstart, tend , nstep , obs_code = '500') :
 
     # 1,2,4,9,10,13,14,19-21,24,29,32
 
+    context = ssl._create_unverified_context()
+
+
     url = urllib.parse.quote(http+make_ephem+command+center+t_start+t_stop+t_step+quantities+csv, safe=':/?=&,')    
-    ephem = urlopen( url ).readlines()
+    ephem = urlopen(url,context=context).readlines()
 
     inephem = False
     data = []
