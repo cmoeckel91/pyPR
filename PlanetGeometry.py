@@ -2720,7 +2720,8 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
     -------
     5/7/2018, CM, Initial Commit
     '''
-
+    from scipy.interpolate import interp1d
+    
     if planetname.casefold().strip() != 'jupiter': 
         sys.exit('Functionality only available for Jupiter')
 
@@ -2809,7 +2810,7 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
             [28.6192, 385.75061],
             [30.2636, 392.99259],] ))
 
-    interpT = scipy.interpolate.interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1],bounds_error=False)
+    interpT = interp1d(cst.c.value/(temperature[:,0]/100),temperature[:,1],bounds_error=False)
 
     # limb darkening 
     # GHz, limb darkening coefficient 
@@ -2830,7 +2831,7 @@ def interpmodelparams(f, planetname = 'jupiter', units = 'hz', printoutput = Fal
              [25.00 ,0.06 ],]))
 
 
-    intperld = scipy.interpolate.interp1d(limbd[:,0]*1e9,limbd[:,1],bounds_error=False)
+    intperld = interp1d(limbd[:,0]*1e9,limbd[:,1],bounds_error=False)
 
 
     # Convert to units of cm 
